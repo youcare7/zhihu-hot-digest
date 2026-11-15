@@ -1,0 +1,68 @@
+{
+  "date": "2026-11-15",
+  "source": "fallback",
+  "generated_at": "静态兜底",
+  "notice": "当前为演示兜底数据，接口暂不可用",
+  "items": [
+    {
+      "rank": 1,
+      "title": "如何看待 AI 辅助编程工具的普及？",
+      "question_url": "https://www.zhihu.com/hot",
+      "background": "AI 编程助手已进入日常开发流程，企业开始调整初级岗位技能要求。争论集中在「工具替代」与「能力升级」的边界，以及编程基础教育如何应变。",
+      "viewpoints": {
+        "support": "工具淘汰的是重复劳动，释放的时间可以投入设计与判断。",
+        "oppose": "跳过基础训练直接依赖生成，出问题时会失去定位能力。",
+        "undecided": "与其争论要不要用，不如重建以审读和验证为核心的学习路径。"
+      },
+      "reading": [
+        { "title": "知乎站内讨论：AI 编程工具的真实使用体验", "url": "https://www.zhihu.com/search?type=content&q=AI%20%E7%BC%96%E7%A8%8B%E5%B7%A5%E5%85%B7%20%E4%BD%93%E9%AA%8C", "reason": "汇集一线开发者长期使用后的对照观点。" },
+        { "title": "知乎站内讨论：程序员还需要学写代码吗", "url": "https://www.zhihu.com/search?type=content&q=%E7%A8%8B%E5%BA%8F%E5%91%98%20%E8%BF%98%E9%9C%80%E8%A6%81%E5%AD%A6%E5%86%99%E4%BB%A3%E7%A0%81%20AI", "reason": "覆盖支持与反对两方的代表性讨论。" }
+      ]
+    },
+    {
+      "rank": 2,
+      "title": "年轻人为什么越来越不爱换手机？",
+      "question_url": "https://www.zhihu.com/hot",
+      "background": "换机周期从一两年延长到三四年，创新趋缓与价格上行是主因。厂商转向以旧换新与 AI 功能刺激换机，效果仍有待观察。",
+      "viewpoints": {
+        "support": "手机性能过剩，不换新是理性的消费选择。",
+        "oppose": "不是不想换，是新品创新不足撑不起换机成本。",
+        "undecided": "AI 功能如果能带来体验跃迁，周期可能重新缩短。"
+      },
+      "reading": [
+        { "title": "知乎站内讨论：换机周期变长的原因", "url": "https://www.zhihu.com/search?type=content&q=%E6%8D%A2%E6%9C%BA%E5%91%A8%E6%9C%9F%20%E5%8F%98%E9%95%BF%20%E6%89%8B%E6%9C%BA", "reason": "从消费行为角度拆解这一趋势。" },
+        { "title": "知乎站内讨论：以旧换新值不值", "url": "https://www.zhihu.com/search?type=content&q=%E4%BB%A5%E6%97%A7%E6%8D%A2%E6%96%B0%20%E6%89%8B%E6%9C%BA%20%E5%80%BC%E4%B8%8D%E5%80%BC", "reason": "给仍在犹豫换机的人一份决策参考。" }
+      ]
+    },
+    {
+      "rank": 3,
+      "title": "「断亲」现象引发热议，如何看待？",
+      "question_url": "https://www.zhihu.com/hot",
+      "background": "部分年轻人减少与远亲往来，把精力投向小家庭与好友圈。讨论涉及代际观念差异、城市化带来的亲缘结构变化，以及「断亲」是否等于冷漠。",
+      "viewpoints": {
+        "support": "低质量社交不如高质量独处，亲缘也应以舒适为界。",
+        "oppose": "亲缘是长期互助网络，断掉容易，需要用时会后悔。",
+        "undecided": "断的多是形式性往来，核心亲情未必受影响，不必过度解读。"
+      },
+      "reading": [
+        { "title": "知乎站内讨论：断亲是理性选择吗", "url": "https://www.zhihu.com/search?type=content&q=%E6%96%AD%E4%BA%B2%20%E7%90%86%E6%80%A7%E9%80%89%E6%8B%A9", "reason": "呈现支持与担忧两种立场的真实表达。" },
+        { "title": "知乎站内讨论：代际观念差异从哪来", "url": "https://www.zhihu.com/search?type=content&q=%E4%BB%A3%E9%99%85%E8%A7%82%E5%BF%B5%E5%B7%AE%E5%BC%82%20%E4%BA%B2%E6%88%9A", "reason": "把现象放回社会结构变化里理解。" }
+      ]
+    },
+    {
+      "rank": 4,
+      "title": "如何看待大学陆续开设人工智能通识课？",
+      "question_url": "https://www.zhihu.com/hot",
+      "background": "多所高校把 AI 通识课纳入必修或选修体系，覆盖从原理到工具的多个层次。争议点在于师资缺口、课程同质化，以及文科专业该学到什么深度。",
+      "viewpoints": {
+        "support": "AI 正在成为通用基础能力，通识课像当年的计算机基础一样必要。",
+        "oppose": "师资和课程都没准备好， rushing 开课容易变成工具培训。",
+        "undecided": "方向正确，关键是分专业设计深度，避免一门课包打天下。"
+      },
+      "reading": [
+        { "title": "知乎站内讨论：AI 通识课应该教什么", "url": "https://www.zhihu.com/search?type=content&q=AI%20%E9%80%9A%E8%AF%86%E8%AF%BE%20%E6%95%99%E4%BB%80%E4%B9%88", "reason": "来自师生双方对课程内容的真实讨论。" },
+        { "title": "知乎站内讨论：文科生需要学 AI 吗", "url": "https://www.zhihu.com/search?type=content&q=%E6%96%87%E7%A7%91%E7%94%9F%20%E5%AD%A6%20AI%20%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD", "reason": "回应「学到什么深度」这一核心疑问。" }
+      ]
+    }
+  ]
+}
