@@ -72,8 +72,8 @@ PROMPT_TEMPLATE = (
     "（reason ≤30 字，说明“为什么值得点开”，不要复述标题）。\n"
     "4. 只输出一个 JSON 对象，不要 markdown 代码块、不要解释文字、不要输出任何 URL。\n\n"
     "【输出 JSON 结构】\n"
-    '{"background":"...","viewpoints":{"support":"...","oppose":"...","undecided":"..."},'
-    ' "reading":[{"index":1,"reason":"..."},{"index":2,"reason":"..."}]}'
+    '{{"background":"...","viewpoints":{{"support":"...","oppose":"...","undecided":"..."}},'
+    ' "reading":[{{"index":1,"reason":"..."}},{{"index":2,"reason":"..."}}]}}'
 )
 
 
@@ -165,6 +165,23 @@ def _chat(url: str, headers: dict, payload: dict, label: str) -> str:
         raise UpstreamError(f"{label} 返回结构异常：{str(body)[:200]}") from exc
 
 
+RETRY_WAIT = int(os.environ.get("RETRY_WAIT", "20"))   # 429 限流后的等待秒数
+RETRY_TIMES = int(os.environ.get("RETRY_TIMES", "4"))  # 含首次共尝试次数
+
+
+def _chat_with_retry(url: str, headers: dict, payload: dict, label: str) -> str:
+    """限流友好：遇 429 按 RETRY_WAIT 秒退避重试。简报每日只生成一次，慢一点没关系。"""
+    for attempt in range(1, RETRY_TIMES + 1):
+        try:
+            return _chat(url, headers, payload, label)
+        except UpstreamError as exc:
+            if "429" in str(exc) and attempt < RETRY_TIMES:
+                _log(f"{label} 触发限流（429），{RETRY_WAIT} 秒后重试（第 {attempt}/{RETRY_TIMES - 1} 次）")
+                time.sleep(RETRY_WAIT)
+                continue
+            raise
+
+
 def generate_brief(title: str, candidates_text: str) -> dict:
     """调大模型生成一条热点的简报内容，返回解析后的 dict。
 
@@ -174,7 +191,7 @@ def generate_brief(title: str, candidates_text: str) -> dict:
     messages = [{"role": "user", "content": prompt}]
 
     if not (MODEL_API_KEY and MODEL_BASE and MODEL_NAME):
-        text = _chat(
+        text = _chat_with_retry(
             ZHIHU_BASE + "/v1/chat/completions",
             zhihu_headers(),
             {"model": ZHIDA_MODEL, "messages": messages, "stream": False},
@@ -183,7 +200,7 @@ def generate_brief(title: str, candidates_text: str) -> dict:
         return extract_json(text)
 
     try:
-        text = _chat(
+        text = _chat_with_retry(
             ZHIHU_BASE + "/v1/chat/completions",
             zhihu_headers(),
             {"model": ZHIDA_MODEL, "messages": messages, "stream": False},
