@@ -16,6 +16,7 @@ import os
 import pathlib
 import re
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -424,6 +425,9 @@ def generate(title: str, candidates_text: str) -> dict:
 # ---------------------------------------------------------------------------
 # 缓存 / 兜底
 # ---------------------------------------------------------------------------
+_GEN_LOCK = threading.Lock()   # 防止并发请求同时触发双倍生成（额度保护）
+
+
 def cache_path() -> pathlib.Path:
     return DATA_DIR / f"brief_{today_str()}.json"
 
@@ -469,12 +473,20 @@ def load_fallback() -> dict:
 
 
 def get_brief() -> dict:
-    """路由核心逻辑（任务书 4.8）：缓存 → 实时生成 → 兜底。"""
+    """路由核心逻辑（任务书 4.8）：缓存 → 实时生成 → 兜底。
+
+    生成全程加锁：首个请求生成期间，其余请求阻塞等待，拿到锁后
+    先复查缓存（等待期间可能已生成完），杜绝并发双倍生成吃掉每日额度。
+    """
     try:
         cached = load_today_cache()
         if cached:
             return cached
-        return generate_and_cache()
+        with _GEN_LOCK:
+            cached = load_today_cache()
+            if cached:
+                return cached
+            return generate_and_cache()
     except Exception as exc:
         _log(f"生成失败，切换到静态兜底：{exc}")
         return load_fallback()
