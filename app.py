@@ -166,8 +166,8 @@ def _chat(url: str, headers: dict, payload: dict, label: str) -> str:
         raise UpstreamError(f"{label} 返回结构异常：{str(body)[:200]}") from exc
 
 
-RETRY_WAIT = int(os.environ.get("RETRY_WAIT", "20"))   # 429 限流后的等待秒数
-RETRY_TIMES = int(os.environ.get("RETRY_TIMES", "4"))  # 含首次共尝试次数
+RETRY_WAIT = int(os.environ.get("RETRY_WAIT", "30"))   # 429 限流后的等待秒数
+RETRY_TIMES = int(os.environ.get("RETRY_TIMES", "6"))  # 含首次共尝试次数
 
 
 def _chat_with_retry(url: str, headers: dict, payload: dict, label: str) -> str:
@@ -330,6 +330,18 @@ def build_brief() -> dict:
         notice += f" 热榜接口本次仅返回 {len(hot_items)} 条，按实际条数展示。"
 
     items = [process_item(i + 1, hot) for i, hot in enumerate(hot_items)]
+
+    # 收尾补跑：首轮仍处降级态的条目再试一轮。429 突发通常几十秒内过去，
+    # 补跑能把「9/10」这类单条永久降级压到最低，且不改变 PRD 锁定的功能边界。
+    degraded = [i for i, it in enumerate(items) if it["background"] == NO_BACKGROUND]
+    if degraded:
+        _log(f"首轮生成完成，{len(degraded)} 条降级，收尾补跑")
+        time.sleep(RETRY_WAIT)  # 先让限流窗口过去再补跑
+        for idx in degraded:
+            items[idx] = process_item(items[idx]["rank"], hot_items[idx])
+        ok = sum(1 for it in items if it["background"] != NO_BACKGROUND)
+        _log(f"补跑完成：{ok}/{len(items)} 条生成成功")
+
     return {
         "date": today_str(),
         "source": "live",
