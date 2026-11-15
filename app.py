@@ -86,12 +86,19 @@ def _log(msg: str) -> None:
     print(f"[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}] {msg}", flush=True)
 
 
+try:  # 显式用北京时间，避免容器 UTC 导致缓存日期键/展示日期与读者差一天
+    from zoneinfo import ZoneInfo
+    CN_TZ = ZoneInfo("Asia/Shanghai")
+except Exception:  # 极简镜像缺 tzdata 时退化为固定 UTC+8
+    CN_TZ = datetime.timezone(datetime.timedelta(hours=8))
+
+
 def today_str() -> str:
-    return datetime.date.today().strftime("%Y-%m-%d")
+    return datetime.datetime.now(CN_TZ).strftime("%Y-%m-%d")
 
 
 def now_str() -> str:
-    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    return datetime.datetime.now(CN_TZ).strftime("%Y-%m-%d %H:%M")
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +175,11 @@ def _chat(url: str, headers: dict, payload: dict, label: str) -> str:
 
 RETRY_WAIT = int(os.environ.get("RETRY_WAIT", "30"))   # 429 限流后的等待秒数
 RETRY_TIMES = int(os.environ.get("RETRY_TIMES", "6"))  # 含首次共尝试次数
+
+# 缓存有效期（小时）：过期后由访问流量惰性触发后台刷新（stale-while-revalidate），
+# 不引入定时任务；<=0 时恢复「每日只生成一次」的旧行为。
+CACHE_TTL_SECONDS = int(float(os.environ.get("CACHE_TTL_HOURS", "3")) * 3600)
+_REFRESH_LOCK = threading.Lock()   # 保证同时只有一个后台刷新线程
 
 
 def _chat_with_retry(url: str, headers: dict, payload: dict, label: str) -> str:
@@ -444,6 +456,14 @@ def cache_path() -> pathlib.Path:
     return DATA_DIR / f"brief_{today_str()}.json"
 
 
+def cache_age_seconds() -> float | None:
+    """当前当日缓存的年龄（秒）；无缓存返回 None。"""
+    path = cache_path()
+    if not path.exists():
+        return None
+    return time.time() - path.stat().st_mtime
+
+
 def load_today_cache() -> dict | None:
     """FR-07：当天已有缓存则直接读取，秒开。"""
     path = cache_path()
@@ -484,15 +504,46 @@ def load_fallback() -> dict:
     return data
 
 
+def _maybe_background_refresh() -> None:
+    """缓存超过 TTL 则后台静默刷新（stale-while-revalidate）：
+    本次请求照常秒回旧缓存，生成完成后后续访客自动拿到新版。"""
+    if CACHE_TTL_SECONDS <= 0:
+        return
+    age = cache_age_seconds()
+    if age is None or age <= CACHE_TTL_SECONDS:
+        return
+    if not _REFRESH_LOCK.acquire(blocking=False):
+        return  # 已有刷新线程在跑
+    _log(f"缓存已 {int(age // 60)} 分钟未更新（TTL {CACHE_TTL_SECONDS // 3600} 小时），触发后台自动刷新")
+    threading.Thread(target=_background_refresh, daemon=True).start()
+
+
+def _background_refresh() -> None:
+    try:
+        with _GEN_LOCK:
+            age = cache_age_seconds()
+            if age is not None and age <= CACHE_TTL_SECONDS:
+                return  # 等锁期间已被别的请求刷新过
+            _log("后台自动刷新开始")
+            generate_and_cache()
+            _log("后台自动刷新完成")
+    except Exception as exc:
+        _log(f"后台自动刷新失败（旧缓存继续服务，页面不受影响）：{exc}")
+    finally:
+        _REFRESH_LOCK.release()
+
+
 def get_brief() -> dict:
     """路由核心逻辑（任务书 4.8）：缓存 → 实时生成 → 兜底。
 
     生成全程加锁：首个请求生成期间，其余请求阻塞等待，拿到锁后
     先复查缓存（等待期间可能已生成完），杜绝并发双倍生成吃掉每日额度。
+    缓存命中但超过 TTL 时，后台静默刷新，本次请求不受影响。
     """
     try:
         cached = load_today_cache()
         if cached:
+            _maybe_background_refresh()
             return cached
         with _GEN_LOCK:
             cached = load_today_cache()
