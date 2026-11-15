@@ -6,62 +6,94 @@
   "items": [
     {
       "rank": 1,
-      "title": "如何看待 AI 辅助编程工具的普及？",
-      "question_url": "https://www.zhihu.com/hot",
-      "background": "AI 编程助手已进入日常开发流程，企业开始调整初级岗位技能要求。争论集中在「工具替代」与「能力升级」的边界，以及编程基础教育如何应变。",
+      "title": "外媒曝中国男足再度收紧纹身限制，国脚需佩戴肤色护臂遮盖，对此你怎么看，国家队限制纹身外露是否合理？",
+      "question_url": "https://www.zhihu.com/question/2104152081246282219?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "background": "法国《队报》11月11日报道，中国男足近期再度收紧国脚纹身限制，要求手臂大面积纹身者比赛时佩戴肤色护臂遮盖。该规定自2018年中国杯后时紧时松，2020年一度放宽，2026年秋三连败后重新从严，足协与国家队均未回应。",
       "viewpoints": {
-        "support": "工具淘汰的是重复劳动，释放的时间可以投入设计与判断。",
-        "oppose": "跳过基础训练直接依赖生成，出问题时会失去定位能力。",
-        "undecided": "与其争论要不要用，不如重建以审读和验证为核心的学习路径。"
+        "support": "合理，运动员应一视同仁，田径等项目同样遮盖纹身，足球不该开绿灯，纹身也违背传统观念。",
+        "oppose": "纹身属个人选择，核心标准应是竞技水平；禁令是避重就轻，掩盖青训、联赛等真问题。",
+        "undecided": "站内暂无明确该立场声音"
       },
       "reading": [
-        { "title": "知乎站内讨论：AI 编程工具的真实使用体验", "url": "https://www.zhihu.com/search?type=content&q=AI%20%E7%BC%96%E7%A8%8B%E5%B7%A5%E5%85%B7%20%E4%BD%93%E9%AA%8C", "reason": "汇集一线开发者长期使用后的对照观点。" },
-        { "title": "知乎站内讨论：程序员还需要学写代码吗", "url": "https://www.zhihu.com/search?type=content&q=%E7%A8%8B%E5%BA%8F%E5%91%98%20%E8%BF%98%E9%9C%80%E8%A6%81%E5%AD%A6%E5%86%99%E4%BB%A3%E7%A0%81%20AI", "reason": "覆盖支持与反对两方的代表性讨论。" }
+        {
+          "title": "外媒曝中国男足再度收紧纹身限制,国脚需佩戴肤色护臂遮盖,对此你怎么看,国家队限制纹身外露是否合理? - 知乎",
+          "url": "https://www.zhihu.com/question/2104152081246282219/answer/2105103308511888164?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "从个人自由与创造力角度切入，视角独特"
+        },
+        {
+          "title": "法国《队报》报道称国足收紧纹身限制,足协与国家队均未回应 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2105367283589706215?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "梳理禁令八年松紧脉络，背景信息完整"
+        }
       ]
     },
     {
       "rank": 2,
-      "title": "年轻人为什么越来越不爱换手机？",
-      "question_url": "https://www.zhihu.com/hot",
-      "background": "换机周期从一两年延长到三四年，创新趋缓与价格上行是主因。厂商转向以旧换新与 AI 功能刺激换机，效果仍有待观察。",
+      "title": "中国新能源企业在芬建厂涉人口贩运调查，出海中企该如何规避海外用工合规风险？",
+      "question_url": "https://www.zhihu.com/question/2105092208948933353?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "background": "2026年夏，芬兰科特卡当升科技控股电池材料厂工地，300余名中国工人向芬兰媒体发出三语求助邮件，反映薪资克扣、高额食宿扣款、合同不一致等问题。9月10日警方立案，10月30日通报以劳动型人口贩运、严重协助非法入境调查，9人被拘留、4人羁押。",
       "viewpoints": {
-        "support": "手机性能过剩，不换新是理性的消费选择。",
-        "oppose": "不是不想换，是新品创新不足撑不起换机成本。",
-        "undecided": "AI 功能如果能带来体验跃迁，周期可能重新缩短。"
+        "support": "芬兰矿业集团已完成独立合规核查，认定违规或系分包环节人员所为，总包承诺按集体协议兜底，项目层面难言知情。",
+        "oppose": "不少声音认为这是把国内层层分包、工资回流、食宿扣款等灰色套路直接搬到海外，并非管理疏忽而是系统性设计。",
+        "undecided": "争议在于责任如何划分：分包商行为能否追溯到发包方，供应商责任是否随合同层级切断，目前仍是刑事嫌疑尚未定罪。"
       },
       "reading": [
-        { "title": "知乎站内讨论：换机周期变长的原因", "url": "https://www.zhihu.com/search?type=content&q=%E6%8D%A2%E6%9C%BA%E5%91%A8%E6%9C%9F%20%E5%8F%98%E9%95%BF%20%E6%89%8B%E6%9C%BA", "reason": "从消费行为角度拆解这一趋势。" },
-        { "title": "知乎站内讨论：以旧换新值不值", "url": "https://www.zhihu.com/search?type=content&q=%E4%BB%A5%E6%97%A7%E6%8D%A2%E6%96%B0%20%E6%89%8B%E6%9C%BA%20%E5%80%BC%E4%B8%8D%E5%80%BC", "reason": "给仍在犹豫换机的人一份决策参考。" }
+        {
+          "title": "求助邮件揭开锂电出海大案!当升芬兰科特卡正极工地涉劳动贩运调查,9 人被拘留、4 人羁押 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2100613308302860587?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "瑞典式法律解读：为何被定性为人口贩运而非劳资纠纷"
+        },
+        {
+          "title": "全球供应链监管下中国企业境外劳动用工的法律风险与合规应对 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2104578136125989613?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "梳理境外用工法律风险与供应链监管连带责任"
+        }
       ]
     },
     {
       "rank": 3,
-      "title": "「断亲」现象引发热议，如何看待？",
-      "question_url": "https://www.zhihu.com/hot",
-      "background": "部分年轻人减少与远亲往来，把精力投向小家庭与好友圈。讨论涉及代际观念差异、城市化带来的亲缘结构变化，以及「断亲」是否等于冷漠。",
+      "title": "Windows系统相比macOS系统，真的卡的要死，Windows明知它的致命短板，为何一直都不解决？",
+      "question_url": "https://www.zhihu.com/question/2103555144390653684?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "background": "Windows与macOS谁更卡顿长期是站内争论焦点。素材从菜单扩展同进程、x86旧生态兼容、UI框架混乱、预装软件与后台占用等角度，解释Windows卡顿成因及微软的改进与迟滞。",
       "viewpoints": {
-        "support": "低质量社交不如高质量独处，亲缘也应以舒适为界。",
-        "oppose": "亲缘是长期互助网络，断掉容易，需要用时会后悔。",
-        "undecided": "断的多是形式性往来，核心亲情未必受影响，不必过度解读。"
+        "support": "Win卡源于兼容旧生态和历史遗留：菜单扩展直接加载进资源管理器进程，一个扩展卡住就拖垮系统。",
+        "oppose": "不少人觉得Mac也会卡，所谓流畅是印象；Windows卡顿多为软件冗余与捆绑，并非无法改善。",
+        "undecided": "有人认为两系统都难逃垃圾积累，只是速度和可见度不同，难简单归咎某一系统或厂商。"
       },
       "reading": [
-        { "title": "知乎站内讨论：断亲是理性选择吗", "url": "https://www.zhihu.com/search?type=content&q=%E6%96%AD%E4%BA%B2%20%E7%90%86%E6%80%A7%E9%80%89%E6%8B%A9", "reason": "呈现支持与担忧两种立场的真实表达。" },
-        { "title": "知乎站内讨论：代际观念差异从哪来", "url": "https://www.zhihu.com/search?type=content&q=%E4%BB%A3%E9%99%85%E8%A7%82%E5%BF%B5%E5%B7%AE%E5%BC%82%20%E4%BA%B2%E6%88%9A", "reason": "把现象放回社会结构变化里理解。" }
+        {
+          "title": "Windows系统相比macOS系统,真的卡的要死,Windows明知它的致命短板,为何一直都不解决? - 知乎",
+          "url": "https://www.zhihu.com/question/2103555144390653684/answer/2104476767490668428?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "讲清进程内扩展这一技术机制，解释卡顿链条。"
+        },
+        {
+          "title": "Windows卡顿根源真的解决了?微软WinUI定终局,再也不怕换框架了 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2048764099643830448?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "介绍微软UI框架统一战略，了解改进方向。"
+        }
       ]
     },
     {
       "rank": 4,
-      "title": "如何看待大学陆续开设人工智能通识课？",
-      "question_url": "https://www.zhihu.com/hot",
-      "background": "多所高校把 AI 通识课纳入必修或选修体系，覆盖从原理到工具的多个层次。争议点在于师资缺口、课程同质化，以及文科专业该学到什么深度。",
+      "title": "山姆靠399元羽绒服、低价始祖鸟/加拿大鹅频频出圈，这类产品真的是市场稀缺品吗？山姆真正在「卖什么」？",
+      "question_url": "https://www.zhihu.com/question/2104931349115228975?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "background": "山姆近期以399元高充绒量羽绒服和全球购频道低价始祖鸟、加拿大鹅引发抢购与热议，部分商品较官方渠道便宜数千元，多次登上热搜，也引发对其选品逻辑与会员价值的讨论。",
       "viewpoints": {
-        "support": "AI 正在成为通用基础能力，通识课像当年的计算机基础一样必要。",
-        "oppose": "师资和课程都没准备好， rushing 开课容易变成工具培训。",
-        "undecided": "方向正确，关键是分专业设计深度，避免一门课包打天下。"
+        "support": "低价大牌和羽绒服让会员觉得办卡、续卡真值，是山姆用商品证明会员费价值。",
+        "oppose": "所谓稀缺只是营销话术，山姆真正卖的是会员卡和逼格，商品只是引流工具。",
+        "undecided": "这更像渠道与品牌的位置交换，山姆以会员池和集采能力换取低价货源，效果仍待观察。"
       },
       "reading": [
-        { "title": "知乎站内讨论：AI 通识课应该教什么", "url": "https://www.zhihu.com/search?type=content&q=AI%20%E9%80%9A%E8%AF%86%E8%AF%BE%20%E6%95%99%E4%BB%80%E4%B9%88", "reason": "来自师生双方对课程内容的真实讨论。" },
-        { "title": "知乎站内讨论：文科生需要学 AI 吗", "url": "https://www.zhihu.com/search?type=content&q=%E6%96%87%E7%A7%91%E7%94%9F%20%E5%AD%A6%20AI%20%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD", "reason": "回应「学到什么深度」这一核心疑问。" }
+        {
+          "title": "山姆靠399元羽绒服、低价始祖鸟/加拿大鹅频频出圈,这类产品真的是市场稀缺品吗?山姆真正在「卖什么」? - 知乎",
+          "url": "https://www.zhihu.com/question/2104931349115228975/answer/2105327329346168462?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "从山姆官方采购逻辑看其选品内核"
+        },
+        {
+          "title": "山姆引入始祖鸟大鹅:渠道与品牌的位置交换 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2102503836787151552?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "用渠道与品牌交换框架解释低价来源"
+        }
       ]
     }
   ]
