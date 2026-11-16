@@ -505,6 +505,18 @@ def build_digest(items: list) -> dict:
 
     宁可少一点文采，也不要多一次幻觉机会——这是「知识洞察奖」最不该翻车的地方。
     """
+    # 防御性清洗：build_digest 也可能直接读到缓存直写/旧版残留的脏数据
+    # （正常链路由 sanitize_type / sanitize_sides / sanitize_claim_type 保证，此为第二道防线）
+    _cleaned = []
+    for _it in items:
+        _it = dict(_it)
+        if _it.get("type") == TYPE_DISPUTE and len(_it.get("sides") or []) != 2:
+            _it["type"] = TYPE_VERIFY
+        if _it.get("type") != TYPE_DISPUTE:
+            _it["claim_type"] = ""
+        _cleaned.append(_it)
+    items = _cleaned
+
     total = len(items)
     dispute = sum(1 for it in items if it.get("type") == TYPE_DISPUTE)
     consensus = sum(1 for it in items if it.get("type") == TYPE_CONSENSUS)
@@ -524,7 +536,7 @@ def build_digest(items: list) -> dict:
     insights = []
     decidable = claim_counts["fact"]
     if dispute:
-        soft = dispute - decidable
+        soft = max(0, dispute - decidable)
         if decidable and soft:
             # 按 claim_counts 里实际非零的类别动态拼句：
             # 曾出现 impression=0 仍写「观感对观感」的情况——后端确定性文案不允许说谎。
@@ -573,6 +585,16 @@ def build_digest(items: list) -> dict:
             f"{consensus} 条已形成共识——它们在热榜上的热度来自关注度，不来自争议。"
         )
 
+    insights = insights[:3]
+    if consensus and not any("已形成共识" in s for s in insights):
+        _consensus_line = (
+            f"{consensus} 条已形成共识——它们在热榜上的热度来自关注度，不来自争议。"
+        )
+        if insights:
+            insights[-1] = _consensus_line
+        else:
+            insights = [_consensus_line]
+
     return {
         "total": total,
         "dispute": dispute,
@@ -580,7 +602,7 @@ def build_digest(items: list) -> dict:
         "verify": verify,
         "claim_counts": claim_counts,
         "headline": headline,
-        "insights": insights[:3],
+        "insights": insights,
     }
 
 
