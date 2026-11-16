@@ -8,3 +8,6 @@ data/brief_*.json
 __pycache__/
 *.pyc
 .venv/
+
+# 备份文件（含完整源码副本，绝不入库）
+*.bak

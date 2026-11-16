@@ -87,6 +87,7 @@ CONSENSUS_MAX = 80
 SIDE_LABEL_MAX = 12
 SIDE_CLAIM_MAX = 80
 GAP_MAX = 100
+REASON_MAX = 30                # 延伸阅读推荐理由上限，与 PROMPT「reason ≤30 字」一致
 
 # ---------------------------------------------------------------------------
 # 大模型 Prompt（v2：先判定争议类型，再按类型填字段）
@@ -337,7 +338,7 @@ def assemble_reading(model_output: dict, candidates: list) -> list:
             reading.append({
                 "title": str(src.get("Title", "")),
                 "url": url,
-                "reason": str(pick.get("reason", ""))[:60],
+                "reason": _clip(pick.get("reason", ""), REASON_MAX),
             })
     return reading[:3]
 
@@ -419,7 +420,7 @@ def process_item(rank: int, hot: dict) -> dict:
     try:
         candidates = fetch_search(title, rank)
         if not candidates:
-            raise UpstreamError("搜索无候选回答，按 FR-07/FR-04 降级")")
+            raise UpstreamError("搜索无候选回答，按 FR-07/FR-04 降级")
         model_output = generate(title, build_candidates_text(candidates))
 
         item_type = sanitize_type(model_output.get("type"))
@@ -525,9 +526,16 @@ def build_digest(items: list) -> dict:
     if dispute:
         soft = dispute - decidable
         if decidable and soft:
+            # 按 claim_counts 里实际非零的类别动态拼句：
+            # 曾出现 impression=0 仍写「观感对观感」的情况——后端确定性文案不允许说谎。
+            kinds = [
+                CLAIM_TYPE_NAMES[k] for k in VALID_CLAIM_TYPES
+                if k != "fact" and claim_counts[k]
+            ]
+            kinds_text = "、".join(kinds) if kinds else "非事实之争"
             insights.append(
                 f"{dispute} 条真分歧里，只有 {decidable} 条是补数据就能裁决的事实之争；"
-                f"其余 {soft} 条分别属于推测对推测、观感对观感、价值判断——吵得再久也不会有答案。"
+                f"其余 {soft} 条属于{kinds_text}——吵得再久也不会有答案。"
             )
         elif decidable:
             insights.append(
