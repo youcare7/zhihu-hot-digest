@@ -305,6 +305,7 @@
         a.href = r.url;
         a.target = '_blank';
         a.rel = 'noopener';
+        li.appendChild(a);
       }
       if (r.reason) li.appendChild(el('span', 'reason', '—— ' + r.reason));
       ul.appendChild(li);
