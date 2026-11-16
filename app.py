@@ -186,7 +186,7 @@ def _chat_with_retry(url: str, headers: dict, payload: dict, label: str) -> str:
     """限流友好：遇 429 按 RETRY_WAIT 秒退避重试。简报每日只生成一次，慢一点没关系。"""
     for attempt in range(1, RETRY_TIMES + 1):
         try:
-            return _chat(url, headers, payload, label)
+            return _chat(url, headers, payload)
         except UpstreamError as exc:
             if "429" in str(exc) and attempt < RETRY_TIMES:
                 _log(f"{label} 触发限流（429），{RETRY_WAIT} 秒后重试（第 {attempt}/{RETRY_TIMES - 1} 次）")
@@ -518,15 +518,36 @@ def _maybe_background_refresh() -> None:
     threading.Thread(target=_background_refresh, daemon=True).start()
 
 
+def _count_ok(data: dict) -> int:
+    """简报中有背景解读（未降级）的条目数。"""
+    return sum(1 for it in (data or {}).get("items", []) if it.get("background") != NO_BACKGROUND)
+
+
 def _background_refresh() -> None:
     try:
         with _GEN_LOCK:
             age = cache_age_seconds()
             if age is not None and age <= CACHE_TTL_SECONDS:
                 return  # 等锁期间已被别的请求刷新过
+            # 防劣化保护：先读出旧缓存的完整度，刷新结果若劣于旧缓存（成功条目变少，
+            # 如直答额度触顶导致大面积降级），丢弃新结果、沿用旧缓存——宁留旧全绿，不覆新残次。
+            old_ok = 0
+            if cache_path().exists():
+                try:
+                    old_ok = _count_ok(json.loads(cache_path().read_text(encoding="utf-8")))
+                except Exception:
+                    old_ok = 0
             _log("后台自动刷新开始")
-            generate_and_cache()
-            _log("后台自动刷新完成")
+            data = build_brief()
+            new_ok = _count_ok(data)
+            if old_ok > 0 and new_ok < old_ok:
+                _log(f"刷新结果劣于现有缓存（{new_ok} < {old_ok} 条成功），丢弃本次结果，沿用旧缓存")
+                return
+            DATA_DIR.mkdir(exist_ok=True)
+            tmp = cache_path().with_suffix(".tmp")
+            tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp.replace(cache_path())
+            _log(f"后台自动刷新完成：{new_ok} 条成功，已写入 {cache_path().name}")
     except Exception as exc:
         _log(f"后台自动刷新失败（旧缓存继续服务，页面不受影响）：{exc}")
     finally:
