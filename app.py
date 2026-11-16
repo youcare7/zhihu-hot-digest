@@ -543,8 +543,15 @@ def build_digest(items: list) -> dict:
                 "这类争论有终点，缺的只是把材料补齐。"
             )
         else:
+            # 同样按实际非零类别拼句：曾出现 impression=0 仍写「观感」的情况。
+            kinds = [
+                CLAIM_TYPE_NAMES[k] for k in VALID_CLAIM_TYPES
+                if k != "fact" and claim_counts[k]
+            ]
+            kinds_text = "、".join(kinds) if kinds else "非事实之争"
             insights.append(
-                f"{dispute} 条真分歧没有一条能靠补数据裁决，全部是推测、观感或价值判断之争。"
+                f"{dispute} 条真分歧没有一条能靠补数据裁决，全部属于{kinds_text}"
+                "——吵得再久也不会有答案。"
             )
     if verify:
         insights.append(
