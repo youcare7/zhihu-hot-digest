@@ -1,7 +1,19 @@
 # -*- coding: utf-8 -*-
 """本地无依赖核对脚本：直接解析线上缓存 / fallback.json，算计划书里的可复核指标。
 
-不需要 flask、不需要联网。用法：
+⚠️ 【已废弃 · 请勿用于 v2 数据】
+   本脚本按旧的「支持 / 反对 / 未定论三派」口径写死。v2 六字段结构
+   （type / claim_type / focus / consensus / sides / gap）合入后，它对同一份
+   数据会输出「背景 57/57/57」「空立场 18/30」「三派全非空 True」这类
+   **数字合理但结论错误**的结果，比直接报错更危险。
+
+   请改用同目录的 verify_plan_numbers_v2.py：
+       python scripts/verify_plan_numbers_v2.py <data.js 或 brief_<日期>.json>
+   它按六字段口径做 10 组硬约束检查，任何一项不合格即 exit 1，可挂 CI。
+
+   本文件仅作为历史留档保留（附录 B 有完整的问题说明）。
+
+不需要 flask、不需要联网。用法（旧）：
     python verify_plan_numbers.py <线上 data.js 或 data.json 路径> [...]
 
 也可以直接从线上 /data.js 的 JSON 部分（去掉 `window.BRIEF_DATA = ` 前缀和末尾分号）读取。

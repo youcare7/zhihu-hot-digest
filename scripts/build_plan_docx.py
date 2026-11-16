@@ -1,13 +1,11 @@
 # -*- coding: utf-8 -*-
-"""把《产品说明计划书》Markdown 渲染为排版规范的 .docx。
+"""把《产品说明计划书 v2.1》Markdown 渲染为排版规范的 .docx。
 
 排版约定（来自封版评审的排版护栏）：
 - 代码块 / 树状图：Consolas 9pt + 浅灰底色框，保持换行，防表格跨页变形靠导出 PDF
 - 表格：网格边框，表头加粗底纹
 - 正文：宋体 10.5pt；标题黑体；引用块左侧缩进灰色
 - 页脚页码 + 文首目录域
-
-用法：python scripts/build_plan_docx.py [计划书.md 路径]（缺省用 v2.2）
 """
 import re
 import sys
@@ -135,16 +133,17 @@ def add_quote(doc, lines):
 
 def add_heading(doc, text, level):
     p = doc.add_paragraph()
-    sizes = {1: 18, 2: 15, 3: 12.5}
+    sizes = {1: 18, 2: 15, 3: 12.5, 4: 11, 5: 10.5, 6: 10.5}
+    size = sizes.get(level, 10.5)
     pf = p.paragraph_format
     pf.space_before = Pt(14 if level == 2 else 10)
     pf.space_after = Pt(8 if level == 2 else 6)
     if level == 1:
         pf.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    add_runs_with_inline(p, text, size=sizes[level], cn="黑体", en="Arial",
+    add_runs_with_inline(p, text, size=size, cn="黑体", en="Arial",
                          bold=True, color=RGBColor(0, 0, 0))
-    # 给二、三级标题挂大纲级别，供目录域识别
-    if level in (2, 3):
+    # 给二、三、四级标题挂大纲级别，供目录域识别
+    if level in (2, 3, 4):
         ppr = p._p.get_or_add_pPr()
         ol = OxmlElement("w:outlineLvl")
         ol.set(qn("w:val"), str(level - 1))
@@ -195,6 +194,11 @@ def add_footer_pagenum(doc):
     set_font(r, "宋体", "Times New Roman", 9, color=GRAY)
     r2 = p.add_run(" 页")
     set_font(r2, "宋体", "Times New Roman", 9, color=GRAY)
+
+
+def strip_md(text):
+    """去掉行内残余 markdown 记号（表格单元格用）。"""
+    return text
 
 
 def main():
@@ -249,8 +253,8 @@ def main():
             add_quote(doc, qlines)
             continue
 
-        # 标题
-        m = re.match(r"^(#{1,3})\s+(.*)$", stripped)
+        # 标题（支持 1-6 级；此前只认 1-3 级，导致 #### 被当成正文渲染成字面量）
+        m = re.match(r"^(#{1,6})\s+(.*)$", stripped)
         if m:
             level = len(m.group(1))
             title = m.group(2).strip()

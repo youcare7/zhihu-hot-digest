@@ -139,13 +139,24 @@ def main():
     print("\n[4] 后端确定性文案自洽性（build_digest 不允许编造类别）")
     if isinstance(dg, dict):
         cc = dg.get("claim_counts") or {}
-        ins1 = (dg.get("insights") or [""])[0]
-        name2key = {"推测对推测": "inference", "观感对观感": "impression", "价值判断": "value"}
-        lies = [n for n, k in name2key.items() if n in ins1 and not cc.get(k)]
+        # 逐条 insight 都要查，不能只看 insights[0]：
+        # build_digest 有三个分支，各自可能硬编码类别，漏检一个分支就等于没查。
+        # 匹配表必须同时认全称与简称——else 分支的文案写的是「推测、观感或价值判断」，
+        # 旧版只认「推测对推测/观感对观感」全称，导致 2026-11-16 20:26 线上漏检。
+        patterns = {
+            "inference": ("推测对推测", "推测"),
+            "impression": ("观感对观感", "观感"),
+            "value": ("价值判断",),
+        }
+        lies = []
+        for idx, ins in enumerate(dg.get("insights") or [], 1):
+            for key, names in patterns.items():
+                if any(n in ins for n in names) and not cc.get(key):
+                    lies.append(f"insight{idx} 提到「{names[0]}」但 claim_counts[{key}]=0")
         check("insight 未声称不存在的分歧类别", not lies,
-              f"文案提到但计数为 0：{lies}" if lies else "与 claim_counts 一致")
+              "；".join(lies[:4]) if lies else "全部与 claim_counts 一致")
         if lies:
-            print("     ↑ 这是 v2 的已知缺陷：文案写死三类，未按实际计数生成")
+            print("     ↑ 后端确定性文案在说谎：文案写死了类别，未按实际计数生成")
 
     # ---------- 汇总 ----------
     passed = sum(1 for _, ok, _ in results if ok)

@@ -15,3 +15,9 @@ __pycache__/
 
 # 备份文件（含完整源码副本，绝不入库）
 *.bak
+
+# 本机部署工具（含本机绝对路径 / INTEGRATION_IDE / buildId，不进参赛仓库）
+scripts/mcp_*.py
+scripts/poll_*.py
+scripts/once_build.py
+scripts/status_only.py

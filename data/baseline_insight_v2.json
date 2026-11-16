@@ -1,0 +1,361 @@
+{
+  "date": "2026-11-16",
+  "source": "insight-v2",
+  "generated_at": "预览版 · 基于 2026-11-16 线上真实缓存重新归类",
+  "notice": "本文件为「知识洞察 v2」的复核基准：内容取自 2026-11-16 线上真实数据，观点归类为人工复核，用于验证新版信息架构，非最终线上产物。digest 字段由 app.py 的 build_digest() 对本文 items 实跑生成，可用 scripts/verify_plan_numbers_v2.py 一键复算。",
+  "digest": {
+    "total": 10,
+    "dispute": 5,
+    "consensus": 1,
+    "verify": 4,
+    "claim_counts": {
+      "fact": 2,
+      "inference": 1,
+      "impression": 1,
+      "value": 1
+    },
+    "headline": "今天 10 条热榜里，真正吵起来的只有 5 条；1 条根本没人在吵；剩下 4 条卡在同一个地方——缺一手材料。",
+    "insights": [
+      "5 条真分歧里，只有 2 条是补数据就能裁决的事实之争；其余 3 条属于推测对推测、观感对观感、价值判断——吵得再久也不会有答案。",
+      "4 条待验证的问题，缺的其实是同一样东西：一手材料。二手转述在热榜上替代了一手证据，这是这类话题反复上热榜却始终没有结论的原因。",
+      "1 条已形成共识——它们在热榜上的热度来自关注度，不来自争议。"
+    ]
+  },
+  "items": [
+    {
+      "rank": 1,
+      "title": "美国又有近万架航班取消或延误，预计16日恢复正常，故障根源仍未查明，能按照预期恢复正常吗？",
+      "question_url": "https://www.zhihu.com/question/2105279535771907717?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "dispute",
+      "claim_type": "fact",
+      "background": "11月13日下午，美国空管系统因设备升级引发通信故障，FAA一度全国停飞，近万架次航班取消或延误。13日晚间航班已恢复，但故障根源仍在调查，官方预计16日恢复正常。",
+      "focus": "故障到底查清没有？以及「16 日恢复」卡的是技术还是运力？",
+      "consensus": "通信故障本身已定位并处置：铜缆升级光纤时数据过载。",
+      "sides": [
+        {
+          "label": "技术派",
+          "claim": "根源已查明、通信已恢复，具备恢复条件，剩下只是时间问题。"
+        },
+        {
+          "label": "运力派",
+          "claim": "飞机大量滞留外地、机组调度积压，仅隔离故障路由器难让航班正常。"
+        }
+      ],
+      "gap": "官方未公布故障精确原因与各航司运力恢复进度，无人能给出「16 日恢复」的量化依据。",
+      "reading": [
+        {
+          "title": "美国又有近万架航班取消或延误,预计16日恢复正常,故障根源仍未查明,能按照预期恢复正常吗? - 知乎",
+          "url": "https://www.zhihu.com/question/2105279535771907717/answer/2105581215596155699?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "梳理故障技术成因，理解恢复判断依据"
+        },
+        {
+          "title": "美国因出现特殊情况及安全原因,所有航班一度暂停起飞,目前停飞令已解除,具体情况如何?造成影响有多大? - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2105074816017503797?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "还原停飞时间线与处置过程，信息密度高"
+        }
+      ],
+      "_legacy_viewpoints": {
+        "support": "已有答主称故障根源初步查明，系铜缆升级光纤时数据过载，通信问题已解决，具备恢复条件。",
+        "oppose": "有声音指出飞机大量滞留外地，运力与机组调度积压严重，仅隔离故障路由器难让航班正常。",
+        "undecided": "官方仅称逐步恢复、预计16日正常，精确原因未定论，能否按期恢复仍待观察。"
+      }
+    },
+    {
+      "rank": 2,
+      "title": "中国平均每个家庭户人数降至2.52人，25年间减少近1人，背后有哪些社会变化？会带来哪些影响？",
+      "question_url": "https://www.zhihu.com/question/2105340483975304106?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "verify",
+      "claim_type": null,
+      "background": "2025年全国1%人口抽样调查（小普查）显示，全国家庭户均规模降至2.52人，25年间减少近1人。一人户与二人户合计占比59.6%，三口之家不再主流，家庭结构小型化成为人口核心信号之一。",
+      "focus": "2.52 人是「结果」还是「原因」？小型化到底由经济驱动还是观念驱动？",
+      "consensus": "家庭小型化是真实趋势：25 年间户均减少近 1 人。",
+      "sides": [],
+      "gap": "站内只有一种解释（工业化 + 市场分工替代家庭功能），没有对立解释；因果链未厘清，缺的是「家庭为何仍然存在」这一更底层问题的讨论。",
+      "reading": [
+        {
+          "title": "中国平均每个家庭户人数降至2.52人,25年间减少近1人,背后有哪些社会变化?会带来哪些影响? - 知乎",
+          "url": "https://www.zhihu.com/question/2105340483975304106/answer/2105358093651596967?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "从家庭起源推演小型化机制，补足因果逻辑。"
+        },
+        {
+          "title": "户均2.52人:家变小之后,家庭功能正在被一件件买出去? - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2105258276153713766?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "以生活场景呈现家庭功能被外部购买的过程。"
+        }
+      ],
+      "_legacy_viewpoints": {
+        "support": "家庭小型化是工业化与市场分工的结果，单人餐、护工上门等外部服务正逐步替代部分家庭功能。",
+        "oppose": "站内暂无明确该立场声音",
+        "undecided": "家庭为何存在、小型化如何演进，比2.52人这一数字本身更值得追问，因果链仍未厘清。"
+      }
+    },
+    {
+      "rank": 3,
+      "title": "如何看待2026年11月15日deepseek关于对话上限长度的调整？",
+      "question_url": "https://www.zhihu.com/question/2105339969564827779?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "dispute",
+      "claim_type": "inference",
+      "background": "2026年11月15日DeepSeek调整对话上限长度，站内讨论集中在KV cache缓存、Prefill调度与推理成本上，也有用户分享应对上限的实操方案。",
+      "focus": "调低对话上限，是「算力不够」还是「成本转嫁给用户」？",
+      "consensus": "上限确实调低了（事实层面无争议）。",
+      "sides": [
+        {
+          "label": "工程派",
+          "claim": "Prefill 调度需同时权衡 q 与 c，属工程成本优化，有技术合理性。"
+        },
+        {
+          "label": "成本派",
+          "claim": "并非算力不足，而是 KV Cache 命中不了导致成本过高，官方把代价转给用户。"
+        }
+      ],
+      "gap": "官方未公布调度策略与成本结构——两方都是外部推测，谁也无法证伪对方。",
+      "reading": [
+        {
+          "title": "如何看待2026年11月15日deepseek关于对话上限长度的调整? - 知乎",
+          "url": "https://www.zhihu.com/question/2105339969564827779/answer/2105599423229191657?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "讲清KV cache草稿纸机制，理解上限调整根因"
+        },
+        {
+          "title": "快被deepseek“达到对话长度上限”时逼疯?一文带你解决此问题deepseek一百个功能详解之二 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/1968746028753723474?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "给出可操作的对话续接与总结模板解法"
+        }
+      ],
+      "_legacy_viewpoints": {
+        "support": "调整源于Prefill调度需同时权衡q与c，属工程成本优化，有技术合理性。",
+        "oppose": "并非算力不足，而是官方服务KV Cache命中不了导致成本过高，把代价转给用户。",
+        "undecided": "站内暂无明确该立场声音"
+      }
+    },
+    {
+      "rank": 4,
+      "title": "为啥网上很多人都在学山东人做饭？山东饮食算是营养均衡吗？",
+      "question_url": "https://www.zhihu.com/question/2103854928741586539?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "dispute",
+      "claim_type": "fact",
+      "background": "网上兴起学山东人做饭热潮，起因是全运会山东成绩亮眼、寻亲视频兄弟身高差，以及广东妈妈给孩子做山东饭一个月长高1.3厘米的案例。",
+      "focus": "山东人长高，是因为「菜系结构」还是因为「总摄入量」？",
+      "consensus": "山东以小麦面食为主、杂粮多，肉菜果产量大，饮食结构确实扎实。",
+      "sides": [
+        {
+          "label": "结构派",
+          "claim": "菜系本身的营养均衡是原因，面食杂粮搭配合理。"
+        },
+        {
+          "label": "总量派",
+          "claim": "关键是食量足、蛋白质和蔬菜多；吃什么菜系不重要，煎牛排配面包一样能长高。"
+        }
+      ],
+      "gap": "缺控制变量数据：同为高摄入量的其他菜系人群，身高是否同样偏高。这是唯一能裁决的路径。",
+      "reading": [
+        {
+          "title": "广东妈妈为孩子做 \"山东饭\",1个月长高 1.3 厘米,山东饭到底吃的啥 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2103994758645413364?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "引用体质调研数据，量化山东身高水平，适合核实结论"
+        },
+        {
+          "title": "广东妈妈认为“山东饭”能长高,坚持为6岁儿子做疙瘩汤、煎饼等,一月后长高1.3厘米,山东饭这么神奇吗? - 知乎",
+          "url": "https://www.zhihu.com/question/2103126074590871559/answer/2103939227960584026?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "反方观点鲜明，提供质疑山东饭营养的对照视角"
+        }
+      ],
+      "_legacy_viewpoints": {
+        "support": "山东以小麦面食为主、杂粮多，营养相对全面，肉菜果产量也大，饮食结构扎实。",
+        "oppose": "长高关键是食量足、蛋白质和蔬菜多，吃什么菜系不重要，煎牛排配面包一样能长高。",
+        "undecided": "身高受遗传睡眠饮食等多因素影响，山东饮食与长高的关系难以单独归因，需理性看待。"
+      }
+    },
+    {
+      "rank": 5,
+      "title": "懂球帝发文称亚马尔社媒疑似转发歧视亚裔视频，是真的吗？怎么看待这一事件？",
+      "question_url": "https://www.zhihu.com/question/2105538241323611501?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "verify",
+      "claim_type": null,
+      "background": "巴塞罗那球员亚马尔个人社媒疑似转发一段二次加工动画短片，片中含蹩脚亚洲口音、亚裔刻板桥段与歧视词汇；目前其主页已无该转发内容，事件真实性存争议。",
+      "focus": "转载者是否知情？视频本身构不构成歧视？",
+      "consensus": "视频确含 Ching Chong 等歧视词汇，并集中呈现对亚裔长相与口音的刻板化嘲讽。",
+      "sides": [],
+      "gap": "原片语境、二次加料者身份、转载者是否知情——三项一手材料均未核实，站内无对立声音。",
+      "reading": [
+        {
+          "title": "亚马尔那条转发撤掉了,撤不掉的是视频里那句\"亚洲文化都长一个样\" - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2105596121309525608?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "逐项拆解二次加工内容，帮助判断是否构成歧视"
+        },
+        {
+          "title": "懂球帝发文称亚马尔社媒疑似转发歧视亚裔视频,是真的吗?怎么看待这一事件? - 知乎",
+          "url": "https://www.zhihu.com/question/2105538241323611501/answer/2105590778789631523?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "说明视频改编与加料过程，还原传播链条"
+        }
+      ],
+      "_legacy_viewpoints": {
+        "support": "视频确含Ching Chong等歧视词汇，并集中呈现对亚裔长相与口音的刻板化嘲讽。",
+        "oppose": "站内暂无明确该立场声音",
+        "undecided": "原片或为普通动画喜剧，经他人二次加料，转载者是否知情、是否构成歧视尚难认定。"
+      }
+    },
+    {
+      "rank": 6,
+      "title": "百万元 CAR-T 药物瑞基奥仑赛纳入医保，价格降至 30 万以内，怎样看待这一突破？这是一种什么药？",
+      "question_url": "https://www.zhihu.com/question/2104912029937157214?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "verify",
+      "claim_type": null,
+      "background": "2026年11月14日，国家医保局发布新版医保目录，药明巨诺的CAR-T产品瑞基奥仑赛（倍诺达）首次纳入基本医保，定价由129万元/支降至30万元以内，2027年1月1日起施行。",
+      "focus": "30 万以内的价格是怎么降下来的？企业还能不能盈利？",
+      "consensus": "患者自付有望降至 10 万元内，可及性是实质进步。",
+      "sides": [],
+      "gap": "个体化制备的成本拆解、企业盈利模型、医保纳入小众药的决策依据——三项公开明细都缺。",
+      "reading": [
+        {
+          "title": "129万一针的CAR-T天价药,进医保了! - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2104994672812807983?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "详解个体化制备降本路径与降价合理性疑问，专业纵深"
+        },
+        {
+          "title": "百万元 CAR-T 药物瑞基奥仑赛纳入医保,价格降至 30 万以内,怎样看待这一突破?这是一种什么药? - 知乎",
+          "url": "https://www.zhihu.com/question/2104912029937157214/answer/2105092553360132073?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "含临床专家解读疗效数据与产业成本变化，事实密度高"
+        }
+      ],
+      "_legacy_viewpoints": {
+        "support": "多轮治疗后仍难控制的淋巴瘤患者，过去因百万元价格用不上药，如今自付有望降至10万元内，是可及性的实质进步。",
+        "oppose": "站内暂无明确该立场声音",
+        "undecided": "个体化制备成本如何降到30万以下、企业是否还能盈利、医保为何纳入小众药物，这些账尚缺公开明细，值得追问。"
+      }
+    },
+    {
+      "rank": 7,
+      "title": "为什么一直以老练闻名的 Canyon 在 S16 总决赛上就「查无此人」了？",
+      "question_url": "https://www.zhihu.com/question/2105205635084022710?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "dispute",
+      "claim_type": "impression",
+      "background": "S16 总决赛 BLG 3:1 击败 GEN 夺冠，此前被称老练的 GEN 打野 Canyon 全场存在感低，赛后知乎热议其为何「查无此人」。",
+      "focus": "「查无此人」是选手状态问题，还是被针对的战术结果？",
+      "consensus": "除第三局猴子失误外，他都在做事，并非全程隐身。",
+      "sides": [
+        {
+          "label": "战术派",
+          "claim": "被 BLG 针对性压制，上野野辅两轴被牺牲下路换强度打崩，顺不起来。"
+        },
+        {
+          "label": "状态派",
+          "claim": "这届 S 赛整体打得不错，除第三局外都在做事，说「查无此人」过头了。"
+        }
+      ],
+      "gap": "缺少分均经济、参团率、对位压制等客观数据，双方都基于观感。",
+      "reading": [
+        {
+          "title": "为什么一直以老练闻名的 Canyon 在 S16 总决赛上就「查无此人」了? - 知乎",
+          "url": "https://www.zhihu.com/question/2105205635084022710/answer/2105259967280427459?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "从选手视角评估 Canyon 真实发挥，纠正隐身印象"
+        },
+        {
+          "title": "为什么一直以老练闻名的 Canyon 在 S16 总决赛上就「查无此人」了? - 知乎",
+          "url": "https://www.zhihu.com/question/2105205635084022710/answer/2105215154203914998?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "拆解 BLG 针对打野的 BP 与战术思路"
+        }
+      ],
+      "_legacy_viewpoints": {
+        "support": "Canyon 被 BLG 针对性压制，上野野辅两轴被牺牲下路换强度打崩，顺不起来。",
+        "oppose": "Canyon 这届 S 赛整体打得不错，除第三局猴子失误外都在做事，并非隐身。",
+        "undecided": "赛前有人预感 Canyon 会掉链子，AI 却认为他较稳定，实际表现仍有争议。"
+      }
+    },
+    {
+      "rank": 8,
+      "title": "Knight 成为首位中国籍全球总决赛冠军中单，他能在中单选手中排进第几名？",
+      "question_url": "https://www.zhihu.com/question/2105211418282833045?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "consensus",
+      "claim_type": null,
+      "background": "2026年S16全球总决赛，BLG以3:1击败GEN夺冠，中单Knight成为首位中国籍S赛冠军中单，并获FMVP，打破韩国中单13年垄断。",
+      "focus": "「史二中」的评判标准是什么：荣誉数量、巅峰统治力，还是对手强度？",
+      "consensus": "Knight 是首位中国籍 S 赛冠军中单，国际赛大满贯、MSI 与 S 赛双 FMVP，独一档。",
+      "sides": [],
+      "gap": "站内对「独一档」无异议——真正缺的不是证据，而是统一的跨赛区、跨时代中单排序标准。问题本身没有可证伪的答案。",
+      "reading": [
+        {
+          "title": "Knight 成为首位中国籍全球总决赛冠军中单,他能在中单选手中排进第几名? - 知乎",
+          "url": "https://www.zhihu.com/question/2105211418282833045/answer/2105236937481131580?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "罗列Knight荣誉清单，可核对其历史地位依据"
+        },
+        {
+          "title": "Knight 获得 S16 总决赛 FMVP,成为继田野后 LPL 第二位大满贯,对此你有什么想说的? - 知乎",
+          "url": "https://www.zhihu.com/question/2105214731573096596/answer/2105281746619086800?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "说明大满贯与FMVP含金量，助判断排名"
+        }
+      ],
+      "_legacy_viewpoints": {
+        "support": "Knight已是史二中，国际赛大满贯且MSI、S赛双FMVP，独一档。",
+        "oppose": "站内暂无明确该立场声音",
+        "undecided": "站内暂无明确该立场声音"
+      }
+    },
+    {
+      "rank": 9,
+      "title": "如何评价《后会友期》第五期青稚和白小纯的相处状态？",
+      "question_url": "https://www.zhihu.com/question/2104904789972801088?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "dispute",
+      "claim_type": "value",
+      "background": "电竞搭档青稚与白小纯曾无话不谈，后当众决裂。第五期节目中两人重逢，白小纯直言不愿伤害青稚却想折磨他，青稚当场落泪破防，相处状态拧巴引发讨论。",
+      "focus": "青稚的施压，是「朋友的责任」还是「以不伤害为名的折磨」？",
+      "consensus": "两人从紧密无间走到最熟悉的陌生人，拧巴是共识。",
+      "sides": [
+        {
+          "label": "责任派",
+          "claim": "青稚把白小纯当朋友才施压；白小纯明知雷点仍反复戳痛。"
+        },
+        {
+          "label": "伤害派",
+          "claim": "白小纯不满批评教育式压力，认为电竞只有向上一条路，控诉情有可原。"
+        }
+      ],
+      "gap": "缺当事人对「施压边界」的自我陈述。这是价值判断型分歧——再多事实也裁决不了，只能各自表明立场。",
+      "reading": [
+        {
+          "title": "如何评价《后会友期》第五期青稚和白小纯的相处状态? - 知乎",
+          "url": "https://www.zhihu.com/question/2104904789972801088/answer/2104922211194758981?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "揭示青稚放不下什么，解释反复拉扯的动因"
+        },
+        {
+          "title": "如何看待《后会友期》里的白小纯和青稚? - 知乎",
+          "url": "https://www.zhihu.com/question/2100528359084242914/answer/2102907298997977553?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "还原两人关系底色，理解拧巴状态由来"
+        }
+      ],
+      "_legacy_viewpoints": {
+        "support": "白小纯不满青稚批评教育式压力，认为电竞只有向上一条路，其控诉情有可原。",
+        "oppose": "青稚把白小纯当朋友才施压，白小纯明知雷点仍反复戳痛，是在不伤害名义下折磨他。",
+        "undecided": "两人曾紧密无间又成最熟悉的陌生人，拧巴源于情绪未被看见，难简单判对错。"
+      }
+    },
+    {
+      "rank": 10,
+      "title": "月球的背面终年看不见太阳会十分寒冷吗？",
+      "question_url": "https://www.zhihu.com/question/1947038737952383155?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "verify",
+      "claim_type": null,
+      "background": "月球背面是否因终年不见太阳而极寒引发讨论。月球被潮汐锁定，背面并非永久黑暗，同样有昼夜交替，温度随日照剧烈变化。",
+      "focus": "「月球背面终年黑暗」是科学争议，还是一个翻译错误？",
+      "consensus": "月球背面同样有昼夜交替，并非终年严寒——科学事实层面无争议。",
+      "sides": [],
+      "gap": "提问者依据的「NASA 官员称永久黑暗」原始视频未核实。注意：这条不是缺证据，而是问题前提本身是错的（「暗面」是历史误译俗称）。",
+      "reading": [
+        {
+          "title": "月球的背面终年看不见太阳会十分寒冷吗? - 知乎",
+          "url": "https://www.zhihu.com/question/1947038737952383155/answer/2105583919865382158?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "厘清“暗面”误解，讲清背面昼夜成因"
+        },
+        {
+          "title": "月球的背面终年看不见太阳会十分寒冷吗? - 知乎",
+          "url": "https://www.zhihu.com/question/1947038737952383155/answer/2105592014007972381?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "给出具体温度数值，可对照NASA实测范围"
+        }
+      ],
+      "_legacy_viewpoints": {
+        "support": "站内暂无明确该立场声音",
+        "oppose": "月球背面同样有昼夜交替，并非终年严寒的冰冻世界，暗面只是历史误译俗称。",
+        "undecided": "NASA官员曾称月球背面永久黑暗，但发帖者未核实原始视频，仅听闻。"
+      }
+    }
+  ]
+}
