@@ -114,6 +114,7 @@ GitHub 仓库公开（3 号，选交加分）──✅ 已公开并持续同步
 
 ### 3.2 CloudBase 部署现状（✅ 线上版本 017，2026-11-17 19:47 部署）
 
+- **v018 部署（11-18 00:20）**：根目录直部署同命令，`Deployment successful`，100% 流量（灰度选 No 自动切换）。**本版仅前端改动**：页脚上方新增「链接守卫」可视化区块（四道防幻觉防线，零新设计 token，全复用 .card/.rank/.tag/.focus），提交 874c6be。部署后验收：守卫区块随首页在线返回（去割裂版特征 `gate-title` 在、`guard-chain` 无）；冷启动后真实生成 10 条（4/3/3）、17 条延伸阅读全为知乎域名、`smoke_check.py --file` PASS；快照存 `evidence/20261118_0021_data.js`。后端 app.py 零改动，环境变量与 v017 一致。
 - **v017 部署（本次，改为根目录直部署）**：`DeployId 017 / RunId` 见控制台，100% 流量，v016 降为 0%；命令 `tcb cloudrun deploy --env-id genuine-dove-d8gywlbm2e6dbc1b8 --service-name zhihu-hot-digest --source . --port 5000 --force --wait`。**已删除 `deploy/` 子目录副本**，改由根目录 `.dockerignore` 白名单（仅 `app.py / demo / data / requirements.txt` 进镜像），从机制上消除"改了根目录却推旧副本"这一类事故。
 - **真实生成与验收（19:59 快照，`evidence/20261117_1959_data.js`）**：10 条，3 真分歧 / 3 共识 / 4 待验证；延伸阅读 17 条全部知乎域名、每条 ≤2、无重复；`source=cache`（生成已完成）。
   - **结构复核 `verify_plan_numbers_v2.py` exit 1**：唯一不合格项为 **1 条降级（#10「校招进入大公司新部门」，背景「暂无解读。」、缺口「暂无可补的拼图。」、0 条延伸阅读）**，整批补跑后仍未恢复；其余 9 条硬约束全部通过。
