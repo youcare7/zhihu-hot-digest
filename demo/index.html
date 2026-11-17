@@ -162,6 +162,45 @@
   .reading .reason { color: var(--muted); font-size: 13px; }
   .reading .dead { color: #a9aeb8; }
 
+  /* v2：链接守卫（防幻觉架构可视化，纯展示，数据链路见 app.py assemble_reading） */
+  .guard {
+    margin-top: 32px; background: var(--paper); border: 1px solid var(--line);
+    border-radius: 12px; padding: 24px;
+  }
+  .guard summary {
+    cursor: pointer; list-style: none; font-size: 17px; font-weight: 700; line-height: 1.5;
+  }
+  .guard summary::-webkit-details-marker { display: none; }
+  .guard summary::before {
+    content: "▾ "; color: var(--blue); font-weight: 700;
+  }
+  .guard:not([open]) summary::before { content: "▸ "; }
+  .guard .guard-sub {
+    margin-top: 6px; font-size: 13px; color: var(--muted);
+  }
+  .guard .guard-chain {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 18px;
+  }
+  .guard .gate {
+    border: 1px solid var(--line); border-radius: 10px; padding: 14px;
+    display: flex; flex-direction: column;
+  }
+  .guard .gate .gate-no {
+    font-size: 12px; font-weight: 700; letter-spacing: .1em; color: var(--blue);
+  }
+  .guard .gate h3 {
+    font-size: 14px; font-weight: 700; margin-top: 4px; line-height: 1.5;
+  }
+  .guard .gate p { font-size: 13px; color: #4e5969; margin-top: 6px; line-height: 1.7; }
+  .guard .gate .blocked {
+    margin-top: auto; padding-top: 10px; font-size: 12px; color: #b03a2e; line-height: 1.8;
+  }
+  .guard .gate .blocked span { display: block; }
+  .guard .guard-close {
+    margin-top: 18px; padding: 12px 14px; background: #eef4ff; border: 1px solid #bed4ff;
+    border-radius: 8px; font-size: 14px; color: #0c447c; line-height: 1.75;
+  }
+
   /* 页脚 */
   footer {
     margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line);
@@ -184,6 +223,7 @@
     .wrap { padding: 32px 16px 48px; }
     h1 { font-size: 28px; }
     .sides { grid-template-columns: 1fr; }
+    .guard .guard-chain { grid-template-columns: 1fr; }
     .digest { padding: 20px 18px 18px; }
     .digest .headline { font-size: 18px; }
     .digest .counts { grid-template-columns: 1fr; }
@@ -211,6 +251,50 @@
   <div id="notice" class="notice" hidden></div>
   <section id="digest" class="digest" hidden></section>
   <main id="cards"></main>
+
+  <details class="guard" open>
+    <summary>为什么这里的每一个链接都点得开、且一定是知乎</summary>
+    <p class="guard-sub">AI 最容易犯的错是编造链接。本页的四道守卫让模型「想编也编不出来」——以下为真实运行架构，与后端代码一一对应。</p>
+    <div class="guard-chain">
+      <div class="gate">
+        <span class="gate-no">第 1 道</span>
+        <h3>模型没有写网址的权利</h3>
+        <p>给模型的指令里明令「不要输出任何 URL」。它只能从候选素材里挑编号（「第 3 条」），输出位置根本不接受网址。</p>
+        <div class="blocked">
+          <span>✗ 模型想编一个网址</span>
+          <span>✗ 输出格式不是编号，整段作废</span>
+        </div>
+      </div>
+      <div class="gate">
+        <span class="gate-no">第 2 道</span>
+        <h3>编号由程序翻译成真链接</h3>
+        <p>拿到编号后，由程序去知乎搜索返回的候选池里取出那条真实链接。编号越界或非整数？直接丢弃，而且不拿别的顶上。</p>
+        <div class="blocked">
+          <span>✗ 编号超出候选池范围</span>
+          <span>✗ 宁可少一条，不凑数</span>
+        </div>
+      </div>
+      <div class="gate">
+        <span class="gate-no">第 3 道</span>
+        <h3>主机名白名单</h3>
+        <p>只放行 http(s) 的 zhihu.com 及其子域名。仿冒域名和伪协议在这一步全部拦掉，连候选池都进不去。</p>
+        <div class="blocked">
+          <span>✗ zhihu.com.evil.com 仿冒</span>
+          <span>✗ javascript: 伪协议</span>
+        </div>
+      </div>
+      <div class="gate">
+        <span class="gate-no">第 4 道</span>
+        <h3>去重与上限</h3>
+        <p>不在候选池里的链接丢弃；同一条链接在一张卡里只出现一次；每条热点最多 2 条延伸阅读，不堆量。</p>
+        <div class="blocked">
+          <span>✗ 池外链接，丢</span>
+          <span>✗ 同一卡内重复引用，丢</span>
+        </div>
+      </div>
+    </div>
+    <p class="guard-close">所以你在这个页面上点到的每一个链接，都来自知乎站内真实存在的回答——不是模型「认为」应该存在的网址。</p>
+  </details>
 
   <footer>
     <p>本工具基于知乎开放平台 API 构建 · AI 生成内容仅供参考</p>
