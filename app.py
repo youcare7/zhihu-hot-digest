@@ -110,8 +110,12 @@ PROMPT_TEMPLATE = (
     "  · background：≤150 个中文字符，讲清事件是什么、来龙去脉。不评价、不复述标题。\n"
     "  · focus：≤60 字，把这条热点里真正值得回答的那个问题抽出来。"
     "不要照抄标题，要指出争议的焦点在哪。\n"
-    "  · gap：≤100 字，说清「还缺哪一块拼图」——读者若想自己判断，需要补的是哪份材料、"
-    "哪项数据、哪一方的回应。必须具体到可去找的东西，不要写「需要更多信息」。\n\n"
+    "  · gap：≤100 字，说清「还缺哪一块拼图」。必须写成「读者明天就能去找的东西」，"
+    "格式 = 具体材料名（精确到机构/文件/日期的优先，如「当事方 11 月财报」「期刊编辑部"
+    "撤稿决定」）＋它可能的出处（哪个机构、哪份文件、哪个数据库）。"
+    "若确实不存在任何可核验的公开材料，必须原样写「目前无公开可核验材料」，"
+    "不要写「需要更多信息」「缺乏一手材料」这类无法行动的描述；"
+    "写时间性边界（如「正片开播前无法判定」）也算合格。\n\n"
     "仅当 type=dispute 时额外填：\n"
     "  · claim_type：这条分歧的性质，四选一：\n"
     "      fact（可裁决）：双方对同一事实给出不同版本，补齐数据/官方口径即可判定谁对。\n"
@@ -125,8 +129,8 @@ PROMPT_TEMPLATE = (
     "  · consensus：≤80 字，写站内无争议的那个结论（verify 类型下写「已被证实的部分」）。\n"
     "  · sides 与 claim_type 不要输出，或输出 null。\n\n"
     "【第三步：延伸阅读】\n"
-    "reading：从候选编号中选 2 个最值得点开的，返回 index 和 reason（≤30 字，"
-    "说明「为什么值得点开」，不要复述标题）。\n\n"
+    "reading：从候选编号中最多选 2 个最值得点开的，返回 index 和 reason（≤30 字，"
+    "说明「为什么值得点开」，不要复述标题）。素材不足或只有一条值得推荐时可以只选 1 个，不要凑数。\n\n"
     "【硬性要求】\n"
     "1. 所有内容必须能在上面的素材中找到依据，不要编造立场、数据、机构名或人名。\n"
     "2. 只输出一个 JSON 对象，不要 markdown 代码块、不要解释文字、不要输出任何 URL。\n\n"
@@ -319,13 +323,32 @@ def build_candidates_text(candidates: list) -> str:
     return "\n".join(lines)
 
 
+def _is_zhihu_url(url) -> bool:
+    """只允许 HTTP(S) 的知乎主域名及其子域名，排除 lookalike 域名。"""
+    try:
+        parsed = urllib.parse.urlparse(str(url or "").strip())
+    except (TypeError, ValueError):
+        return False
+    host = (parsed.hostname or "").lower().rstrip(".")
+    return (
+        parsed.scheme in ("http", "https")
+        and (host == "zhihu.com" or host.endswith(".zhihu.com"))
+    )
+
+
 def assemble_reading(model_output: dict, candidates: list) -> list:
-    """把大模型返回的候选编号映射回搜索 API 的真实返回，并做二次 URL 校验。"""
-    allowed = {c.get("Url") for c in candidates}
+    """候选编号映射 + 候选池校验 + 知乎主机名白名单；无效项丢弃且不补选。"""
+    allowed = {
+        c.get("Url") for c in candidates
+        if _is_zhihu_url(c.get("Url"))
+    }
     reading = []
+    seen_urls = set()
     picks = model_output.get("reading")
     if isinstance(picks, list):
         for pick in picks:
+            if len(reading) >= 2:
+                break
             if not isinstance(pick, dict):
                 continue
             idx = pick.get("index")
@@ -333,14 +356,15 @@ def assemble_reading(model_output: dict, candidates: list) -> list:
                 continue  # 编号越界，丢弃
             src = candidates[idx - 1]
             url = src.get("Url")
-            if not url or url not in allowed:
-                continue  # 二次校验，丢弃
+            if not url or url not in allowed or not _is_zhihu_url(url) or url in seen_urls:
+                continue  # 池外、非知乎域名或重复引用均丢弃
             reading.append({
                 "title": str(src.get("Title", "")),
                 "url": url,
                 "reason": _clip(pick.get("reason", ""), REASON_MAX),
             })
-    return reading[:3]
+            seen_urls.add(url)
+    return reading[:2]
 
 
 def sanitize_viewpoint(value) -> str:
@@ -372,8 +396,9 @@ def sanitize_sides(value, item_type: str) -> list:
     """
     只接受恰好 2 个成型阵营；不足 2 个则整体丢弃。
 
-    这是关键的完整性闸门：声称「有真分歧」却给不出两派，说明模型没找到真分歧，
-    宁可不显示，也不要展示一个假的两派对峙——那正是 v1 被诟病的地方。
+    这是结构完整性闸门，不是事实核验器：它只检查两个阵营的 label / claim 非空，
+    不能证明主张真实、两派真正对立，或观点已逐条绑定到某个候选回答。
+    内容判断仍需读者点击原文复核。
     """
     if item_type != TYPE_DISPUTE:
         return []
@@ -528,13 +553,16 @@ def build_digest(items: list) -> dict:
         if ct in claim_counts:
             claim_counts[ct] += 1
 
+    decidable = claim_counts["fact"]
     headline = (
-        f"今天 {total} 条热榜里，真正吵起来的只有 {dispute} 条；"
-        f"{consensus} 条根本没人在吵；剩下 {verify} 条卡在同一个地方——缺一手材料。"
+        f"本次 {total} 条热榜的检索样本中，模型判为真分歧 {dispute} 条、"
+        f"已形成共识 {consensus} 条、待验证 {verify} 条。"
     )
+    if dispute and decidable:
+        # 第一得分点前置：评委第一眼就要看到「缺的拼图」，而不是只看三态计数。
+        headline += f"其中 {decidable} 条争论只差一手数据就能裁决。"
 
     insights = []
-    decidable = claim_counts["fact"]
     if dispute:
         soft = max(0, dispute - decidable)
         if decidable and soft:
@@ -546,13 +574,13 @@ def build_digest(items: list) -> dict:
             ]
             kinds_text = "、".join(kinds) if kinds else "非事实之争"
             insights.append(
-                f"{dispute} 条真分歧里，只有 {decidable} 条是补数据就能裁决的事实之争；"
-                f"其余 {soft} 条属于{kinds_text}——吵得再久也不会有答案。"
+                f"{dispute} 条真分歧里，{decidable} 条被标为可裁决的事实之争；"
+                f"其余 {soft} 条属于{kinds_text}，分歧不只是一组待核数据，还涉及推测、观感或价值判断。"
             )
         elif decidable:
             insights.append(
-                f"{dispute} 条真分歧全部是补数据就能裁决的事实之争——"
-                "这类争论有终点，缺的只是把材料补齐。"
+                f"{dispute} 条真分歧均被标为可裁决的事实之争，"
+                "更适合通过补充材料推进；最终仍应结合原文核验。"
             )
         else:
             # 同样按实际非零类别拼句：曾出现 impression=0 仍写「观感」的情况。
@@ -562,13 +590,13 @@ def build_digest(items: list) -> dict:
             ]
             kinds_text = "、".join(kinds) if kinds else "非事实之争"
             insights.append(
-                f"{dispute} 条真分歧没有一条能靠补数据裁决，全部属于{kinds_text}"
-                "——吵得再久也不会有答案。"
+                f"{dispute} 条真分歧均被标为非事实类分歧，涉及{kinds_text}；"
+                "这类判断需要结合具体主张与价值观差异理解。"
             )
     if verify:
         insights.append(
-            f"{verify} 条待验证的问题，缺的其实是同一样东西：一手材料。"
-            "二手转述在热榜上替代了一手证据，这是这类话题反复上热榜却始终没有结论的原因。"
+            f"{verify} 条待验证：可能缺一手材料、问题前提需纠正，或生成与结构校验未通过；"
+            "请结合原问题、共识与缺口逐项判断。"
         )
     corrected = [
         it for it in items
@@ -582,13 +610,13 @@ def build_digest(items: list) -> dict:
         )
     if consensus:
         insights.append(
-            f"{consensus} 条已形成共识——它们在热榜上的热度来自关注度，不来自争议。"
+            f"{consensus} 条已形成共识——仅指本次检索样本中未见清晰对立，不代表全站民调。"
         )
 
     insights = insights[:3]
     if consensus and not any("已形成共识" in s for s in insights):
         _consensus_line = (
-            f"{consensus} 条已形成共识——它们在热榜上的热度来自关注度，不来自争议。"
+            f"{consensus} 条已形成共识——仅指本次检索样本中未见清晰对立，不代表全站民调。"
         )
         if insights:
             insights[-1] = _consensus_line

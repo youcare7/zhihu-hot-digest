@@ -21,3 +21,28 @@ scripts/mcp_*.py
 scripts/poll_*.py
 scripts/once_build.py
 scripts/status_only.py
+
+# 本地工作区杂物（11-17 增补）
+.pytest_cache/
+deploy/
+cloudbaserc.json
+scripts/mock_page*.png
+产品说明计划书_v2.1修订版.docx
+产品说明计划书_v2.2修订版.docx
+
+# 仅本地留存、不进参赛仓库（11-17 增补：内部资料/旧版本/大二进制）
+/宣发配图/
+/热榜深潜简报_宣发视频.mp4
+/热榜深潜简报_离线快照_*.html
+/热榜深潜简报_视频封面.jpg
+/交接提示词_*.md
+/团队交接文档_*.md
+/产品说明计划书_v1完整版.md
+/产品说明计划书_v2.1修订版.md
+/产品说明计划书_v2.2修订版.md
+/计划书_第*章_v0.md
+/项目日志_*.md
+/宣传视频_*制作方案.md
+/录屏任务卡_*.md
+/演示视频_90秒分镜稿.md
+/宣发*.md

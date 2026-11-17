@@ -25,6 +25,7 @@ v2 把「支持 / 反对 / 未定论」三派改成了六字段结构
 import json
 import re
 import sys
+import urllib.parse
 
 # ---- v2 字段硬上限（与 app.py 常量区一致）----
 BACKGROUND_MAX = 150
@@ -75,6 +76,19 @@ def real(value):
     """剥离占位串后返回真实内容；没有真实内容则返回空串。"""
     s = str(value or "").strip()
     return "" if s in PLACEHOLDERS else s
+
+
+def is_zhihu_url(url):
+    """与 app.py 一致：仅允许知乎主域名及其子域名，不用子串匹配。"""
+    try:
+        parsed = urllib.parse.urlparse(str(url or "").strip())
+    except (TypeError, ValueError):
+        return False
+    host = (parsed.hostname or "").lower().rstrip(".")
+    return (
+        parsed.scheme in ("http", "https")
+        and (host == "zhihu.com" or host.endswith(".zhihu.com"))
+    )
 
 
 def section(title):
@@ -238,7 +252,7 @@ def main():
             fail(f"rank={it.get('rank')} 延伸阅读 {len(rd)} 条，超过 {READING_MAX_PER_ITEM}")
         for r in rd:
             url = r.get("url") or ""
-            if "zhihu.com" not in url:
+            if not is_zhihu_url(url):
                 non_zhihu.append((it.get("rank"), url[:60]))
             if len(r.get("reason") or "") > REASON_MAX:
                 reason_over.append((it.get("rank"), len(r.get("reason") or "")))
