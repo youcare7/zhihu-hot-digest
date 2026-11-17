@@ -88,6 +88,43 @@ $env:ZHIHU_ACCESS_SECRET="你的密钥"; python app.py   # PowerShell
 3. 启动命令 `python app.py`。
 4. **必须验证**：用手机流量打开公网链接，确认评委视角可完整访问。
 
+**CloudBase 部署命令（固定用仓库根目录，不要再建 `deploy/` 副本）**：
+
+```bash
+tcb cloudrun deploy \
+  --env-id genuine-dove-d8gywlbm2e6dbc1b8 \
+  --service-name zhihu-hot-digest \
+  --source . --port 5000 --force --wait
+```
+
+- 根目录 `.dockerignore` 已将构建上下文限定为 `app.py / demo / data / requirements.txt`，其余文件（文档、视频、宣发素材）不会进镜像；
+- 历史上曾用 `deploy/` 子目录副本部署，出现过"改了根目录却推了旧代码"，该目录已于 2026-11-17 删除，**不要重建**；
+- CLI 有交互提示「是否灰度发布」，非交互环境需 `printf '\n' | tcb ...` 送默认回车，`--force` 不覆盖此项。
+
+## 测试与验收
+
+**本项目没有接入 CI**，所有检查均为本地脚本手动执行。
+
+三项集成测试是**独立脚本，不是 unittest 用例**（没有 `TestCase` 类），因此 `python -m unittest discover` 会显示 0 项——这是预期行为，不是"测试不存在"。正确运行方式：
+
+```bash
+python tests/test_cache_ttl.py      # 缓存 TTL 到点后台刷新
+python tests/test_refresh_guard.py  # 后台刷新结果劣于旧缓存时丢弃
+python tests/test_retry_pass.py     # 整批结束后对降级条目补跑一轮
+```
+
+其余验收脚本：
+
+```bash
+python scripts/smoke_check.py                                   # HTTP 冒烟：首页/data.js/10 条/digest 自洽/域名合法
+python scripts/verify_plan_numbers_v2.py data/baseline_insight_v2.json   # 复现计划书附录 A 固定基线
+python scripts/verify_plan_numbers_v2.py data.js                         # 复核当日线上快照
+python scripts/audit_gap_quality.py                                      # gap 可执行性预筛（启发式，需人工复核）
+```
+
+> `data/baseline_insight_v2.json` 是人工归类预览基线，**不是运行时产物**，不能用它跑 `smoke_check.py`。
+> 评审期运维（冷缓存 504、配额触顶、预热、回滚）见 `值班卡_评审期运维_2026-11-17.md`。
+
 ## 目录结构
 
 ```

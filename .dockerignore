@@ -1,0 +1,11 @@
+# 构建上下文白名单：只允许运行时必需的四个路径进入镜像
+# 规则：先排除全部，再逐项放行。新增运行时文件时必须同步这里。
+*
+!Dockerfile
+!requirements.txt
+!app.py
+!demo/
+!demo/index.html
+!demo/data.js
+!data/
+!data/fallback.json
