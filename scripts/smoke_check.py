@@ -100,6 +100,8 @@ def main() -> int:
         for k in REQUIRED:
             if not str(it.get(k) or "").strip():
                 errors += fail(f"#{rank} 缺少 {k}")
+        if str(it.get("background") or "").strip() == "暂无解读。":
+            errors += fail(f"#{rank} background 为降级哨兵「暂无解读。」")
         if it.get("type") not in ALLOWED_TYPES:
             errors += fail(f"#{rank} type={it.get('type')!r} 非法")
         if it.get("type") == "dispute" and len(it.get("sides") or []) != 2:

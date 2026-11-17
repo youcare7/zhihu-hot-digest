@@ -241,6 +241,30 @@ def main():
     if claim_over:
         fail(f"sides.claim 超 {SIDE_CLAIM_MAX} 字：{claim_over}")
 
+    # 结构长度合格不等于文本完整：另查上游乱码与旧式硬切片痕迹。
+    # 疑似截断只在“恰好达到上限且没有完整收尾”时报警，不断言语义正确。
+    complete_endings = ("。", "！", "？", ".", "!", "?", "…", "）", ")", "】", "”", '"')
+    garbled, suspicious_clip = [], []
+    prose_fields = (("background", BACKGROUND_MAX), ("focus", FOCUS_MAX),
+                    ("consensus", CONSENSUS_MAX), ("gap", GAP_MAX))
+    for it in items:
+        rank = it.get("rank")
+        fields = [(key, it.get(key) or "", limit) for key, limit in prose_fields]
+        fields.extend(("sides.claim", s.get("claim") or "", SIDE_CLAIM_MAX)
+                      for s in (it.get("sides") or []))
+        for key, text, limit in fields:
+            if "�" in text:
+                garbled.append((rank, key))
+            if real(text) and len(text) == limit and not text.endswith(complete_endings):
+                suspicious_clip.append((rank, key, text[-16:]))
+    print(f"    文本质量预检：乱码={len(garbled)} 处；疑似硬截断={len(suspicious_clip)} 处")
+    if garbled:
+        print(f"    乱码位置：{garbled}")
+        fail(f"文本含 U+FFFD 乱码：{garbled}")
+    if suspicious_clip:
+        print(f"    疑似硬截断：{suspicious_clip}")
+        fail(f"达到字数上限且未完整收尾，疑似硬截断：{suspicious_clip}")
+
     # ---------------------------------------------------------------- [7]
     section("[7] 延伸阅读：条数 / 域名 / reason 字数")
     total_reading, per_item, non_zhihu, reason_over = 0, [], [], []

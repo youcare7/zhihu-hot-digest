@@ -123,6 +123,11 @@
     line-height: 1.75;
   }
   .gap b { color: #ad6800; font-size: 12px; letter-spacing: .1em; display: block; margin-bottom: 4px; }
+  .gap b::after {
+    content: "找到这份材料，这场争论就能有定论";
+    display: block; margin-top: 2px; color: #6b7280;
+    font-size: 12px; font-weight: 400; letter-spacing: 0; line-height: 1.5;
+  }
 
   /* v2：今日洞察（深色卡） */
   .digest {
@@ -182,6 +187,24 @@
   .guard .gate-desc { font-size: 13.5px; color: #4e5969; line-height: 1.7; margin-top: 4px; }
   .guard .gate-block { margin-top: 6px; font-size: 12px; color: var(--muted); line-height: 1.8; }
 
+  /* 所有真实知乎链接：常驻去向标识，不只依赖 hover 才能发现 */
+  a.zhihu-link { cursor: pointer; text-decoration: none; }
+  a.zhihu-link::after {
+    content: "知乎 ↗";
+    display: inline-block; margin-left: 6px; padding: 1px 5px;
+    border: 1px solid #bed4ff; border-radius: 4px; background: #f0f7ff;
+    color: var(--blue); font-size: 11px; font-weight: 600;
+    line-height: 1.4; white-space: nowrap; vertical-align: 2px;
+  }
+  a.zhihu-link:hover {
+    color: var(--blue); text-decoration: underline; text-underline-offset: 3px;
+  }
+  a.zhihu-link:focus-visible {
+    color: var(--blue); outline: 2px solid var(--blue);
+    outline-offset: 4px; border-radius: 2px;
+  }
+  a.zhihu-link:active { opacity: .75; }
+
   /* 页脚 */
   footer {
     margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line);
@@ -222,8 +245,8 @@
   </header>
 
   <div class="meta">
-    <span id="badge" class="badge"></span>
     <span id="m-date"></span>
+    <span id="badge" class="badge"></span>
     <span id="m-count"></span>
     <span id="m-gen"></span>
   </div>
@@ -315,9 +338,12 @@
   badgeEl.textContent = BADGES[data.source] || data.source;
   if (data.source === 'fallback') badgeEl.classList.add('fallback');
   if (data.source === 'demo') badgeEl.classList.add('demo');
-  document.getElementById('m-date').textContent = data.date || '';
   document.getElementById('m-count').textContent = '共 ' + data.items.length + ' 条';
-  document.getElementById('m-gen').textContent = data.generated_at || '';
+  var generatedAt = String(data.generated_at || '').trim();
+  var hasExactTime = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(generatedAt);
+  var asOf = hasExactTime ? generatedAt : String(data.date || '').trim();
+  document.getElementById('m-date').textContent = asOf ? '数据截至：' + asOf : '';
+  document.getElementById('m-gen').textContent = '';
 
   if (data.notice) {
     var noticeEl = document.getElementById('notice');
@@ -412,13 +438,12 @@
 
     if (item.background === '暂无解读。' && item.question_url && !isDemo) {
       var note = el('p', 'degrade-note');
-      note.appendChild(document.createTextNode('该条解读生成失败，'));
-      var go = el('a', '', '点击标题直达知乎原问题');
+      note.appendChild(document.createTextNode('本条暂无可用素材，未生成解读。我们不编造背景与争议，你可以'));
+      var go = el('a', '', '直接去知乎原问题看看大家怎么说 →');
       go.href = item.question_url;
       go.target = '_blank';
       go.rel = 'noopener';
       note.appendChild(go);
-      note.appendChild(document.createTextNode('参与讨论。'));
       card.appendChild(note);
     } else if (item.background) {
       card.appendChild(el('p', 'background', item.background));
@@ -484,6 +509,13 @@
     }
 
     cardsEl.appendChild(card);
+  });
+
+  // 标题、延伸阅读、降级原问题等卡片内真实链接统一增加跳转标识。
+  // 示例数据不会生成 <a>，因此不会误标成可点击链接。
+  document.querySelectorAll('#cards a[href]').forEach(function (link) {
+    link.classList.add('zhihu-link');
+    link.setAttribute('aria-label', link.textContent.trim() + '（在知乎新窗口打开）');
   });
 
   loadingEl.remove();

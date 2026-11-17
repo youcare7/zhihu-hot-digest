@@ -374,8 +374,25 @@ def sanitize_viewpoint(value) -> str:
 
 # ---- v2：六字段清洗 ----
 def _clip(value, limit: int) -> str:
-    """按字符数截断，并去掉首尾空白。"""
-    return str(value or "").strip()[:limit]
+    """按字符数安全收束：超长时优先保留完整句/分句，不直接切断句子。"""
+    text = str(value or "").strip()
+    if len(text) <= limit:
+        return text
+    if limit <= 0:
+        return ""
+
+    window = text[:limit]
+    # 句号/问号/叹号可直接收尾；分号说明前后分句相对完整，收尾时改为句号。
+    boundaries = ("。", "！", "？", "!", "?", "；", ";")
+    cut = max(window.rfind(mark) for mark in boundaries)
+    # 避免为了找标点只保留过短的开头；没有合适边界时显式标省略。
+    if cut >= max(0, limit // 2 - 1):
+        mark = window[cut]
+        ending = "。" if mark in ("；", ";") else mark
+        return (window[:cut] + ending).rstrip()
+
+    kept = window[:max(0, limit - 1)].rstrip("，、：；,.;:!? \n\t")
+    return kept + "…"
 
 
 def sanitize_type(value) -> str:
@@ -794,7 +811,11 @@ def load_today_cache() -> dict | None:
     if not isinstance(data, dict) or not isinstance(data.get("items"), list):
         return None
     data["source"] = "cache"
-    data["generated_at"] = "当日缓存"
+    generated_at = str(data.get("generated_at") or "").strip()
+    if not re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}", generated_at):
+        # 兼容早期缺少有效时间戳的缓存：以缓存文件修改时间为准，不再写死“当日缓存”。
+        generated_at = datetime.datetime.fromtimestamp(path.stat().st_mtime, CN_TZ).strftime("%Y-%m-%d %H:%M")
+    data["generated_at"] = generated_at
     _log(f"命中当日缓存：{path.name}")
     return data
 
