@@ -333,6 +333,64 @@
     fallback: '演示兜底'
   };
 
+  // 冷缓存时后端立即返回兜底并后台生成；页面低频检查，成功后自动切换。
+  // 轮询只读取 data.js，生成锁与冷却期保证它不会放大上游 API 调用量。
+  function startRecoveryPolling(initial) {
+    var attempts = 0;
+    var maxAttempts = 40;
+
+    function stopWithManualHint() {
+      var noticeEl = document.getElementById('notice');
+      if (noticeEl) noticeEl.textContent += ' 后台生成暂未结束，请稍后手动刷新。';
+    }
+
+    function schedule(delay) {
+      if (attempts >= maxAttempts) {
+        stopWithManualHint();
+        return;
+      }
+      window.setTimeout(poll, Math.max(1000, delay));
+    }
+
+    function parseBrief(raw) {
+      var text = raw.trim();
+      if (text.charAt(0) === '{') return JSON.parse(text);
+      var pos = text.indexOf('=');
+      if (pos < 0) throw new Error('invalid data.js');
+      return JSON.parse(text.slice(pos + 1).trim().replace(/;$/, ''));
+    }
+
+    function poll() {
+      attempts += 1;
+      fetch('data.js?recovery=' + Date.now(), {
+        cache: 'no-store',
+        credentials: 'same-origin'
+      }).then(function (response) {
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        return response.text();
+      }).then(function (raw) {
+        var next = parseBrief(raw);
+        if ((next.source === 'cache' || next.source === 'live') && Array.isArray(next.items)) {
+          window.location.reload();
+          return;
+        }
+        if (next.refreshing) {
+          schedule(15000);
+        } else if (Number(next.retry_after) > 0) {
+          schedule(Number(next.retry_after) * 1000 + 1000);
+        }
+      }).catch(function () {
+        schedule(30000);
+      });
+    }
+
+    if (initial.refreshing) {
+      schedule(15000);
+    } else if (Number(initial.retry_after) > 0) {
+      schedule(Number(initial.retry_after) * 1000 + 1000);
+    }
+  }
+
   // ---------- 元信息 ----------
   var badgeEl = document.getElementById('badge');
   badgeEl.textContent = BADGES[data.source] || data.source;
@@ -520,6 +578,7 @@
 
   loadingEl.remove();
   document.getElementById('app').hidden = false;
+  startRecoveryPolling(data);
 })();
 </script>
 </body>
