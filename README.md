@@ -35,10 +35,13 @@
 GET /data.js
   ├─ 存在 data/brief_<今天>.json → 直接返回缓存（source=cache，秒开）
   ├─ 缓存过期（默认 3h TTL）→ 后台静默刷新，旧缓存继续服务，访客零等待
-  │     └─ 刷新结果比旧缓存差（成功条数变少）→ 当场丢弃，守住全绿缓存（防劣化棘轮）
-  ├─ 无缓存时实时生成：热榜 10 条 → 每条站内搜索 → 知乎直答逐条生成 → 原子写入缓存
+  │     └─ 刷新结果比旧缓存差（成功条数变少）→ 丢弃并进入冷却，守住全绿缓存
+  ├─ 无缓存 → 立即返回静态兜底，同时在后台生成；页面低频轮询、成功后自动切换
   └─ 任一步异常 → data/fallback.json 静态兜底（source=fallback，页面仍完整）
 ```
+
+- **冷缓存不阻塞**：真实模式把 1–3 分钟的整批构建放到后台，首访不再同步等待；`fallback.refreshing / retry_after` 只用于前端自动恢复，`source` 仍严格保持 `demo / live / cache / fallback` 四种取值。
+- **失败重试冷却**：刷新异常、整批 0 条成功或劣化结果被丢弃后，默认冷却 15 分钟；旧缓存继续服务，避免访客流量反复触发整批生成。冷却只限制重试风暴，不替代日配额硬限额。
 
 - **后端确定性组装**：知乎直答只输出结构化裁决字段（三态分类 / claim_type / 聚焦问题 / 缺口），最终的 `build_digest` 由后端代码确定性地执行，零模型自由度。
 - **双重防幻觉**：大模型只输出候选编号，程序按编号映射回搜索 API 的真实返回；组装后再校验 URL 必须在本次搜索白名单内、主机名必须是 `zhihu.com` 或其子域名，越界与重复条目直接丢弃。上线首晚曾拦截过候选池之外的越界假编号。
@@ -74,7 +77,7 @@ export MOCK_MODE=1 && python app.py
 $env:ZHIHU_ACCESS_SECRET="你的密钥"; python app.py   # PowerShell
 ```
 
-**成功标志**：首次访问约需 1–3 分钟（页面显示等待提示），徽章为「实时生成」；之后 3 小时缓存期内秒开，徽章为「当日缓存」。顶部同时显示真实生成时刻，格式为「数据截至：YYYY-MM-DD HH:mm｜当日缓存｜共 10 条」；读取缓存不会再用状态文字覆盖 `generated_at`。网关 504 或进程不可达不由数据层兜底覆盖。
+**成功标志**：无缓存时页面先显示「演示兜底」，后端同时在后台生成，页面会自动轮询并在缓存落盘后切换为「当日缓存」；不再让首访请求同步等待 1–3 分钟。之后 3 小时缓存期内秒开。顶部同时显示真实生成时刻，格式为「数据截至：YYYY-MM-DD HH:mm｜当日缓存｜共 10 条」；读取缓存不会再用状态文字覆盖 `generated_at`。进程不可达仍不属于数据层兜底的覆盖范围。
 
 ### 本地双击预览
 
@@ -106,7 +109,7 @@ tcb cloudrun deploy \
 
 **本项目没有接入 CI**，所有检查均为本地脚本手动执行。
 
-五项测试是**独立脚本，不是 unittest 用例**（没有 `TestCase` 类），因此 `python -m unittest discover` 会显示 0 项——这是预期行为，不是"测试不存在"。正确运行方式：
+七项测试是**独立脚本，不是 unittest 用例**（没有 `TestCase` 类），因此 `python -m unittest discover` 会显示 0 项——这是预期行为，不是"测试不存在"。正确运行方式：
 
 ```bash
 python tests/test_cache_timestamp.py  # 缓存保留真实生成时刻，旧缓存按 mtime 补齐
@@ -114,6 +117,8 @@ python tests/test_cache_ttl.py        # 缓存 TTL 到点后台刷新
 python tests/test_refresh_guard.py    # 后台刷新结果劣于旧缓存时丢弃
 python tests/test_retry_pass.py       # 整批结束后对降级条目补跑一轮
 python tests/test_text_quality.py     # 安全收束、乱码/疑似硬截断与降级冒烟拦截
+python tests/test_cold_start.py       # 冷缓存立即兜底、并发只生成一次、全败不落坏缓存
+python tests/test_refresh_cooldown.py # 异常与劣化刷新后的重试冷却
 ```
 
 其余验收脚本：
@@ -126,7 +131,7 @@ python scripts/audit_gap_quality.py                                      # gap �
 ```
 
 > `data/baseline_insight_v2.json` 是人工归类预览基线，**不是运行时产物**，不能用它跑 `smoke_check.py`。
-> 评审期运维（冷缓存 504、配额触顶、预热、回滚）见 `值班卡_评审期运维_2026-11-17.md`。
+> 评审期运维（冷缓存自动恢复、配额触顶、预热、回滚）见 `值班卡_评审期运维_2026-11-17.md`。
 
 ## 目录结构
 
@@ -155,6 +160,7 @@ python scripts/audit_gap_quality.py                                      # gap �
 - `MODEL_API_KEY` / `MODEL_BASE` / `MODEL_NAME`：备选通用大模型（OpenAI 兼容接口），三项齐全后知乎直答失败时自动切换。
 - `PORT`：服务端口，默认 5000。
 - `CACHE_TTL_HOURS`：当日缓存有效期（小时），默认 3，过期后由访问流量惰性触发后台静默刷新；设为 `0` 恢复「每日只生成一次」。
+- `REFRESH_COOLDOWN_SECONDS`：刷新异常、整批 0 条成功或劣化结果丢弃后的冷却时间，默认 900 秒；冷却期间保留旧缓存或静态兜底，不重复调用上游。
 - `RETRY_WAIT` / `RETRY_TIMES`：429 限流退避的等待秒数与总尝试次数，默认 30 / 6。
 
 ## 分步验证命令

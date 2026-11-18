@@ -246,7 +246,10 @@ RETRY_TIMES = int(os.environ.get("RETRY_TIMES", "6"))  # 含首次共尝试次�
 # 缓存有效期（小时）：过期后由访问流量惰性触发后台刷新（stale-while-revalidate），
 # 不引入定时任务；<=0 时恢复「每日只生成一次」的旧行为。
 CACHE_TTL_SECONDS = int(float(os.environ.get("CACHE_TTL_HOURS", "3")) * 3600)
+# 刷新失败或结果被防劣化门丢弃后，暂停后续整批生成，避免访客流量形成重试风暴。
+REFRESH_COOLDOWN_SECONDS = max(0, int(os.environ.get("REFRESH_COOLDOWN_SECONDS", "900")))
 _REFRESH_LOCK = threading.Lock()   # 保证同时只有一个后台刷新线程
+_REFRESH_NOT_BEFORE = 0.0          # monotonic 时间；仅进程内状态，不假装持久化
 
 
 def _chat_with_retry(url: str, headers: dict, payload: dict, label: str) -> str:
@@ -842,6 +845,32 @@ def load_fallback() -> dict:
     return data
 
 
+def _refresh_retry_after() -> int:
+    """距离允许下一次整批生成的秒数；0 表示现在可以尝试。"""
+    remaining = _REFRESH_NOT_BEFORE - time.monotonic()
+    return max(0, int(remaining + 0.999))
+
+
+def _set_refresh_cooldown() -> None:
+    global _REFRESH_NOT_BEFORE
+    _REFRESH_NOT_BEFORE = time.monotonic() + REFRESH_COOLDOWN_SECONDS
+
+
+def _start_background_refresh() -> bool:
+    """尝试启动唯一后台生成线程；冷却中或已有线程时返回 False。"""
+    if not _REFRESH_LOCK.acquire(blocking=False):
+        return False
+    try:
+        if _refresh_retry_after() > 0:
+            _REFRESH_LOCK.release()
+            return False
+        threading.Thread(target=_background_refresh, daemon=True).start()
+        return True
+    except Exception:
+        _REFRESH_LOCK.release()
+        raise
+
+
 def _maybe_background_refresh() -> None:
     """缓存超过 TTL 则后台静默刷新（stale-while-revalidate）：
     本次请求照常秒回旧缓存，生成完成后后续访客自动拿到新版。"""
@@ -850,10 +879,9 @@ def _maybe_background_refresh() -> None:
     age = cache_age_seconds()
     if age is None or age <= CACHE_TTL_SECONDS:
         return
-    if not _REFRESH_LOCK.acquire(blocking=False):
-        return  # 已有刷新线程在跑
+    if not _start_background_refresh():
+        return  # 已有刷新线程在跑，或失败后仍在冷却期
     _log(f"缓存已 {int(age // 60)} 分钟未更新（TTL {CACHE_TTL_SECONDS // 3600} 小时），触发后台自动刷新")
-    threading.Thread(target=_background_refresh, daemon=True).start()
 
 
 def _count_ok(data: dict) -> int:
@@ -878,8 +906,17 @@ def _background_refresh() -> None:
             _log("后台自动刷新开始")
             data = build_brief()
             new_ok = _count_ok(data)
+            if new_ok == 0:
+                # 全量降级不是可用简报：无缓存时继续展示兜底，有缓存时保留旧内容。
+                _set_refresh_cooldown()
+                _log(f"本次生成 0 条成功，丢弃结果并冷却 {REFRESH_COOLDOWN_SECONDS} 秒")
+                return
             if old_ok > 0 and new_ok < old_ok:
-                _log(f"刷新结果劣于现有缓存（{new_ok} < {old_ok} 条成功），丢弃本次结果，沿用旧缓存")
+                _set_refresh_cooldown()
+                _log(
+                    f"刷新结果劣于现有缓存（{new_ok} < {old_ok} 条成功），"
+                    f"丢弃本次结果并冷却 {REFRESH_COOLDOWN_SECONDS} 秒，沿用旧缓存"
+                )
                 return
             DATA_DIR.mkdir(exist_ok=True)
             tmp = cache_path().with_suffix(".tmp")
@@ -887,28 +924,55 @@ def _background_refresh() -> None:
             tmp.replace(cache_path())
             _log(f"后台自动刷新完成：{new_ok} 条成功，已写入 {cache_path().name}")
     except Exception as exc:
-        _log(f"后台自动刷新失败（旧缓存继续服务，页面不受影响）：{exc}")
+        _set_refresh_cooldown()
+        _log(
+            f"后台自动刷新失败（旧缓存继续服务，页面不受影响），"
+            f"冷却 {REFRESH_COOLDOWN_SECONDS} 秒：{exc}"
+        )
     finally:
         _REFRESH_LOCK.release()
 
 
-def get_brief() -> dict:
-    """路由核心逻辑（任务书 4.8）：缓存 → 实时生成 → 兜底。
+def _fallback_with_refresh_state(refreshing: bool = False) -> dict:
+    """冷缓存时立即给出可读的静态兜底，并向前端暴露自动恢复状态。"""
+    data = load_fallback()
+    data["refreshing"] = bool(refreshing or _REFRESH_LOCK.locked())
+    data["retry_after"] = _refresh_retry_after()
+    if data["refreshing"]:
+        data["notice"] = "当前为演示兜底数据，今日简报正在后台生成；页面会在生成完成后自动更新。"
+    elif data["retry_after"] > 0:
+        minutes = max(1, (data["retry_after"] + 59) // 60)
+        data["notice"] = f"当前为演示兜底数据，今日简报暂未生成成功，约 {minutes} 分钟后重试；页面会自动恢复。"
+    return data
 
-    生成全程加锁：首个请求生成期间，其余请求阻塞等待，拿到锁后
-    先复查缓存（等待期间可能已生成完），杜绝并发双倍生成吃掉每日额度。
-    缓存命中但超过 TTL 时，后台静默刷新，本次请求不受影响。
+
+def get_brief() -> dict:
+    """缓存秒回；真实模式的冷缓存生成转入后台，避免网关等待整批构建。
+
+    mock 生成不联网且耗时极短，保留同步首访，方便本地一次跑通全链路。
+    真实模式无缓存时立即返回明确标记的静态兜底，后台只启动一个生成线程；
+    前端依据 refreshing / retry_after 轮询，缓存落盘后自动切换到当日简报。
     """
     try:
         cached = load_today_cache()
         if cached:
             _maybe_background_refresh()
             return cached
-        with _GEN_LOCK:
-            cached = load_today_cache()
-            if cached:
-                return cached
-            return generate_and_cache()
+        if MOCK_MODE:
+            with _GEN_LOCK:
+                cached = load_today_cache()
+                if cached:
+                    return cached
+                return generate_and_cache()
+
+        started = _start_background_refresh()
+        if started:
+            _log("无可用缓存，已转为后台生成；本次请求立即返回静态兜底")
+        # 极快生成可能已在启动后落盘，优先直接返回真实缓存。
+        cached = load_today_cache()
+        if cached:
+            return cached
+        return _fallback_with_refresh_state(refreshing=started)
     except Exception as exc:
         _log(f"生成失败，切换到静态兜底：{exc}")
         return load_fallback()
@@ -929,7 +993,11 @@ def index():
 def data_js():
     brief = get_brief()
     payload = json.dumps(brief, ensure_ascii=False)
-    return Response(f"window.BRIEF_DATA = {payload};", mimetype="application/javascript")
+    return Response(
+        f"window.BRIEF_DATA = {payload};",
+        mimetype="application/javascript",
+        headers={"Cache-Control": "no-store, max-age=0"},
+    )
 
 
 # ---------------------------------------------------------------------------

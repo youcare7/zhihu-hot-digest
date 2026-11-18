@@ -43,8 +43,9 @@ def wait_refresh_done(timeout=60):
     deadline = time.time() + timeout
     while time.time() < deadline:
         for m in log_lines:
-            if ("后台自动刷新完成" in m or "丢弃本次结果" in m
-                    or "后台自动刷新失败" in m):
+            if (("后台自动刷新完成" in m or "丢弃本次结果" in m
+                    or "后台自动刷新失败" in m)
+                    and not app._REFRESH_LOCK.locked()):
                 return m
         time.sleep(0.2)
     raise AssertionError("等待超时：后台刷新线程未在预期时间内结束")
@@ -86,7 +87,8 @@ current = json.loads(path.read_text(encoding="utf-8"))
 assert all(OLD_BG in it["background"] for it in current["items"]), "缓存内容应为旧的全绿数据"
 print("场景1 ✅ 新结果持续 2/3 成功 < 旧缓存 3/3，命中丢弃逻辑，沿用旧缓存")
 
-# ---------- 场景2：新结果 3/3 不劣于旧缓存 → 应正常覆盖 ----------
+# ---------- 场景2：冷却期允许结束后，新结果 3/3 不劣于旧缓存 → 应正常覆盖 ----------
+app._REFRESH_NOT_BEFORE = 0.0  # 显式模拟上一失败场景的冷却已结束
 app.generate = lambda title, text: {"background": NEW_BG,
                                     "viewpoints": {"support": "支持", "oppose": "反对", "undecided": "未定论"},
                                     "reading": [{"index": 1, "reason": "视角独特"}]}
