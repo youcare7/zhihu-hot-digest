@@ -801,6 +801,34 @@ def cache_age_seconds() -> float | None:
     return time.time() - path.stat().st_mtime
 
 
+def is_simulated_brief(data: dict) -> bool:
+    """识别 mock/demo 简报，防止真实模式把模拟缓存当正式内容。"""
+    if not isinstance(data, dict):
+        return False
+    if data.get("source") == "demo":
+        return True
+    if "模拟数据" in str(data.get("notice") or ""):
+        return True
+    if "模拟" in str(data.get("generated_at") or ""):
+        return True
+    items = data.get("items") or []
+    if not isinstance(items, list):
+        return False
+    urls = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        urls.extend([item.get("question_url"), item.get("url")])
+        reading = item.get("reading") or []
+        if isinstance(reading, list):
+            urls.extend(r.get("url") for r in reading if isinstance(r, dict))
+    return any(
+        marker in str(url or "")
+        for url in urls
+        for marker in ("/question/mock-", "/answer/mock-")
+    )
+
+
 def load_today_cache() -> dict | None:
     """FR-07：当天已有缓存则直接读取，秒开。"""
     path = cache_path()
@@ -818,6 +846,10 @@ def load_today_cache() -> dict | None:
             or any(not isinstance(it, dict) or not str(it.get("title") or "").strip() for it in items)):
         # 空数组、null 条目或缺标题缓存会让前端出现空白/报错，必须按未命中处理。
         _log(f"缓存结构无效，忽略并重新生成：{path.name}")
+        return None
+    if not MOCK_MODE and is_simulated_brief(data):
+        # mock 开发缓存可以跨进程遗留；真实模式必须重新生成，不能仅改 source 伪装正式内容。
+        _log(f"真实模式下模拟缓存无效，忽略并重新生成：{path.name}")
         return None
     data["source"] = "cache"
     generated_at = str(data.get("generated_at") or "").strip()
@@ -901,14 +933,9 @@ def _background_refresh() -> None:
             age = cache_age_seconds()
             if age is not None and age <= CACHE_TTL_SECONDS and load_today_cache() is not None:
                 return  # 等锁期间已被别的请求刷新过；仅有新鲜 mtime 的坏缓存不算
-            # 防劣化保护：先读出旧缓存的完整度，刷新结果若劣于旧缓存（成功条目变少，
-            # 如直答额度触顶导致大面积降级），丢弃新结果、沿用旧缓存——宁留旧全绿，不覆新残次。
-            old_ok = 0
-            if cache_path().exists():
-                try:
-                    old_ok = _count_ok(json.loads(cache_path().read_text(encoding="utf-8")))
-                except Exception:
-                    old_ok = 0
+            # 防劣化保护：只把 load_today_cache 认可的有效旧缓存作为基准。
+            # 模拟缓存即使“成功条数”很多，也不能阻止真实新结果覆盖它。
+            old_ok = _count_ok(load_today_cache() or {})
             _log("后台自动刷新开始")
             data = build_brief()
             new_ok = _count_ok(data)

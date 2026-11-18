@@ -51,6 +51,17 @@ HEALTHY = {
     "items": make_items(10),
 }
 FALLBACK = dict(HEALTHY, source="fallback", items=make_items(4), refreshing=True, retry_after=0)
+SIMULATED_ITEMS = make_items(10)
+for item in SIMULATED_ITEMS:
+    item["question_url"] = f"https://www.zhihu.com/question/mock-{item['rank']}"
+    item["reading"][0]["url"] = f"https://www.zhihu.com/question/mock-{item['rank']}/answer/mock-100"
+SIMULATED = dict(
+    HEALTHY,
+    source="cache",
+    generated_at="2026-11-18 20:49（模拟）",
+    notice="【模拟数据】当前为 mock 模式：全部内容来自本地示例，并非知乎 API 真实返回，链接不可点击。",
+    items=SIMULATED_ITEMS,
+)
 state = {"mode": "recover", "data_hits": 0}
 
 
@@ -60,6 +71,8 @@ class Handler(BaseHTTPRequestHandler):
             state["data_hits"] += 1
             if state["mode"] == "fallback":
                 data = FALLBACK
+            elif state["mode"] == "simulated":
+                data = SIMULATED
             elif state["mode"] == "recover" and state["data_hits"] == 1:
                 data = FALLBACK
             else:
@@ -122,6 +135,22 @@ try:
         )
     else:
         print("场景B ✅ verify_live 快速、明确地区分服务存活与内容未就绪")
+
+    # 模拟缓存即使结构完整、URL 主机是知乎，也绝不能作为真实线上内容通过。
+    state["mode"] = "simulated"
+    state["data_hits"] = 0
+    result = run_script("smoke_check.py", "--url", base, "--timeout", "1")
+    if result.returncode == 0 or "模拟数据" not in result.stdout:
+        failures.append("smoke_check 模拟缓存用例失败：\n" + result.stdout + result.stderr)
+    else:
+        print("场景C ✅ smoke_check 拒绝伪装成 cache 的模拟数据")
+
+    state["data_hits"] = 0
+    result = run_script("verify_live.py", base)
+    if result.returncode == 0 or "模拟数据" not in result.stdout:
+        failures.append("verify_live 模拟缓存用例失败：\n" + result.stdout + result.stderr)
+    else:
+        print("场景D ✅ verify_live 拒绝模拟数据，不再误报真实内容全绿")
 finally:
     server.shutdown()
     server.server_close()

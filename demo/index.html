@@ -2,404 +2,457 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#f7f4ee">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%231f1b16'/%3E%3Cpath d='M18 16h28v4H18zm0 12h28v4H18zm0 12h18v4H18z' fill='%23fdfbf7'/%3E%3Ccircle cx='44' cy='44' r='5' fill='%23056de8'/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f4f1eb">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231d252e'/%3E%3Cpath d='M17 17h30v4H17zm0 11h30v4H17zm0 11h19v4H17z' fill='%23fff'/%3E%3Ccircle cx='45' cy='45' r='6' fill='%23056de8'/%3E%3C/svg%3E">
 <title>热榜深潜简报</title>
 <style>
   :root {
     --blue: #056de8;
+    --blue-deep: #0557b8;
     --orange: #b76018;
     --green: #24824f;
     --violet: #7163b8;
-    --ink: #1f1b16;
-    --secondary: #5e554a;
-    --muted: #6b645b;
-    --line: rgba(31, 27, 22, .12);
-    --paper: #fdfbf7;
-    --raised: #f3efe7;
-    --page: #f7f4ee;
+    --ink: #1d252e;
+    --secondary: #53606d;
+    --muted: #6e7882;
+    --line: rgba(29, 37, 46, .12);
+    --paper: #fffefa;
+    --raised: #f1efe9;
+    --page: #f4f1eb;
+    --glass: rgba(255, 254, 250, .72);
+    --shadow: 0 20px 60px rgba(37, 45, 53, .08);
+    --serif: "Noto Serif SC", "Songti SC", "SimSun", Georgia, serif;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
   body {
-    background: var(--page);
+    min-width: 320px;
+    background:
+      radial-gradient(circle at 8% 0%, rgba(5, 109, 232, .07), transparent 32rem),
+      radial-gradient(circle at 96% 82%, rgba(113, 99, 184, .055), transparent 30rem),
+      var(--page);
     color: var(--ink);
     font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
-    line-height: 1.7;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input { font: inherit; }
+  button { -webkit-tap-highlight-color: transparent; }
+  button:focus-visible, a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--blue); outline-offset: 4px; border-radius: 6px;
   }
   ::selection { background: rgba(5, 109, 232, .16); }
-  .wrap { max-width: 800px; margin: 0 auto; padding: 40px 24px 64px; }
-
-  /* 报头：保留报纸式标题，用层级而不是装饰建立识别 */
-  header { border-bottom: 2px solid var(--ink); padding-bottom: 24px; }
-  .kicker {
-    font-size: 12px; letter-spacing: .02em; color: var(--blue);
-    font-weight: 500; margin-bottom: 8px;
-  }
-  h1 {
-    font-family: "Noto Serif SC", "Songti SC", "SimSun", serif;
-    font-size: 36px; line-height: 1.25; font-weight: 600;
-  }
-  .slogan { color: var(--secondary); font-size: 20px; font-weight: 500; line-height: 1.6; margin-top: 12px; }
-  .value-intro {
-    max-width: 65ch; margin-top: 8px; color: var(--secondary);
-    font-size: 16px; line-height: 1.75;
-  }
-  .value-intro strong { color: var(--ink); font-weight: 600; white-space: nowrap; }
-  .section-heading { margin-top: 32px; padding-top: 20px; border-top: 1px solid var(--line); }
-  .section-heading h2 {
-    font-family: "Noto Serif SC", "Songti SC", "SimSun", serif;
-    font-size: 24px; line-height: 1.4; font-weight: 500;
-  }
-  .section-heading p { margin-top: 4px; color: var(--secondary); font-size: 14px; }
-  .section-label, .reading-title {
-    display: block; margin-bottom: 4px; color: var(--muted);
-    font-size: 12px; font-weight: 500; letter-spacing: 0;
-  }
-  .reading-block { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
-  .reading-block .reading { margin-top: 8px; padding-top: 0; border-top: 0; }
-  .mobile-analysis > summary { display: none; }
-  .analysis-content { padding-top: 0; }
   [hidden] { display: none !important; }
-  .back-top {
-    position: fixed; right: 24px; bottom: 24px; z-index: 10;
-    min-width: 64px; min-height: 44px; padding: 8px 12px;
-    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-    border: 1px solid var(--line); border-radius: 8px; background: var(--paper);
-    color: var(--secondary); font: 500 14px/1.2 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
-    box-shadow: 0 4px 12px rgba(31, 27, 22, .08); cursor: pointer;
-    transition: color 160ms ease-out, border-color 160ms ease-out, background-color 160ms ease-out;
-  }
-  .back-top:hover { color: var(--blue); border-color: rgba(5, 109, 232, .36); background: #fff; }
-  .back-top:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; }
-  .back-top:active { opacity: .8; }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 22px 28px 72px; }
+  .serif { font-family: var(--serif); }
 
-  /* 元信息行 */
-  .meta {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
-    padding: 16px 0; font-size: 13px; color: var(--secondary);
-    border-bottom: 1px solid var(--line);
+  /* 液态玻璃只承担导航与控制，不覆盖正文。 */
+  .glass {
+    border: 1px solid rgba(255, 255, 255, .82);
+    background: var(--glass);
+    box-shadow: 0 10px 34px rgba(37, 45, 53, .10), inset 0 1px 0 rgba(255,255,255,.8);
+    -webkit-backdrop-filter: blur(22px) saturate(145%);
+    backdrop-filter: blur(22px) saturate(145%);
   }
+  .topbar {
+    position: relative; z-index: 20; min-height: 60px;
+    display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    padding: 8px 10px 8px 18px; border-radius: 20px;
+  }
+  .brand {
+    min-height: 44px; display: inline-flex; align-items: center; gap: 10px;
+    border: 0; background: transparent; color: var(--ink); cursor: pointer;
+    font-family: var(--serif); font-size: 17px; font-weight: 600; white-space: nowrap;
+  }
+  .brand-mark {
+    width: 27px; height: 27px; display: grid; place-items: center;
+    border-radius: 9px; background: var(--ink); color: #fff;
+    font: 600 13px/1 -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  .top-actions { display: flex; align-items: center; gap: 4px; }
+  .nav-button {
+    min-height: 44px; padding: 0 14px; border: 0; border-radius: 13px;
+    background: transparent; color: var(--secondary); cursor: pointer;
+    font-size: 13px; font-weight: 500; white-space: nowrap;
+    transition: background-color 160ms ease, color 160ms ease;
+  }
+  .nav-button:hover { background: rgba(5, 109, 232, .07); color: var(--blue); }
+  .nav-button.active { background: var(--ink); color: #fff; }
+
+  /* 首页：判断直接出现，不再另设重复的“今日”分页。 */
+  .cover { padding: clamp(42px, 7vw, 88px) 0 38px; }
+  .cover-grid {
+    display: grid; grid-template-columns: minmax(0, .9fr) minmax(420px, 1.1fr);
+    align-items: center; gap: clamp(42px, 7vw, 90px);
+  }
+  .kicker {
+    display: flex; align-items: center; gap: 10px;
+    color: var(--blue); font-size: 11px; font-weight: 600; letter-spacing: .12em;
+  }
+  .kicker::before { content: ""; width: 28px; height: 1px; background: var(--blue); }
+  h1 {
+    margin-top: 22px; font-family: var(--serif); font-size: clamp(52px, 6.2vw, 80px);
+    line-height: 1.12; letter-spacing: -.045em; font-weight: 600;
+  }
+  h1 span { color: var(--blue); }
+  .slogan {
+    margin-top: 26px; font-family: var(--serif); font-size: clamp(20px, 2.2vw, 27px);
+    line-height: 1.55; font-weight: 600;
+  }
+  .cover-description { max-width: 490px; margin-top: 14px; color: var(--secondary); font-size: 15px; line-height: 1.9; }
+  .cover-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
+  .primary-button, .secondary-button {
+    min-height: 48px; padding: 0 20px; border-radius: 14px; cursor: pointer;
+    font-size: 14px; font-weight: 600;
+    transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+  }
+  .primary-button { border: 1px solid var(--ink); background: var(--ink); color: #fff; }
+  .secondary-button { border: 1px solid var(--line); background: rgba(255,254,250,.62); color: var(--ink); }
+  .primary-button:hover, .secondary-button:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(29,37,46,.10); }
+  .cover-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 14px; margin-top: 24px; color: var(--muted); font-size: 12px; }
+  .cover-meta .dot { width: 4px; height: 4px; border-radius: 50%; background: #9aa2aa; }
+
+  .today-card {
+    position: relative; overflow: hidden; padding: clamp(26px, 4vw, 40px);
+    border: 1px solid var(--line); border-radius: 28px; background: var(--paper); box-shadow: var(--shadow);
+  }
+  .today-card::before {
+    content: ""; position: absolute; top: 0; left: 40px; right: 40px; height: 2px;
+    background: linear-gradient(90deg, var(--green), var(--orange), var(--violet));
+  }
+  .section-eyebrow { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .12em; }
+  .today-heading { margin-top: 12px; font-family: var(--serif); font-size: 21px; line-height: 1.7; font-weight: 600; }
+  .judgement-counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 24px 0; }
+  .judgement-count {
+    min-width: 0; padding: 16px 12px; border: 1px solid var(--line); border-radius: 15px; background: #faf9f5;
+  }
+  .judgement-count strong { display: block; font: 500 32px/1.1 Georgia, serif; font-variant-numeric: tabular-nums; }
+  .judgement-count span { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--secondary); font-size: 12px; white-space: nowrap; }
+  .judgement-count span::before, .type-dot { content: ""; flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; }
+  .judgement-count.consensus strong { color: var(--green); }
+  .judgement-count.consensus span::before, .type-dot.consensus { background: var(--green); }
+  .judgement-count.dispute strong { color: var(--orange); }
+  .judgement-count.dispute span::before, .type-dot.dispute { background: var(--orange); }
+  .judgement-count.verify strong { color: var(--violet); }
+  .judgement-count.verify span::before, .type-dot.verify { background: var(--violet); }
+  .insight-list { list-style: none; border-top: 1px solid var(--line); padding-top: 16px; }
+  .insight-list li { position: relative; margin-top: 10px; padding-left: 17px; color: var(--secondary); font-size: 13px; line-height: 1.8; }
+  .insight-list li::before { content: ""; position: absolute; left: 0; top: .78em; width: 7px; height: 1px; background: var(--blue); }
+  .swipe-note { display: none; margin-top: 18px; color: var(--muted); font-size: 12px; text-align: center; }
+
+  /* 阅读器 */
+  #reader { padding-top: 22px; }
+  .reader-shell { max-width: 900px; margin: 0 auto; }
+  .reader-toolbar { position: sticky; top: 12px; z-index: 25; }
+  .reader-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 16px 4px 10px; color: var(--secondary); font-size: 12px; }
   .badge {
     display: inline-flex; align-items: center; min-height: 24px; padding: 2px 8px;
-    border: 1px solid rgba(5, 109, 232, .28); border-radius: 6px;
-    font-size: 12px; font-weight: 500; color: var(--blue); background: transparent;
+    border: 1px solid rgba(5,109,232,.25); border-radius: 6px; color: var(--blue); background: rgba(255,255,255,.32);
+    font-size: 11px; font-weight: 500;
   }
-  .badge.fallback { color: var(--orange); border-color: rgba(183, 96, 24, .32); }
+  .badge.fallback { color: var(--orange); border-color: rgba(183,96,24,.3); }
   .badge.demo { color: var(--secondary); border-color: var(--line); }
-
-  /* 提示横幅 */
-  .notice {
-    margin-top: 16px; padding: 12px 16px; font-size: 14px;
-    background: #f6f0e4; border: 1px solid rgba(183, 96, 24, .24); border-radius: 8px; color: #7b4b1d;
+  .notice { margin: 6px 0 14px; padding: 12px 15px; border: 1px solid rgba(183,96,24,.22); border-radius: 12px; background: #f6efe2; color: #754718; font-size: 13px; }
+  .reading-progress { height: 2px; overflow: hidden; border-radius: 99px; background: rgba(29,37,46,.08); }
+  .reading-progress span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--blue); transition: width 200ms ease; }
+  .page-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 16px 2px 24px; scrollbar-width: none; }
+  .page-tabs::-webkit-scrollbar { display: none; }
+  .page-tab {
+    flex: 0 0 auto; min-width: 44px; min-height: 44px; padding: 0 12px;
+    border: 1px solid transparent; border-radius: 13px; background: transparent;
+    color: var(--muted); cursor: pointer; font-size: 12px;
   }
+  .page-tab:hover { border-color: var(--line); color: var(--blue); background: rgba(255,255,255,.36); }
+  .page-tab.active { border-color: var(--ink); background: var(--ink); color: #fff; }
+  .page-panel { display: none; }
+  .page-panel.active { display: block; animation: page-in 220ms ease-out both; }
+  @keyframes page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
-  /* 卡片 */
   .card {
-    background: var(--paper); border: 1px solid var(--line); border-radius: 12px;
-    padding: 24px; margin-top: 20px;
+    padding: clamp(25px, 5vw, 44px); border: 1px solid var(--line); border-radius: 24px;
+    background: var(--paper); box-shadow: var(--shadow);
   }
-  .card-head { display: flex; align-items: baseline; gap: 12px; }
-  .card-title-box { min-width: 0; }
+  .card-sequence { margin-bottom: 24px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .12em; }
+  .card-head { display: flex; align-items: flex-start; gap: 18px; }
   .rank {
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: 32px; font-weight: 500; color: var(--blue); line-height: 1;
-    min-width: 36px; text-align: right; font-variant-numeric: tabular-nums;
+    min-width: 48px; padding-top: 3px; color: var(--blue); text-align: right;
+    font: 500 44px/1 Georgia, serif; font-variant-numeric: tabular-nums;
   }
-  .card-title { font-size: 17px; font-weight: 600; line-height: 1.55; overflow-wrap: anywhere; }
+  .card-title-box { min-width: 0; flex: 1; }
+  .card-title { overflow-wrap: anywhere; font-family: var(--serif); font-size: clamp(20px, 3vw, 25px); font-weight: 600; line-height: 1.55; }
   a.card-title { color: var(--ink); text-decoration: none; }
   a.card-title:hover { color: var(--blue); }
-  .tag-demo {
-    display: inline-block; margin-left: 8px; padding: 0 4px;
-    font-size: 11px; font-weight: 400; color: var(--muted);
-    border-bottom: 1px solid var(--line); vertical-align: 2px;
-  }
-  .background { margin-top: 12px; font-size: 15px; color: var(--secondary); }
-  .degrade-note {
-    margin-top: 12px; padding: 12px; font-size: 14px;
-    color: var(--secondary); background: var(--raised); border: 1px dashed var(--line); border-radius: 8px;
-  }
+  .tag-demo { display: inline-block; margin-left: 8px; padding: 0 4px; border-bottom: 1px solid var(--line); color: var(--muted); font: 400 11px/1.7 -apple-system, BlinkMacSystemFont, sans-serif; vertical-align: 2px; }
+  .background { margin-top: 18px; color: var(--secondary); font-size: 15px; line-height: 1.95; }
+  .degrade-note { margin-top: 18px; padding: 13px 15px; border: 1px dashed var(--line); border-radius: 10px; background: var(--raised); color: var(--secondary); font-size: 14px; }
   .degrade-note a { color: var(--blue); text-decoration: none; }
-  .degrade-note a:hover { text-decoration: underline; }
-
-  /* v2：type / claim 标签，三态色点是全页唯一的分类装饰 */
-  .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
-  .tag {
-    display: inline-flex; align-items: center; gap: 6px; padding: 2px 8px;
-    border: 1px solid var(--line); border-radius: 6px; background: transparent;
-    font-size: 12px; font-weight: 500; color: var(--secondary);
-  }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+  .tag { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 7px; color: var(--secondary); font-size: 12px; }
   .tag::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
   .tag.dispute::before { background: var(--orange); }
   .tag.consensus::before { background: var(--green); }
   .tag.verify::before { background: var(--violet); }
-  .tag.claim { background: var(--raised); font-weight: 400; }
+  .tag.claim { background: var(--raised); }
   .tag.claim::before { display: none; }
-
-  /* v2：聚焦问题 */
-  .focus {
-    margin-top: 16px; padding: 12px 16px; background: var(--raised);
-    border-left: 2px solid var(--blue); border-radius: 0 8px 8px 0;
-    font-size: 15px; font-weight: 500; line-height: 1.7;
-  }
-
-  /* v2：共识底座 */
-  .consensus-box {
-    margin-top: 12px; padding: 12px 16px; background: var(--raised);
-    border: 1px solid var(--line); border-radius: 8px; font-size: 14px; color: var(--secondary);
-    line-height: 1.75;
-  }
-  .consensus-box b {
-    display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
-    color: var(--green); font-size: 12px; font-weight: 500; letter-spacing: 0;
-  }
+  .focus { margin-top: 18px; padding: 14px 16px; border-left: 2px solid var(--blue); border-radius: 0 10px 10px 0; background: var(--raised); font-size: 15px; line-height: 1.8; }
+  .section-label, .reading-title { display: block; margin-bottom: 5px; color: var(--muted); font-size: 11px; font-weight: 500; }
+  .consensus-box { margin-top: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--raised); color: var(--secondary); font-size: 14px; line-height: 1.85; }
+  .consensus-box b { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; color: var(--green); font-size: 12px; font-weight: 500; }
   .consensus-box b::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
-
-  /* v2：两派对照（替代原三列） */
   .sides { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; }
-  .side {
-    border: 1px solid var(--line); border-radius: 8px; background: var(--raised);
-    padding: 12px 16px; font-size: 14px; line-height: 1.7;
-  }
-  .side b { display: block; color: var(--secondary); font-size: 12px; font-weight: 500; letter-spacing: 0; margin-bottom: 4px; }
-
-  /* v2：缺的那块拼图 */
-  .gap {
-    margin-top: 12px; padding: 12px 16px; background: var(--raised);
-    border: 1px dashed rgba(183, 96, 24, .36); border-radius: 8px; font-size: 14px; color: var(--secondary);
-    line-height: 1.75;
-  }
-  .gap b { color: var(--orange); font-size: 12px; font-weight: 500; letter-spacing: 0; display: block; margin-bottom: 4px; }
-  .gap b::after {
-    content: "先补齐这份材料，再判断争议能否继续推进";
-    display: block; margin-top: 4px; color: var(--muted);
-    font-size: 12px; font-weight: 400; letter-spacing: 0; line-height: 1.5;
-  }
-
-  /* v2：今日洞察，整页唯一的深色视觉焦点 */
-  .digest {
-    margin-top: 24px; background: #171819; color: #e8e5df;
-    border-radius: 12px; padding: 24px;
-  }
-  .digest h2 {
-    font-size: 13px; letter-spacing: 0; color: #9bbcf5; font-weight: 500;
-    margin-bottom: 12px;
-  }
-  .digest .headline {
-    font-size: 20px; line-height: 1.65; font-weight: 500; color: #fff;
-    font-family: "Noto Serif SC", "Songti SC", "SimSun", serif;
-  }
-  .digest .counts {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
-    margin: 24px 0 20px; border-top: 1px solid #323538; border-bottom: 1px solid #323538;
-  }
-  .digest .count-box { padding: 16px 12px; }
-  .digest .count-box + .count-box { border-left: 1px solid #323538; }
-  .digest .count-box .n {
-    font-size: 28px; font-weight: 500; line-height: 1.2; color: #fff;
-    font-family: Georgia, serif; font-variant-numeric: tabular-nums;
-  }
-  .digest .count-box .l {
-    display: flex; align-items: center; gap: 6px;
-    font-size: 12px; color: #b5b7bc; margin-top: 4px;
-  }
-  .digest .count-box .l::before { content: ""; width: 6px; height: 6px; border-radius: 50%; }
-  .digest .count-box.dispute .l::before { background: #d58a4a; }
-  .digest .count-box.consensus .l::before { background: #71bd93; }
-  .digest .count-box.verify .l::before { background: #aa9de3; }
-  .digest ul { list-style: none; }
-  .digest li {
-    font-size: 14px; color: #c7c9cd; line-height: 1.75;
-    padding-left: 16px; position: relative; margin-top: 12px;
-  }
-  .digest li:first-child { margin-top: 0; }
-  .digest li::before { content: "—"; position: absolute; left: 0; color: #9bbcf5; font-size: 12px; }
-
-  /* 延伸阅读 */
+  .side { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #f8f7f3; color: var(--secondary); font-size: 14px; line-height: 1.85; }
+  .side b { display: block; margin-bottom: 6px; color: var(--ink); font-size: 12px; font-weight: 600; }
+  .side.a { border-top: 2px solid rgba(5,109,232,.5); }
+  .side.b { border-top: 2px solid rgba(183,96,24,.5); }
+  .gap { margin-top: 12px; padding: 14px 16px; border: 1px dashed rgba(183,96,24,.34); border-radius: 10px; background: #faf6eb; color: var(--secondary); font-size: 14px; line-height: 1.85; }
+  .gap b { display: block; margin-bottom: 4px; color: var(--orange); font-size: 12px; font-weight: 500; }
+  .gap b::after { content: "找到这份材料，这场争论就能有定论"; display: block; margin-top: 3px; color: var(--muted); font-size: 11px; font-weight: 400; }
+  .viewpoints { display: grid; gap: 10px; margin-top: 16px; }
+  .vp { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; color: var(--secondary); font-size: 14px; }
+  .vp b { display: block; margin-bottom: 4px; color: var(--ink); font-size: 12px; }
+  .reading-block { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
   .reading { margin-top: 8px; list-style: none; }
-  .reading li { margin-top: 12px; font-size: 14px; line-height: 1.65; }
-  .reading li:first-child { margin-top: 0; }
-  .reading a { color: var(--blue); text-decoration: none; }
-  .reading a:hover { text-decoration: underline; }
+  .reading li { margin-top: 12px; font-size: 14px; line-height: 1.7; }
+  .reading a { color: var(--blue); text-decoration: none; overflow-wrap: anywhere; }
   .reading .rt { color: var(--ink); font-weight: 500; }
   .reading .reason { display: block; margin-top: 4px; color: var(--secondary); font-size: 13px; }
   .reading .dead { color: var(--muted); }
+  a.zhihu-link { cursor: pointer; text-decoration: none; }
+  a.zhihu-link::after { content: "知乎 ↗"; display: inline-block; margin-left: 6px; border-bottom: 1px solid rgba(5,109,232,.28); color: var(--blue); font: 500 11px/1.4 -apple-system, BlinkMacSystemFont, sans-serif; white-space: nowrap; vertical-align: 2px; }
+  a.zhihu-link:hover { color: var(--blue); text-decoration: underline; text-underline-offset: 3px; }
 
-  /* v2：链接守卫（防幻觉架构可视化，纯展示；视觉全部复用页面既有零件） */
-  .guard summary {
-    cursor: pointer; list-style: none;
-    font-family: "Noto Serif SC", "Songti SC", "SimSun", serif;
-    font-size: 17px; font-weight: 600; line-height: 1.55;
-  }
-  .guard summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; border-radius: 4px; }
+  /* 来源说明：名称与正文都使用用户能直接理解的语言。 */
+  .guard summary { cursor: pointer; list-style: none; font-family: var(--serif); font-size: 22px; font-weight: 600; line-height: 1.55; }
   .guard summary::-webkit-details-marker { display: none; }
-  .guard summary::before { content: "▾ "; color: var(--blue); }
-  .guard:not([open]) summary::before { content: "▸ "; }
-  .guard .guard-sub { margin-top: 8px; font-size: 14px; color: var(--secondary); }
-  .guard .gate {
-    display: flex; gap: 12px; align-items: flex-start;
-    margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line);
-  }
-  .guard .gate .rank { min-width: 28px; font-size: 24px; }
+  .guard .guard-sub { margin-top: 10px; color: var(--secondary); font-size: 14px; }
+  .guard .gate { display: flex; align-items: flex-start; gap: 14px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line); }
+  .guard .gate .rank { min-width: 28px; font-size: 26px; }
   .guard .gate-body { flex: 1; min-width: 0; }
   .guard .gate-title { font-size: 15px; font-weight: 600; line-height: 1.7; }
-  .guard .gate-desc { font-size: 14px; color: var(--secondary); line-height: 1.7; margin-top: 4px; }
-  .guard .gate-block { margin-top: 8px; font-size: 12px; color: var(--muted); line-height: 1.75; }
+  .guard .gate-desc { margin-top: 5px; color: var(--secondary); font-size: 14px; line-height: 1.8; }
+  .guard .gate-block { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.8; }
 
-  /* 所有真实知乎链接：常驻去向标识，不只依赖 hover 才能发现 */
-  a.zhihu-link { cursor: pointer; text-decoration: none; }
-  a.zhihu-link::after {
-    content: "知乎 ↗";
-    display: inline-block; margin-left: 6px;
-    border-bottom: 1px solid rgba(5, 109, 232, .28);
-    color: var(--blue); font-size: 11px; font-weight: 500;
-    line-height: 1.4; white-space: nowrap; vertical-align: 2px;
+  .pager {
+    position: fixed; z-index: 30; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+    display: flex; align-items: center; gap: 5px; padding: 7px; border-radius: 20px;
   }
-  a.zhihu-link:hover {
-    color: var(--blue); text-decoration: underline; text-underline-offset: 3px;
-  }
-  a.zhihu-link:focus-visible {
-    color: var(--blue); outline: 2px solid var(--blue);
-    outline-offset: 4px; border-radius: 2px;
-  }
-  a.zhihu-link:active { opacity: .75; }
+  .pager button { min-height: 46px; padding: 0 17px; border: 0; border-radius: 14px; background: transparent; color: var(--ink); cursor: pointer; font-size: 13px; font-weight: 600; }
+  .pager button:hover:not(:disabled) { background: rgba(5,109,232,.08); color: var(--blue); }
+  .pager button:disabled { color: #a2a8ad; cursor: default; }
+  .page-label { min-width: 76px; color: var(--secondary); text-align: center; font: 13px/1 Georgia, serif; font-variant-numeric: tabular-nums; }
+  .back-top { position: fixed; right: 20px; bottom: 22px; z-index: 29; min-width: 48px; min-height: 48px; padding: 0 13px; border-radius: 15px; color: var(--secondary); cursor: pointer; }
+  footer { margin-top: 28px; padding: 22px 4px 82px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.9; }
 
-  /* 页脚 */
-  footer {
-    margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line);
-    font-size: 12px; color: var(--muted); line-height: 1.9;
-  }
+  /* 目录：全部标题 + 三态筛选 + 直达，补足分页的比较成本。 */
+  .directory { width: min(720px, calc(100% - 28px)); max-height: min(82vh, 760px); padding: 0; border: 1px solid rgba(255,255,255,.85); border-radius: 24px; background: rgba(250,249,245,.94); color: var(--ink); box-shadow: 0 30px 100px rgba(20,28,36,.22); -webkit-backdrop-filter: blur(26px) saturate(140%); backdrop-filter: blur(26px) saturate(140%); }
+  .directory::backdrop { background: rgba(25,32,40,.24); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
+  .directory-inner { padding: 22px; }
+  .directory-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .directory-head h2 { font-family: var(--serif); font-size: 23px; font-weight: 600; }
+  .icon-button { min-width: 44px; min-height: 44px; border: 0; border-radius: 12px; background: var(--raised); color: var(--secondary); cursor: pointer; font-size: 20px; }
+  .directory-sub { margin-top: 4px; color: var(--muted); font-size: 12px; }
+  .directory-filters { display: flex; gap: 6px; overflow-x: auto; margin: 18px 0 12px; padding-bottom: 4px; }
+  .filter-button { flex: 0 0 auto; min-height: 44px; padding: 0 13px; border: 1px solid var(--line); border-radius: 12px; background: transparent; color: var(--secondary); cursor: pointer; font-size: 12px; }
+  .filter-button.active { border-color: var(--ink); background: var(--ink); color: #fff; }
+  .directory-list { list-style: none; overflow-y: auto; max-height: 52vh; overscroll-behavior: contain; }
+  .directory-item { border-top: 1px solid var(--line); }
+  .directory-link { width: 100%; min-height: 62px; display: grid; grid-template-columns: 30px 10px 1fr auto; align-items: center; gap: 10px; padding: 12px 4px; border: 0; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+  .directory-link:hover { color: var(--blue); }
+  .directory-rank { color: var(--muted); font: 14px/1 Georgia, serif; }
+  .directory-title { font-size: 13px; line-height: 1.65; }
+  .directory-type { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .directory-empty { padding: 28px 4px; color: var(--muted); text-align: center; font-size: 13px; }
+  .directory-continuous { width: 100%; margin-top: 16px; }
 
-  /* 加载 / 出错 */
-  .loading {
-    max-width: 760px; margin: 15vh auto 0; padding: 0 20px;
-    text-align: center; color: var(--muted); font-size: 15px;
-  }
-  .loading::before {
-    content: ""; display: block; width: 28px; height: 28px; margin: 0 auto 16px;
-    border: 3px solid var(--line); border-top-color: var(--blue);
-    border-radius: 50%; animation: spin 1s linear infinite;
-  }
+  /* 连续阅读保留旧版长页优势，但不牺牲直接深链。 */
+  #reader.continuous .page-tabs, #reader.continuous .reading-progress { display: none; }
+  #reader.continuous .page-panel { display: block; margin-top: 18px; animation: none; }
+  #reader.continuous .card-sequence { margin-bottom: 18px; }
+  #reader.continuous .guard { margin-bottom: 18px; }
+
+  .loading { max-width: 680px; margin: 18vh auto 0; padding: 0 20px; color: var(--muted); text-align: center; font-size: 14px; }
+  .loading::before { content: ""; display: block; width: 26px; height: 26px; margin: 0 auto 16px; border: 2px solid var(--line); border-top-color: var(--blue); border-radius: 50%; animation: spin 800ms linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
 
-  @media (max-width: 600px) {
-    .wrap { padding: 24px 16px 48px; }
-    header { padding-bottom: 20px; }
-    h1 { font-size: 30px; }
-    .slogan { font-size: 18px; }
-    .value-intro { font-size: 16px; }
-    .section-heading { margin-top: 24px; }
-    .card { padding: 20px; margin-top: 16px; }
-    .card-head { align-items: flex-start; gap: 12px; }
-    .rank { min-width: 32px; font-size: 28px; }
-    .background { font-size: 16px; }
-    .sides { grid-template-columns: 1fr; }
-    .side { font-size: 14px; }
-    .digest { padding: 20px; }
-    .digest .headline { font-size: 18px; }
-    .digest .counts { margin: 20px 0 16px; }
-    .digest .count-box { padding: 12px 8px; }
-    .digest .count-box .n { font-size: 24px; }
-    .digest .count-box .l { gap: 4px; font-size: 11px; }
-    .mobile-analysis { margin-top: 16px; border-top: 1px solid var(--line); }
-    .mobile-analysis > summary {
-      min-height: 48px; display: flex; align-items: center; justify-content: space-between;
-      color: var(--blue); font-size: 15px; font-weight: 500;
-      list-style: none; cursor: pointer; border-radius: 4px;
-    }
-    .mobile-analysis > summary::-webkit-details-marker { display: none; }
-    .mobile-analysis > summary::after { content: "＋"; font-size: 20px; font-weight: 400; }
-    .mobile-analysis[open] > summary::after { content: "−"; }
-    .mobile-analysis > summary:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-    .guard .gate { gap: 8px; }
-    .back-top { right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); }
+  @media (max-width: 900px) {
+    .cover-grid { grid-template-columns: 1fr; gap: 38px; }
+    .cover-copy { max-width: 680px; }
+    .cover-description { max-width: 620px; }
+    .today-card { max-width: 680px; }
   }
-
+  @media (max-width: 600px) {
+    .wrap { padding: 12px 14px 50px; }
+    .topbar { min-height: 56px; padding: 5px 6px 5px 12px; border-radius: 17px; gap: 4px; }
+    .brand { gap: 7px; font-size: 14px; }
+    .brand-mark { width: 25px; height: 25px; }
+    .nav-button { min-height: 44px; padding: 0 9px; font-size: 12px; }
+    .cover { padding: 42px 4px 26px; }
+    .cover-grid { gap: 32px; }
+    h1 { margin-top: 17px; font-size: 51px; }
+    .slogan { margin-top: 20px; font-size: 21px; }
+    .cover-description { font-size: 14px; }
+    .cover-actions { display: grid; grid-template-columns: 1fr 1fr; }
+    .primary-button, .secondary-button { padding: 0 12px; }
+    .cover-actions .primary-button { grid-column: 1 / -1; }
+    .cover-meta { gap: 6px 10px; }
+    .today-card { padding: 24px 18px; border-radius: 22px; }
+    .today-heading { font-size: 18px; }
+    .judgement-counts { gap: 7px; margin: 20px 0; }
+    .judgement-count { padding: 13px 7px; }
+    .judgement-count strong { font-size: 28px; }
+    .judgement-count span { gap: 4px; font-size: 10px; }
+    .judgement-count span::before { width: 5px; height: 5px; }
+    .swipe-note { display: block; }
+    #reader { padding-top: 12px; }
+    .reader-toolbar { top: 8px; }
+    .reader-status { padding-top: 13px; gap: 5px 10px; }
+    .page-tabs { padding: 12px 0 18px; }
+    .page-tab { min-height: 44px; }
+    .card { padding: 25px 19px; border-radius: 20px; }
+    .card-sequence { margin-bottom: 18px; }
+    .card-head { gap: 12px; }
+    .rank { min-width: 32px; font-size: 32px; }
+    .card-title { font-size: 20px; }
+    .background { font-size: 15px; }
+    .sides { grid-template-columns: 1fr; }
+    .guard summary { font-size: 20px; }
+    .guard .gate { gap: 9px; }
+    .pager { bottom: max(10px, env(safe-area-inset-bottom)); width: calc(100% - 24px); justify-content: space-between; border-radius: 18px; }
+    .pager button { min-height: 48px; padding: 0 11px; font-size: 12px; }
+    .page-label { min-width: 62px; }
+    .back-top { right: 14px; bottom: 14px; }
+    .directory-inner { padding: 18px 14px; }
+    .directory-link { grid-template-columns: 25px 8px 1fr; gap: 8px; }
+    .directory-type { display: none; }
+    .directory-list { max-height: 55vh; }
+    footer { padding-bottom: 84px; }
+  }
   @media (prefers-reduced-motion: reduce) {
-    .loading::before { animation: none; }
-    .back-top { transition: none; }
+    html { scroll-behavior: auto; }
+    .page-panel.active, .loading::before { animation: none; }
+    .primary-button, .secondary-button, .reading-progress span { transition: none; }
+  }
+  @media print {
+    body { background: #fff; }
+    .cover, .topbar, .reader-status, .notice, .page-tabs, .reading-progress, .pager, .back-top, footer, .directory { display: none !important; }
+    .wrap { max-width: none; padding: 0; }
+    #reader, #reader[hidden] { display: block !important; padding: 0; }
+    .reader-shell { max-width: none; }
+    .page-panel, .page-panel.active { display: block !important; break-before: page; animation: none; }
+    .card { box-shadow: none; }
   }
 </style>
 </head>
 <body>
-
 <div id="loading" class="loading">正在生成今日简报，首次访问约需 1–3 分钟，请稍候…</div>
 
 <div id="app" class="wrap" hidden>
-  <button id="backTop" class="back-top" type="button" aria-label="回到页面顶部" title="回到顶部" hidden>↑ <span>顶部</span></button>
-
-  <header>
-    <div class="kicker">Zhihu hot digest</div>
-    <h1>热榜深潜简报</h1>
-    <p class="slogan">从知乎热榜里，找出真正值得深读的争议。</p>
-    <p class="value-intro">看懂背景、双方观点，以及还缺什么关键证据。<strong>不是再摘要一遍热榜</strong>，而是帮你判断：哪些已有共识，哪些仍有分歧，哪些需要更多材料。</p>
-  </header>
-
-  <div class="meta">
-    <span id="m-date"></span>
-    <span id="badge" class="badge"></span>
-    <span id="m-count"></span>
-    <span id="m-gen"></span>
-  </div>
-
-  <div id="notice" class="notice" hidden></div>
-  <section id="digest" class="digest" hidden></section>
-  <div class="section-heading">
-    <h2>今日热榜深潜</h2>
-    <p>先看背景和争议判断，再按需阅读双方观点、证据缺口与站内原文。</p>
-  </div>
-  <main id="cards" aria-label="今日热榜深潜"></main>
-
-  <details class="card guard">
-    <summary>延伸阅读如何限制在知乎真实候选池</summary>
-    <p class="guard-sub">AI 生成可能带来链接幻觉。本页用四道程序校验降低风险：模型只选编号，链接由程序映射并限制域名。</p>
-
-    <div class="gate">
-      <span class="rank">1</span>
-      <div class="gate-body">
-        <p class="gate-title"><span class="tag claim">第 1 道</span>　模型没有写网址的权利</p>
-        <p class="gate-desc">给模型的指令里明令「不要输出任何 URL」。它只能从候选素材里挑编号（「第 3 条」），输出位置根本不接受网址。</p>
-        <p class="gate-block">拦截：模型想编一个网址　｜　拦截：输出格式不是编号，整段作废</p>
+  <section id="cover" aria-labelledby="cover-title">
+    <nav class="topbar glass" aria-label="首页导航">
+      <button class="brand" type="button" data-go="cover" aria-label="热榜深潜简报首页"><span class="brand-mark">深</span>热榜深潜简报</button>
+      <div class="top-actions">
+        <button class="nav-button" type="button" data-open-directory>目录</button>
+        <button class="nav-button" type="button" data-go="all">连续阅读</button>
       </div>
-    </div>
+    </nav>
 
-    <div class="gate">
-      <span class="rank">2</span>
-      <div class="gate-body">
-        <p class="gate-title"><span class="tag claim">第 2 道</span>　编号由程序翻译成真链接</p>
-        <p class="gate-desc">拿到编号后，由程序去知乎搜索返回的候选池里取出那条真实链接。编号越界或非整数？直接丢弃，而且不拿别的顶上。</p>
-        <p class="gate-block">拦截：编号超出候选池范围　｜　拦截：宁可少一条，不凑数</p>
+    <div class="cover">
+      <div class="cover-grid">
+        <div class="cover-copy">
+          <div class="kicker">ZHIHU HOT DIGEST · 今日深读</div>
+          <h1 id="cover-title">热榜<br>深潜<span>简报</span></h1>
+          <p class="slogan">不是热榜摘要，<br>是深读判断。</p>
+          <p class="cover-description">从知乎热榜里筛出真正值得深读的争议。每条只讲清背景、双方观点和缺失证据，帮你判断该相信什么、还该追问什么。</p>
+          <div class="cover-actions">
+            <button class="primary-button" type="button" data-go="card-1">开始深读　→</button>
+            <button class="secondary-button" type="button" data-open-directory>选一条读</button>
+            <button class="secondary-button" type="button" data-go="all">连续阅读</button>
+          </div>
+          <div class="cover-meta">
+            <span id="cover-date">今日简报</span><span class="dot" aria-hidden="true"></span>
+            <span id="cover-total">10 条热点</span><span class="dot" aria-hidden="true"></span>
+            <span id="cover-source">3 类判断</span>
+          </div>
+        </div>
+
+        <section class="today-card" aria-labelledby="today-heading">
+          <div class="section-eyebrow">TODAY'S JUDGMENT · 今日判断</div>
+          <h2 id="today-heading" class="today-heading">正在整理今天的争议分布。</h2>
+          <div class="judgement-counts" aria-label="今日三态判断分布">
+            <div class="judgement-count consensus"><strong id="cover-consensus">—</strong><span>已有共识</span></div>
+            <div class="judgement-count dispute"><strong id="cover-dispute">—</strong><span>仍有分歧</span></div>
+            <div class="judgement-count verify"><strong id="cover-verify">—</strong><span>需补材料</span></div>
+          </div>
+          <ul id="cover-insights" class="insight-list"></ul>
+        </section>
       </div>
+      <p class="swipe-note">进入热点后，左右滑动即可翻页；垂直滚动不受影响。</p>
     </div>
+  </section>
 
-    <div class="gate">
-      <span class="rank">3</span>
-      <div class="gate-body">
-        <p class="gate-title"><span class="tag claim">第 3 道</span>　主机名白名单</p>
-        <p class="gate-desc">只放行 http(s) 的 zhihu.com 及其子域名。仿冒域名和伪协议在这一步全部拦掉，连候选池都进不去。</p>
-        <p class="gate-block">拦截：zhihu.com.evil.com 仿冒域名　｜　拦截：javascript: 伪协议</p>
+  <section id="reader" hidden>
+    <div class="reader-shell">
+      <nav class="topbar reader-toolbar glass" aria-label="阅读导航">
+        <button id="back-cover" class="brand" type="button"><span class="brand-mark">深</span>热榜深潜</button>
+        <div class="top-actions">
+          <button class="nav-button" type="button" data-open-directory>目录</button>
+          <button id="continuous-toggle" class="nav-button" type="button">连续阅读</button>
+        </div>
+      </nav>
+
+      <div class="reader-status">
+        <span id="m-date"></span><span id="badge" class="badge"></span>
+        <span id="m-count"></span><span id="m-gen"></span>
+        <span id="reader-page-name" aria-live="polite"></span>
       </div>
-    </div>
+      <div id="notice" class="notice" hidden></div>
+      <div class="reading-progress" aria-hidden="true"><span id="reading-progress-bar"></span></div>
+      <nav id="page-tabs" class="page-tabs" aria-label="热点直接导航"></nav>
 
-    <div class="gate">
-      <span class="rank">4</span>
-      <div class="gate-body">
-        <p class="gate-title"><span class="tag claim">第 4 道</span>　去重与上限</p>
-        <p class="gate-desc">同一条链接在一张卡里只出现一次；每条热点最多 2 条延伸阅读，不堆量。</p>
-        <p class="gate-block">拦截：同一卡内重复引用　｜　拦截：超过 2 条的选取自动截断</p>
+      <div id="reader-pages">
+        <main id="cards" aria-label="今日热榜深潜"></main>
+        <details id="page-guard" class="card guard page-panel" data-page="guard" data-title="来源与链接" open>
+          <summary>来源与链接：每一条延伸阅读如何核验</summary>
+          <p class="guard-sub">AI 生成可能带来链接幻觉。这里用四道程序校验降低风险：模型只选编号，链接由程序映射并限制域名。</p>
+          <div class="gate"><span class="rank">1</span><div class="gate-body"><p class="gate-title"><span class="tag claim">第 1 道</span>　模型没有写网址的权利</p><p class="gate-desc">给模型的指令里明令“不要输出任何 URL”。它只能从候选素材里挑编号，输出位置不接受网址。</p><p class="gate-block">拦截：模型想编一个网址　｜　拦截：输出格式不是编号，整段作废</p></div></div>
+          <div class="gate"><span class="rank">2</span><div class="gate-body"><p class="gate-title"><span class="tag claim">第 2 道</span>　编号由程序翻译成真链接</p><p class="gate-desc">拿到编号后，由程序从知乎搜索返回的候选池里取出真实链接。编号越界或非整数，直接丢弃，不拿别的顶上。</p><p class="gate-block">拦截：编号超出候选池范围　｜　拦截：宁可少一条，不凑数</p></div></div>
+          <div class="gate"><span class="rank">3</span><div class="gate-body"><p class="gate-title"><span class="tag claim">第 3 道</span>　主机名白名单</p><p class="gate-desc">只放行 http(s) 的 zhihu.com 及其子域名。仿冒域名和伪协议在这一步全部拦掉，连候选池都进不去。</p><p class="gate-block">拦截：zhihu.com.evil.com 仿冒域名　｜　拦截：javascript: 伪协议</p></div></div>
+          <div class="gate"><span class="rank">4</span><div class="gate-body"><p class="gate-title"><span class="tag claim">第 4 道</span>　去重与上限</p><p class="gate-desc">同一条链接在一张卡里只出现一次；每条热点最多 2 条延伸阅读，不堆量。</p><p class="gate-block">拦截：同一卡内重复引用　｜　拦截：超过 2 条的选取自动截断</p></div></div>
+          <p class="focus">页面只消费通过候选编号映射、域名校验与去重的知乎链接；内容可及性仍以知乎页面当前状态为准。</p>
+        </details>
       </div>
+      <footer>
+        <p>本工具基于知乎开放平台 API 构建 · AI 生成内容仅供参考</p>
+        <p>参考与引用披露：本项目由 3 人大学生团队在 AI 辅助下完成开发；数据来自知乎开放平台 API（热榜 / 站内搜索 / 知乎直答），延伸阅读链接全部跳转回知乎站内；后端框架为 Flask（BSD-3-Clause 许可证）；页面视觉经开源 skill unslop（作者 Damir Sokolovsky，CC BY 4.0）辅助审查，特此署名。</p>
+        <p>阅读方式：分页支持按钮、键盘方向键、hash 深链与手机横向滑动；目录可直达任意热点，连续阅读可快速浏览全部内容。</p>
+      </footer>
     </div>
+  </section>
 
-    <p class="focus">页面只消费通过候选编号映射、域名校验与去重的知乎链接；内容可及性仍以知乎页面当前状态为准。</p>
-  </details>
-
-  <footer>
-    <p>本工具基于知乎开放平台 API 构建 · AI 生成内容仅供参考</p>
-    <p>参考与引用披露：本项目由 3 人大学生团队在 AI 辅助下完成开发；数据来自知乎开放平台 API（热榜 / 站内搜索 / 知乎直答），延伸阅读链接全部跳转回知乎站内；后端框架为 Flask（BSD-3-Clause 许可证）；页面视觉经开源 skill unslop（作者 Damir Sokolovsky，CC BY 4.0）辅助审查，特此署名。</p>
-  </footer>
+  <nav id="pager" class="pager glass" aria-label="分页控制" hidden>
+    <button id="prev-page" type="button" aria-label="上一页">← 上一页</button>
+    <span id="page-label" class="page-label">01 / 11</span>
+    <button id="next-page" type="button" aria-label="下一页">下一页 →</button>
+  </nav>
+  <button id="backTop" class="back-top glass" type="button" aria-label="回到页面顶部" hidden>↑</button>
 </div>
 
-<!-- 数据入口：本地双击时读取本目录下的静态 data.js；部署后由 Flask 接管同名路由返回真实数据 -->
+<dialog id="directory" class="directory" aria-labelledby="directory-title">
+  <div class="directory-inner">
+    <div class="directory-head"><div><h2 id="directory-title">今日目录</h2><p class="directory-sub">按判断类型筛选，或直接跳到任意一条。</p></div><button id="close-directory" class="icon-button" type="button" aria-label="关闭目录">×</button></div>
+    <div id="directory-filters" class="directory-filters" aria-label="按判断类型筛选">
+      <button class="filter-button active" type="button" data-filter="all" aria-pressed="true">全部</button>
+      <button class="filter-button" type="button" data-filter="dispute" aria-pressed="false">仍有分歧</button>
+      <button class="filter-button" type="button" data-filter="consensus" aria-pressed="false">已有共识</button>
+      <button class="filter-button" type="button" data-filter="verify" aria-pressed="false">需补材料</button>
+    </div>
+    <ol id="directory-list" class="directory-list"></ol>
+    <p id="directory-empty" class="directory-empty" hidden>这个分类下暂时没有条目。</p>
+    <button class="secondary-button directory-continuous" type="button" data-go="all">不翻页，连续阅读全部内容</button>
+  </div>
+</dialog>
+
 <script src="data.js"></script>
 <script>
 (function () {
@@ -418,15 +471,15 @@
     return;
   }
 
-  // demo（静态示例 / mock 模拟）模式下所有链接不可点，防止假链接被误点
-  var isDemo = data.source === 'demo' || String(data.notice || '').indexOf('模拟数据') !== -1;
+  // demo（静态示例 / mock 模拟）模式下所有链接不可点，防止假链接被误点。
+  // 即使旧缓存把 source 改成了 cache，也必须保持示例标识，不能显示「当日缓存」。
+  var isDemo = data.source === 'demo'
+    || String(data.notice || '').indexOf('模拟数据') !== -1
+    || String(data.generated_at || '').indexOf('模拟') !== -1;
 
-  var BADGES = {
-    demo: '示例数据',
-    live: '实时生成',
-    cache: '当日缓存',
-    fallback: '演示兜底'
-  };
+  var BADGES = { demo: '示例数据', live: '实时生成', cache: '当日缓存', fallback: '演示兜底' };
+  var TYPE_LABEL = { dispute: '仍有分歧', consensus: '已有共识', verify: '需补材料' };
+  var CLAIM_LABEL = { fact: '可裁决', inference: '推测对推测', impression: '观感对观感', value: '价值判断' };
 
   // 冷缓存时后端立即返回兜底并后台生成；页面低频检查，成功后自动切换。
   // 轮询只读取 data.js，生成锁与冷却期保证它不会放大上游 API 调用量。
@@ -494,17 +547,36 @@
     }
   }
 
-  // ---------- 元信息 ----------
+  // ---------- 元信息与首页判断 ----------
   var badgeEl = document.getElementById('badge');
-  badgeEl.textContent = BADGES[data.source] || data.source;
+  badgeEl.textContent = isDemo ? BADGES.demo : (BADGES[data.source] || data.source);
   if (data.source === 'fallback') badgeEl.classList.add('fallback');
-  if (data.source === 'demo') badgeEl.classList.add('demo');
+  if (isDemo) badgeEl.classList.add('demo');
   document.getElementById('m-count').textContent = '共 ' + data.items.length + ' 条';
   var generatedAt = String(data.generated_at || '').trim();
   var hasExactTime = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(generatedAt);
   var asOf = hasExactTime ? generatedAt : String(data.date || '').trim();
   document.getElementById('m-date').textContent = asOf ? '数据截至：' + asOf : '';
   document.getElementById('m-gen').textContent = '';
+  document.getElementById('cover-date').textContent = asOf || '今日简报';
+  document.getElementById('cover-total').textContent = data.items.length + ' 条热点';
+  document.getElementById('cover-source').textContent = isDemo ? BADGES.demo : (BADGES[data.source] || '3 类判断');
+
+  var digest = data.digest || {};
+  var hasDigest = Number.isFinite(Number(digest.total)) && Number(digest.total) > 0;
+  document.getElementById('today-heading').textContent = digest.headline || '这份示例使用旧版三派结构；真实简报会在这里显示三态统计。';
+  document.getElementById('cover-dispute').textContent = hasDigest ? String(digest.dispute || 0) : '—';
+  document.getElementById('cover-consensus').textContent = hasDigest ? String(digest.consensus || 0) : '—';
+  document.getElementById('cover-verify').textContent = hasDigest ? String(digest.verify || 0) : '—';
+  var insightList = document.getElementById('cover-insights');
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined && text !== null) node.textContent = text;
+    return node;
+  }
+  (digest.insights || []).forEach(function (text) { insightList.appendChild(el('li', '', text)); });
 
   if (data.notice) {
     var noticeEl = document.getElementById('notice');
@@ -512,21 +584,10 @@
     noticeEl.hidden = false;
   }
 
-  // ---------- 渲染 ----------
-  function el(tag, className, text) {
-    var node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined && text !== null) node.textContent = text;
-    return node;
-  }
-
-  function demoTag() {
-    return el('span', 'tag-demo', '示例');
-  }
+  function demoTag() { return el('span', 'tag-demo', '示例'); }
 
   function renderTitle(item) {
     var box = el('div', 'card-title-box');
-    box.style.flex = '1';
     var titleNode;
     if (isDemo || !item.question_url) {
       titleNode = el('span', 'card-title', item.title);
@@ -562,37 +623,17 @@
     return ul;
   }
 
-  // ---- v2：今日洞察 ----
-  (function renderDigest() {
-    var d = data.digest;
-    if (!d) return;
-    var box = document.getElementById('digest');
-    if (!box) return;
-    box.appendChild(el('h2', '', '今日争议总览'));
-    box.appendChild(el('p', 'headline', d.headline));
-
-    var counts = el('div', 'counts');
-    [['dispute', d.dispute, '条真分歧'],
-     ['consensus', d.consensus, '条已共识'],
-     ['verify', d.verify, '条待验证']].forEach(function (c) {
-      var cell = el('div', 'count-box ' + c[0]);
-      cell.appendChild(el('div', 'n', String(c[1])));
-      cell.appendChild(el('div', 'l', c[2]));
-      counts.appendChild(cell);
-    });
-    box.appendChild(counts);
-
-    var ul = el('ul');
-    (d.insights || []).forEach(function (t) { ul.appendChild(el('li', '', t)); });
-    box.appendChild(ul);
-    box.hidden = false;
-  })();
-
+  // ---------- 卡片与目录 ----------
   var cardsEl = document.getElementById('cards');
-  var mobileQuery = window.matchMedia('(max-width: 600px)');
-  var firstDisputeSeen = false;
-  data.items.forEach(function (item) {
-    var card = el('article', 'card');
+  var directoryList = document.getElementById('directory-list');
+  var directoryItems = [];
+  data.items.forEach(function (item, itemIndex) {
+    var card = el('article', 'card page-panel');
+    card.id = 'page-card-' + (itemIndex + 1);
+    card.setAttribute('data-page', 'card-' + (itemIndex + 1));
+    card.setAttribute('data-title', '热点 #' + item.rank);
+    card.setAttribute('aria-label', '第 ' + item.rank + ' 条：' + item.title);
+    card.appendChild(el('div', 'card-sequence', 'DEEP DIVE / ' + String(itemIndex + 1).padStart(2, '0') + ' · ' + (TYPE_LABEL[item.type] || '热点解读')));
 
     var head = el('div', 'card-head');
     head.appendChild(el('span', 'rank', String(item.rank)));
@@ -612,51 +653,23 @@
       card.appendChild(el('p', 'background', item.background));
     }
 
-    // 手机端展开第 1 条和第一条真分歧，让评审无需点击即可看到完整结构与双方争议。
-    var isFirstDispute = item.type === 'dispute' && !firstDisputeSeen;
-    if (isFirstDispute) firstDisputeSeen = true;
-    var analysis = el('details', 'mobile-analysis');
-    analysis.open = !mobileQuery.matches || Number(item.rank) === 1 || isFirstDispute;
-    var analysisSummary = el('summary', '', analysis.open ? '收起争议分析' : '展开争议分析');
-    analysis.appendChild(analysisSummary);
-    var analysisContent = el('div', 'analysis-content');
-    analysis.appendChild(analysisContent);
-    var hasAnalysis = false;
-    analysis.addEventListener('toggle', function () {
-      analysisSummary.textContent = analysis.open ? '收起争议分析' : '展开争议分析';
-    });
-    function appendAnalysis(node) {
-      analysisContent.appendChild(node);
-      hasAnalysis = true;
-    }
-
-    // ---- v2：按 type 分派渲染 ----
-    var TYPE_LABEL = { dispute: '有真分歧', consensus: '已形成共识', verify: '待验证' };
-    var CLAIM_LABEL = { fact: '可裁决', inference: '推测对推测', impression: '观感对观感', value: '价值判断' };
-
     if (item.type) {
       var tags = el('div', 'tags');
       tags.appendChild(el('span', 'tag ' + item.type, TYPE_LABEL[item.type] || item.type));
-      if (item.claim_type) {
-        tags.appendChild(el('span', 'tag claim',
-          '分歧性质：' + (CLAIM_LABEL[item.claim_type] || item.claim_type)));
-      }
+      if (item.claim_type) tags.appendChild(el('span', 'tag claim', '分歧性质：' + (CLAIM_LABEL[item.claim_type] || item.claim_type)));
       card.appendChild(tags);
-
       if (item.focus) {
         var focusBox = el('div', 'focus');
         focusBox.appendChild(el('span', 'section-label', '值得回答的问题'));
         focusBox.appendChild(document.createTextNode(item.focus));
-        appendAnalysis(focusBox);
+        card.appendChild(focusBox);
       }
-
       if (item.consensus) {
         var cb = el('div', 'consensus-box');
-        cb.appendChild(el('b', '', '共识'));
+        cb.appendChild(el('b', '', '已有共识'));
         cb.appendChild(document.createTextNode(item.consensus));
-        appendAnalysis(cb);
+        card.appendChild(cb);
       }
-
       if (item.sides && item.sides.length === 2) {
         var sidesGrid = el('div', 'sides');
         sidesGrid.setAttribute('aria-label', '双方观点');
@@ -666,60 +679,264 @@
           box.appendChild(document.createTextNode(s.claim));
           sidesGrid.appendChild(box);
         });
-        appendAnalysis(sidesGrid);
+        card.appendChild(sidesGrid);
       }
-
       if (item.gap) {
         var gapBox = el('div', 'gap');
         gapBox.appendChild(el('b', '', '缺的那块拼图'));
         gapBox.appendChild(document.createTextNode(item.gap));
-        appendAnalysis(gapBox);
+        card.appendChild(gapBox);
       }
     } else {
-      // 兼容：旧缓存没有 type 字段，退回三派渲染
+      // 兼容旧缓存：没有 type 字段时仍可显示原有三种观点，不出现空白页。
       var vp = item.viewpoints || {};
       var grid = el('div', 'viewpoints');
-      [['support', 'vp support', '支持'], ['oppose', 'vp oppose', '反对'], ['undecided', 'vp undecided', '未定论']]
-        .forEach(function (cfg) {
-          var block = el('div', cfg[1]);
-          block.appendChild(el('b', '', cfg[2]));
-          block.appendChild(document.createTextNode(vp[cfg[0]] || ''));
-          grid.appendChild(block);
-        });
-      appendAnalysis(grid);
+      [['support', 'vp support', '支持'], ['oppose', 'vp oppose', '反对'], ['undecided', 'vp undecided', '未定论']].forEach(function (cfg) {
+        var block = el('div', cfg[1]);
+        block.appendChild(el('b', '', cfg[2]));
+        block.appendChild(document.createTextNode(vp[cfg[0]] || ''));
+        grid.appendChild(block);
+      });
+      card.appendChild(grid);
     }
 
     if (item.reading && item.reading.length) {
       var readingBlock = el('section', 'reading-block');
       readingBlock.appendChild(el('h3', 'reading-title', '站内延伸阅读'));
       readingBlock.appendChild(renderReading(item.reading));
-      appendAnalysis(readingBlock);
+      card.appendChild(readingBlock);
     }
-
-    if (hasAnalysis) card.appendChild(analysis);
     cardsEl.appendChild(card);
+
+    var directoryItem = el('li', 'directory-item');
+    directoryItem.setAttribute('data-type', item.type || 'legacy');
+    var directoryButton = el('button', 'directory-link');
+    directoryButton.type = 'button';
+    directoryButton.setAttribute('data-go', 'card-' + (itemIndex + 1));
+    directoryButton.appendChild(el('span', 'directory-rank', String(item.rank).padStart(2, '0')));
+    directoryButton.appendChild(el('span', 'type-dot ' + (item.type || ''), ''));
+    directoryButton.appendChild(el('span', 'directory-title', item.title));
+    directoryButton.appendChild(el('span', 'directory-type', TYPE_LABEL[item.type] || '旧版示例'));
+    directoryItem.appendChild(directoryButton);
+    directoryList.appendChild(directoryItem);
+    directoryItems.push(directoryItem);
   });
 
-  // 标题、延伸阅读、降级原问题等卡片内真实链接统一增加跳转标识。
   // 示例数据不会生成 <a>，因此不会误标成可点击链接。
   document.querySelectorAll('#cards a[href]').forEach(function (link) {
     link.classList.add('zhihu-link');
     link.setAttribute('aria-label', link.textContent.trim() + '（在知乎新窗口打开）');
   });
 
-  var backTop = document.getElementById('backTop');
-  function updateBackTop() {
-    backTop.hidden = window.scrollY < 600;
+  // ---------- 分页、连续阅读与深链 ----------
+  var coverEl = document.getElementById('cover');
+  var readerEl = document.getElementById('reader');
+  var pagerEl = document.getElementById('pager');
+  var panels = Array.prototype.slice.call(document.querySelectorAll('.page-panel'));
+  var tabsEl = document.getElementById('page-tabs');
+  var pageLabel = document.getElementById('page-label');
+  var pageName = document.getElementById('reader-page-name');
+  var progressBar = document.getElementById('reading-progress-bar');
+  var prevButton = document.getElementById('prev-page');
+  var nextButton = document.getElementById('next-page');
+  var continuousToggle = document.getElementById('continuous-toggle');
+  var currentPage = 0;
+  var mode = 'cover';
+  var pageButtons = [];
+
+  function updateHash(value, replace) {
+    try {
+      var method = replace ? 'replaceState' : 'pushState';
+      if (window.location.hash !== '#' + value) window.history[method](null, '', '#' + value);
+    } catch (error) {
+      window.location.hash = value;
+    }
   }
+
+  function setContinuousState(active) {
+    readerEl.classList.toggle('continuous', active);
+    continuousToggle.textContent = active ? '返回分页' : '连续阅读';
+    continuousToggle.classList.toggle('active', active);
+    continuousToggle.setAttribute('aria-pressed', active ? 'true' : 'false');
+  }
+
+  function showCover(shouldUpdateHash) {
+    mode = 'cover';
+    coverEl.hidden = false;
+    readerEl.hidden = true;
+    pagerEl.hidden = true;
+    setContinuousState(false);
+    if (shouldUpdateHash !== false) updateHash('cover');
+    window.scrollTo(0, 0);
+  }
+
+  function showPage(index, shouldUpdateHash) {
+    if (index < 0 || index >= panels.length) return;
+    mode = 'page';
+    currentPage = index;
+    coverEl.hidden = true;
+    readerEl.hidden = false;
+    pagerEl.hidden = false;
+    setContinuousState(false);
+    panels.forEach(function (panel, panelIndex) {
+      var active = panelIndex === index;
+      panel.classList.toggle('active', active);
+      panel.setAttribute('aria-hidden', active ? 'false' : 'true');
+    });
+    pageButtons.forEach(function (button, buttonIndex) {
+      var active = buttonIndex === index;
+      button.classList.toggle('active', active);
+      if (active) button.setAttribute('aria-current', 'page');
+      else button.removeAttribute('aria-current');
+    });
+    var panel = panels[index];
+    pageLabel.textContent = String(index + 1).padStart(2, '0') + ' / ' + String(panels.length).padStart(2, '0');
+    pageName.textContent = panel.getAttribute('data-title') || '今日简报';
+    progressBar.style.width = ((index + 1) / panels.length * 100) + '%';
+    prevButton.disabled = index === 0;
+    nextButton.disabled = index === panels.length - 1;
+    nextButton.textContent = index === panels.length - 1 ? '已到末页' : '下一页 →';
+    var activeTab = pageButtons[index];
+    if (activeTab && activeTab.scrollIntoView) activeTab.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'auto' });
+    if (shouldUpdateHash !== false) updateHash(panel.getAttribute('data-page'));
+    window.scrollTo(0, 0);
+  }
+
+  function showAll(shouldUpdateHash) {
+    mode = 'all';
+    coverEl.hidden = true;
+    readerEl.hidden = false;
+    pagerEl.hidden = true;
+    setContinuousState(true);
+    panels.forEach(function (panel) {
+      panel.classList.add('active');
+      panel.setAttribute('aria-hidden', 'false');
+    });
+    pageButtons.forEach(function (button) { button.classList.remove('active'); button.removeAttribute('aria-current'); });
+    pageName.textContent = '连续阅读 · 全部 ' + data.items.length + ' 条';
+    if (shouldUpdateHash !== false) updateHash('all');
+    window.scrollTo(0, 0);
+  }
+
+  function routeFromHash() {
+    var value = window.location.hash.replace(/^#/, '');
+    if (value === 'all') { showAll(false); return; }
+    var index = panels.findIndex(function (panel) { return panel.getAttribute('data-page') === value; });
+    if (index >= 0) showPage(index, false);
+    else showCover(false);
+  }
+
+  panels.forEach(function (panel, index) {
+    var pageId = panel.getAttribute('data-page');
+    var tabText = pageId === 'guard' ? '来源' : String(index + 1).padStart(2, '0');
+    var button = el('button', 'page-tab', tabText);
+    button.type = 'button';
+    button.title = panel.getAttribute('data-title') || tabText;
+    button.setAttribute('aria-label', '前往' + (panel.getAttribute('data-title') || tabText));
+    button.addEventListener('click', function () { showPage(index, true); });
+    tabsEl.appendChild(button);
+    pageButtons.push(button);
+  });
+
+  var directory = document.getElementById('directory');
+  function openDirectory() {
+    if (typeof directory.showModal === 'function') {
+      if (!directory.open) directory.showModal();
+    } else {
+      directory.setAttribute('open', '');
+    }
+  }
+  function closeDirectory() {
+    if (typeof directory.close === 'function' && directory.open) directory.close();
+    else directory.removeAttribute('open');
+  }
+  document.querySelectorAll('[data-open-directory]').forEach(function (button) { button.addEventListener('click', openDirectory); });
+  document.getElementById('close-directory').addEventListener('click', closeDirectory);
+  directory.addEventListener('click', function (event) { if (event.target === directory) closeDirectory(); });
+
+  document.querySelectorAll('[data-go]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var target = button.getAttribute('data-go');
+      closeDirectory();
+      if (target === 'cover') { showCover(true); return; }
+      if (target === 'all') { showAll(true); return; }
+      var index = panels.findIndex(function (panel) { return panel.getAttribute('data-page') === target; });
+      if (index >= 0) showPage(index, true);
+    });
+  });
+
+  document.querySelectorAll('[data-filter]').forEach(function (button) {
+    button.addEventListener('click', function () {
+      var filter = button.getAttribute('data-filter');
+      var visible = 0;
+      document.querySelectorAll('[data-filter]').forEach(function (other) {
+        var active = other === button;
+        other.classList.toggle('active', active);
+        other.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      directoryItems.forEach(function (item) {
+        var show = filter === 'all' || item.getAttribute('data-type') === filter;
+        item.hidden = !show;
+        if (show) visible += 1;
+      });
+      document.getElementById('directory-empty').hidden = visible !== 0;
+    });
+  });
+
+  document.getElementById('back-cover').addEventListener('click', function () { showCover(true); });
+  continuousToggle.addEventListener('click', function () { if (mode === 'all') showPage(currentPage, true); else showAll(true); });
+  prevButton.addEventListener('click', function () { showPage(currentPage - 1, true); });
+  nextButton.addEventListener('click', function () { showPage(currentPage + 1, true); });
+  window.addEventListener('hashchange', routeFromHash);
+
+  document.addEventListener('keydown', function (event) {
+    if (mode !== 'page' || directory.open || event.altKey || event.ctrlKey || event.metaKey) return;
+    var tagName = event.target && event.target.tagName;
+    if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return;
+    if (event.key === 'ArrowLeft') { event.preventDefault(); showPage(currentPage - 1, true); }
+    else if (event.key === 'ArrowRight') { event.preventDefault(); showPage(currentPage + 1, true); }
+    else if (event.key === 'Escape') showCover(true);
+  });
+
+  // 只识别明确、快速的横向手势；不 preventDefault，垂直滚动与链接点击保持原生行为。
+  function getSwipeDirection(start, end, now) {
+    if (!start || !end) return 0;
+    var dx = end.x - start.x;
+    var dy = end.y - start.y;
+    var elapsed = now - start.time;
+    if (elapsed > 800 || Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 1.35) return 0;
+    return dx < 0 ? 1 : -1;
+  }
+  var gesture = null;
+  var readerPages = document.getElementById('reader-pages');
+  readerPages.addEventListener('touchstart', function (event) {
+    if (mode !== 'page' || event.touches.length !== 1) { gesture = null; return; }
+    if (event.target.closest('a, button, summary, input, textarea, select')) { gesture = null; return; }
+    var touch = event.touches[0];
+    gesture = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+  }, { passive: true });
+  readerPages.addEventListener('touchcancel', function () { gesture = null; }, { passive: true });
+  readerPages.addEventListener('touchend', function (event) {
+    if (!gesture || mode !== 'page' || !event.changedTouches.length) { gesture = null; return; }
+    var touch = event.changedTouches[0];
+    var direction = getSwipeDirection(gesture, { x: touch.clientX, y: touch.clientY }, Date.now());
+    gesture = null;
+    if (direction > 0) showPage(currentPage + 1, true);
+    else if (direction < 0) showPage(currentPage - 1, true);
+  }, { passive: true });
+
+  var backTop = document.getElementById('backTop');
+  function updateBackTop() { backTop.hidden = window.scrollY < 600 || mode !== 'all'; }
   window.addEventListener('scroll', updateBackTop, { passive: true });
   backTop.addEventListener('click', function () {
     var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' });
   });
-  updateBackTop();
 
   loadingEl.remove();
   document.getElementById('app').hidden = false;
+  routeFromHash();
+  updateBackTop();
   startRecoveryPolling(data);
 })();
 </script>
