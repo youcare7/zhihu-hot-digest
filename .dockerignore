@@ -9,3 +9,7 @@
 !demo/data.js
 !data/
 !data/fallback.json
+
+# 当日缓存与线上快照是运行时产物，绝不能被打进镜像
+data/brief_*.json
+data/live_*.json
