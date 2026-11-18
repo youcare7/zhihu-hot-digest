@@ -54,6 +54,29 @@ def is_zhihu(url: str) -> bool:
     return p.scheme in ("http", "https") and (host == "zhihu.com" or host.endswith(".zhihu.com"))
 
 
+def simulated_reason(data: dict) -> str:
+    """模拟/demo 内容不得通过真实线上内容门，即使被误标成 cache。"""
+    if data.get("source") == "demo":
+        return "source=demo"
+    if "模拟数据" in str(data.get("notice") or ""):
+        return "notice 含模拟数据"
+    if "模拟" in str(data.get("generated_at") or ""):
+        return "generated_at 含模拟标记"
+    items = data.get("items") or []
+    if isinstance(items, list):
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            urls = [item.get("question_url"), item.get("url")]
+            reading = item.get("reading") or []
+            if isinstance(reading, list):
+                urls.extend(r.get("url") for r in reading if isinstance(r, dict))
+            if any(marker in str(url or "") for url in urls
+                   for marker in ("/question/mock-", "/answer/mock-")):
+                return "含 mock 链接"
+    return ""
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", default=DEFAULT_URL)
@@ -142,6 +165,9 @@ def main() -> int:
     items = data.get("items") or []
     print(f"  · date={data.get('date')} source={data.get('source')} 条数={len(items)}")
 
+    simulated = simulated_reason(data)
+    if simulated:
+        errors += fail(f"模拟数据不属于真实线上内容（{simulated}）")
     if len(items) != 10:
         errors += fail(f"条数为 {len(items)}，PRD 固定 10 条")
     if data.get("source") not in ALLOWED_SOURCES:

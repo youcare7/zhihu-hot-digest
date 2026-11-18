@@ -72,9 +72,35 @@ def wait_for_recovery(label, response):
     )
 
 
+mock_cache = {
+    "date": app.today_str(),
+    "source": "demo",
+    "generated_at": app.now_str() + "（模拟）",
+    "notice": app.NOTICE_MOCK,
+    "items": [{
+        "rank": 1,
+        "title": "模拟热点",
+        "question_url": "https://www.zhihu.com/question/mock-1",
+        "type": app.TYPE_VERIFY,
+        "claim_type": "",
+        "background": "模拟背景",
+        "focus": "模拟聚焦",
+        "consensus": "模拟共识",
+        "sides": [],
+        "gap": "模拟缺口",
+        "reading": [{
+            "title": "模拟延伸",
+            "url": "https://www.zhihu.com/question/mock-1/answer/mock-100",
+            "reason": "模拟推荐",
+        }],
+    }],
+}
+mock_cache["digest"] = app.build_digest(mock_cache["items"])
+
 cases = [
     ("空 items 缓存", {"date": app.today_str(), "source": "live", "items": []}),
     ("非对象条目缓存", {"date": app.today_str(), "source": "live", "items": [None]}),
+    ("真实模式中的模拟缓存", mock_cache),
 ]
 failures = []
 for label, payload in cases:
@@ -104,5 +130,17 @@ except AssertionError as exc:
 
 if failures:
     raise AssertionError("\n".join(failures))
-assert calls["count"] == 3, f"三种坏缓存都应各恢复一次，实际 {calls['count']} 次"
+assert calls["count"] == 4, f"四种坏缓存都应各恢复一次，实际 {calls['count']} 次"
+
+# 本地 mock 联调仍允许读取自己的模拟缓存，不能把开发模式一并破坏。
+while app._REFRESH_LOCK.locked():
+    time.sleep(0.02)
+app.MOCK_MODE = True
+path.write_text(json.dumps(mock_cache, ensure_ascii=False), encoding="utf-8")
+mock_response = app.get_brief()
+assert mock_response.get("source") == "cache"
+assert "模拟数据" in mock_response.get("notice", "")
+assert calls["count"] == 4, "mock 模式读取模拟缓存不应重新生成"
+app.MOCK_MODE = False
+print("场景 ✅ mock 开发模式仍可读取模拟缓存")
 print("全部通过")

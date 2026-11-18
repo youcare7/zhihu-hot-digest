@@ -7,7 +7,7 @@
     python scripts/verify_live.py https://your-domain.example.com
 
 判定标准（v2 六字段版）：
-    GET /          必须含 id="digest"、unslop 署名；不得含「仅为 Flask」
+    GET /          必须含旧版 id="digest" 或新版首页今日判断挂载点、unslop 署名；不得含「仅为 Flask」
     GET /data.js   必须含 digest 对象，且 total == len(items) == dispute+consensus+verify
                    每条必须含 type；dispute 必须恰好 2 个 sides；非 dispute 不得有 sides
                    source=fallback 只代表服务存活，明确判为“内容未就绪”，不误报版本回退
@@ -51,7 +51,10 @@ def main():
         print(f"  请求失败：{e}")
         return 2
     check("HTTP 200", code == 200, f"status={code}")
-    check('含 id="digest"（今日洞察卡挂载点）', 'id="digest"' in html)
+    has_digest_mount = 'id="digest"' in html or (
+        'id="today-heading"' in html and 'id="cover-insights"' in html
+    )
+    check("含今日判断挂载点（旧版 digest 或新版首页）", has_digest_mount)
     check("含 unslop 署名（合规披露）", "unslop" in html)
     check("不含「仅为 Flask」（旧版页脚）", "仅为 Flask" not in html)
     check("含 TYPE_LABEL 或 .sides（v2 渲染逻辑）", ("TYPE_LABEL" in html) or ("sides" in html))
@@ -81,6 +84,25 @@ def main():
         retry = obj.get("retry_after") or 0
         check("内容未就绪（不能按真实简报验收通过）", False,
               f"{state}，retry_after={retry}；请等待恢复后复跑，或先用 smoke_check --wait")
+        return 1
+
+    # 模拟内容即使结构完整、主机名合规，也不属于真实线上简报。
+    urls = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        urls.extend([item.get("question_url"), item.get("url")])
+        urls.extend(r.get("url") for r in (item.get("reading") or []) if isinstance(r, dict))
+    simulated = (
+        obj.get("source") == "demo"
+        or "模拟数据" in str(obj.get("notice") or "")
+        or "模拟" in str(obj.get("generated_at") or "")
+        or any(marker in str(url or "") for url in urls
+               for marker in ("/question/mock-", "/answer/mock-"))
+    )
+    if simulated:
+        check("真实线上内容（拒绝模拟数据）", False,
+              "检测到 demo／模拟标记或 mock 链接；请清理模拟缓存并恢复真实生成")
         return 1
 
     dg = obj.get("digest")
