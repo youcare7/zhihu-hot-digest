@@ -17,7 +17,9 @@ payload = {
     "source": "live",
     "generated_at": "2026-11-17 19:59",
     "notice": "",
-    "items": [],
+    # 时间戳测试使用一条最小有效缓存；空 items 已由 test_invalid_cache.py 单独覆盖。
+    "items": [{"rank": 1, "title": "缓存热点", "background": "有效背景",
+               "viewpoints": {}, "reading": []}],
 }
 path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 

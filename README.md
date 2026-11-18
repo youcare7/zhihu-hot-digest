@@ -42,6 +42,7 @@ GET /data.js
 
 - **冷缓存不阻塞**：真实模式把 1–3 分钟的整批构建放到后台，首访不再同步等待；`fallback.refreshing / retry_after` 只用于前端自动恢复，`source` 仍严格保持 `demo / live / cache / fallback` 四种取值。
 - **失败重试冷却**：刷新异常、整批 0 条成功或劣化结果被丢弃后，默认冷却 15 分钟；旧缓存继续服务，避免访客流量反复触发整批生成。冷却只限制重试风暴，不替代日配额硬限额。
+- **坏缓存自动恢复**：空 `items`、非对象条目、缺标题或损坏 JSON 均按缓存未命中处理；后台双重检查同时验证内容与 mtime，避免“新鲜坏缓存”阻止重新生成。
 
 - **后端确定性组装**：知乎直答只输出结构化裁决字段（三态分类 / claim_type / 聚焦问题 / 缺口），最终的 `build_digest` 由后端代码确定性地执行，零模型自由度。
 - **双重防幻觉**：大模型只输出候选编号，程序按编号映射回搜索 API 的真实返回；组装后再校验 URL 必须在本次搜索白名单内、主机名必须是 `zhihu.com` 或其子域名，越界与重复条目直接丢弃。上线首晚曾拦截过候选池之外的越界假编号。
@@ -109,7 +110,7 @@ tcb cloudrun deploy \
 
 **本项目没有接入 CI**，所有检查均为本地脚本手动执行。
 
-七项测试是**独立脚本，不是 unittest 用例**（没有 `TestCase` 类），因此 `python -m unittest discover` 会显示 0 项——这是预期行为，不是"测试不存在"。正确运行方式：
+九项 Python 测试是**独立脚本，不是 unittest 用例**（没有 `TestCase` 类），因此 `python -m unittest discover` 会显示 0 项——这是预期行为，不是"测试不存在"。正确运行方式：
 
 ```bash
 python tests/test_cache_timestamp.py  # 缓存保留真实生成时刻，旧缓存按 mtime 补齐
@@ -119,19 +120,29 @@ python tests/test_retry_pass.py       # 整批结束后对降级条目补跑一�
 python tests/test_text_quality.py     # 安全收束、乱码/疑似硬截断与降级冒烟拦截
 python tests/test_cold_start.py       # 冷缓存立即兜底、并发只生成一次、全败不落坏缓存
 python tests/test_refresh_cooldown.py # 异常与劣化刷新后的重试冷却
+python tests/test_invalid_cache.py    # 空/非对象/损坏 JSON 缓存均能自动恢复
+python tests/test_verification_scripts.py # 验收脚本有界等待、兜底不误判版本
+```
+
+前端恢复另有一项 Node 行为测试（仅开发验收需要 Node.js，线上运行时不增加依赖）：
+
+```bash
+node tests/test_frontend_recovery.js  # 无恢复状态继续轮询、空缓存不刷新页面
 ```
 
 其余验收脚本：
 
 ```bash
-python scripts/smoke_check.py                                   # HTTP 冒烟：首页/data.js/10 条/digest 自洽/域名合法
+python scripts/smoke_check.py                                   # 单次严格 HTTP 冒烟，默认单请求 15s 超时
+python scripts/smoke_check.py --wait 360 --timeout 15           # 部署后有界等待冷缓存恢复，再跑完整内容门
+python scripts/verify_live.py                                   # v2 结构验收；fallback 明确判为内容未就绪
 python scripts/verify_plan_numbers_v2.py data/baseline_insight_v2.json   # 复现计划书附录 A 固定基线
 python scripts/verify_plan_numbers_v2.py data.js                         # 复核当日线上快照
 python scripts/audit_gap_quality.py                                      # gap 可执行性预筛（启发式，需人工复核）
 ```
 
 > `data/baseline_insight_v2.json` 是人工归类预览基线，**不是运行时产物**，不能用它跑 `smoke_check.py`。
-> 评审期运维（冷缓存自动恢复、配额触顶、预热、回滚）见 `值班卡_评审期运维_2026-11-17.md`。
+> 评审期运维（冷缓存自动恢复、配额触顶、预热、回滚）见 `值班卡_评审期运维_2026-11-17.md`；本轮二次修复与部署边界见 `HANDOFF_稳定性二次修复_2026-11-18.md`。
 
 ## 目录结构
 
