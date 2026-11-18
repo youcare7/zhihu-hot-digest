@@ -47,6 +47,17 @@ const settle = () => new Promise((resolve) => setImmediate(() => setImmediate(re
   assert.strictEqual(timers.length, 1);
   assert.strictEqual(timers[0].delay, 30000);
   console.log('场景B PASS：空缓存不刷新，继续等待有效内容');
+
+  timers.length = 0;
+  context.startRecoveryPolling({ source: 'fallback', items: [{ title: '兜底' }] });
+  assert.strictEqual(timers.length, 1, '首次响应无恢复状态也要启动轮询');
+  assert.strictEqual(timers[0].delay, 30000);
+  console.log('场景C PASS：首次异常响应无恢复状态时启动 30 秒低频轮询');
+
+  timers.length = 0;
+  context.startRecoveryPolling({ source: 'cache', items: [{ title: '健康缓存' }] });
+  assert.strictEqual(timers.length, 0, '健康缓存没有恢复字段也不能启动轮询');
+  console.log('场景D PASS：健康缓存无恢复字段时保持静态，不循环刷新');
 })().catch((error) => {
   console.error(error);
   process.exit(1);
