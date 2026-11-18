@@ -157,7 +157,7 @@ __DATA__
 const chipsEl = document.getElementById('chips');
 const paneEl = document.getElementById('plan-pane');
 CHAPTERS.forEach((c, i) => {
-  const label = c.title.replace(/^#{2,3}\s*/, '');
+  const label = c.title.replace(/^#{2,3}\\s*/, '');
   const b = document.createElement('button');
   b.textContent = label.length > 14 ? label.slice(0, 14) + '…' : label;
   b.title = label;
@@ -177,7 +177,7 @@ QA.forEach((q, i) => {
   const item = document.createElement('div');
   item.className = 'qa-item';
   item.dataset.open = i === 0 ? 'true' : 'false';
-  const qtext = q.html.replace(/<ol>[\s\S]*?<\/ol>/, '').replace(/<[^>]+>/g, '').trim();
+  const qtext = q.html.replace(/<ol>[\\s\\S]*?<\\/ol>/, '').replace(/<[^>]+>/g, '').trim();
   item.innerHTML =
     '<button class="qa-q" aria-expanded="' + (i === 0) + '">' +
     '<span class="qa-qid">' + q.qid + '</span>' +
