@@ -811,7 +811,13 @@ def load_today_cache() -> dict | None:
     except Exception as exc:
         _log(f"缓存文件损坏，忽略并重新生成：{exc}")
         return None
-    if not isinstance(data, dict) or not isinstance(data.get("items"), list):
+    if not isinstance(data, dict):
+        return None
+    items = data.get("items")
+    if (not isinstance(items, list) or not items
+            or any(not isinstance(it, dict) or not str(it.get("title") or "").strip() for it in items)):
+        # 空数组、null 条目或缺标题缓存会让前端出现空白/报错，必须按未命中处理。
+        _log(f"缓存结构无效，忽略并重新生成：{path.name}")
         return None
     data["source"] = "cache"
     generated_at = str(data.get("generated_at") or "").strip()
@@ -893,8 +899,8 @@ def _background_refresh() -> None:
     try:
         with _GEN_LOCK:
             age = cache_age_seconds()
-            if age is not None and age <= CACHE_TTL_SECONDS:
-                return  # 等锁期间已被别的请求刷新过
+            if age is not None and age <= CACHE_TTL_SECONDS and load_today_cache() is not None:
+                return  # 等锁期间已被别的请求刷新过；仅有新鲜 mtime 的坏缓存不算
             # 防劣化保护：先读出旧缓存的完整度，刷新结果若劣于旧缓存（成功条目变少，
             # 如直答额度触顶导致大面积降级），丢弃新结果、沿用旧缓存——宁留旧全绿，不覆新残次。
             old_ok = 0

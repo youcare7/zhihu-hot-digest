@@ -370,7 +370,8 @@
         return response.text();
       }).then(function (raw) {
         var next = parseBrief(raw);
-        if ((next.source === 'cache' || next.source === 'live') && Array.isArray(next.items)) {
+        if ((next.source === 'cache' || next.source === 'live')
+            && Array.isArray(next.items) && next.items.length > 0) {
           window.location.reload();
           return;
         }
@@ -378,6 +379,9 @@
           schedule(15000);
         } else if (Number(next.retry_after) > 0) {
           schedule(Number(next.retry_after) * 1000 + 1000);
+        } else {
+          // 异常兜底可能暂时没有恢复字段；保持低频重试，不能悄悄停在静态页。
+          schedule(30000);
         }
       }).catch(function () {
         schedule(30000);

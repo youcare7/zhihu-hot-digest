@@ -10,8 +10,9 @@
     GET /          必须含 id="digest"、unslop 署名；不得含「仅为 Flask」
     GET /data.js   必须含 digest 对象，且 total == len(items) == dispute+consensus+verify
                    每条必须含 type；dispute 必须恰好 2 个 sides；非 dispute 不得有 sides
+                   source=fallback 只代表服务存活，明确判为“内容未就绪”，不误报版本回退
 
-退出码：0 = 全过；1 = 有不合格项；2 = 网络/解析失败。
+退出码：0 = 全过；1 = 有不合格项或内容未就绪；2 = 网络/解析失败。
 """
 import json
 import sys
@@ -19,9 +20,7 @@ import urllib.error
 import urllib.request
 
 DEFAULT_BASE = "https://zhihu-hot-digest-348140-5-1533039364.sh.run.tcloudbase.com"
-TIMEOUT = 60
-RETRIES = 3          # 冷启动首次请求会触发现场生成，read timeout 属预期，重试即 200
-RETRY_WAIT = 45
+TIMEOUT = 15
 REASON_MAX = 30
 
 results = []
@@ -34,21 +33,10 @@ def check(name, ok, detail=""):
 
 
 def fetch(url):
-    """带重试的抓取：线上每日首次请求会先触发 10 条生成，第一次必然超时。"""
-    last = None
-    for attempt in range(1, RETRIES + 1):
-        req = urllib.request.Request(url, headers={"User-Agent": "verify-live/1.1"})
-        try:
-            with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
-                return r.status, r.read().decode("utf-8", "replace")
-        except Exception as e:  # noqa: BLE001
-            last = e
-            if attempt < RETRIES:
-                print(f"  第 {attempt} 次失败（{type(e).__name__}: {str(e)[:60]}），"
-                      f"{RETRY_WAIT}s 后重试 —— 冷启动触发生成属预期")
-                import time
-                time.sleep(RETRY_WAIT)
-    raise last
+    """单次有界抓取；冷缓存恢复由前端或 smoke_check --wait 负责，不做超长盲等。"""
+    req = urllib.request.Request(url, headers={"User-Agent": "verify-live/1.2"})
+    with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+        return r.status, r.read().decode("utf-8", "replace")
 
 
 def main():
@@ -88,6 +76,12 @@ def main():
         return 2
     items = obj.get("items") or []
     print(f"  date={obj.get('date')} source={obj.get('source')} items={len(items)}")
+    if obj.get("source") == "fallback":
+        state = "后台生成中" if obj.get("refreshing") is True else "静态兜底/失败冷却"
+        retry = obj.get("retry_after") or 0
+        check("内容未就绪（不能按真实简报验收通过）", False,
+              f"{state}，retry_after={retry}；请等待恢复后复跑，或先用 smoke_check --wait")
+        return 1
 
     dg = obj.get("digest")
     check("含 digest 对象（v2 已部署）", isinstance(dg, dict), "缺 digest 说明线上仍是 v1")
