@@ -1,6 +1,6 @@
 # 热榜深潜简报
 
-> **10 分钟，看懂今天大家在吵什么。**
+> **10 分钟，看清终结争论的「最后一块拼图」。**
 
 [![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
@@ -9,6 +9,8 @@
 **[打开线上简报 →](https://zhihu-hot-digest-348140-5-1533039364.sh.run.tcloudbase.com/)** · [快速开始](#快速开始) · [测试与验收](#测试与验收)
 
 知乎黑客松 S3 参赛作品。基于知乎开放平台 API，把当日 10 条热榜整理成一份可核查的争议简报：先给背景，再标出真分歧、已共识和待验证，最后说明还缺哪份一手材料。
+
+已打通四类官方能力：**知乎热榜**（选题）、**知乎搜索**（站内素材）、**知乎直答**（结构化裁决）、**全网搜索**（`GET /api/v1/content/global_search`，为「缺的那块拼图」补站外实证）。V3.1 起，每条缺口下方多一行「全网核验」结果（命中几条站外信源 / 暂未公开），卡片底部提供「一键复制争议摘要（含知乎原帖链接）」，可直接贴到知乎想法或活动广场。
 
 ![暖纸色简报首页与今日争议总览](docs/images/hero-desktop.png)
 
@@ -26,7 +28,7 @@
 
 ![真实分歧卡的双方观点与证据缺口](docs/images/cards-desktop.png)
 
-延伸阅读只从当次知乎搜索 API 候选池映射，并经过域名校验和去重；内容可及性以知乎页面当前状态为准。
+延伸阅读只从当次知乎搜索 API 候选池映射，并经过域名校验和去重，**每条最多 2 篇**（后端 `return reading[:2]`，不堆量）；内容可及性以知乎页面当前状态为准。
 
 ## 数据流与防幻觉架构
 
@@ -116,9 +118,10 @@ tcb cloudrun deploy \
 
 **本项目没有接入 CI**，所有检查均为本地脚本手动执行。
 
-九项 Python 测试是**独立脚本，不是 unittest 用例**（没有 `TestCase` 类），因此 `python -m unittest discover` 会显示 0 项——这是预期行为，不是"测试不存在"。正确运行方式：
+十项 Python 测试是**独立脚本，不是 unittest 用例**（没有 `TestCase` 类），因此 `python -m unittest discover` 会显示 0 项——这是预期行为，不是"测试不存在"。正确运行方式：
 
 ```bash
+python tests/test_gap_verify.py       # V3.1 全网核验：站外白名单、去重、异常降级、哨兵跳过、mock 不触网、检索式≤60 字
 python tests/test_cache_timestamp.py  # 缓存保留真实生成时刻，旧缓存按 mtime 补齐
 python tests/test_cache_ttl.py        # 缓存 TTL 到点后台刷新
 python tests/test_refresh_guard.py    # 后台刷新结果劣于旧缓存时丢弃
@@ -187,6 +190,8 @@ python scripts/audit_gap_quality.py                                      # gap �
 - `CACHE_TTL_HOURS`：当日缓存有效期（小时），默认 3，过期后由访问流量惰性触发后台静默刷新；设为 `0` 恢复「每日只生成一次」。
 - `REFRESH_COOLDOWN_SECONDS`：刷新异常、整批 0 条成功或劣化结果丢弃后的冷却时间，默认 900 秒；冷却期间保留旧缓存或静态兜底，不重复调用上游。
 - `RETRY_WAIT` / `RETRY_TIMES`：429 限流退避的等待秒数与总尝试次数，默认 30 / 6。
+- `ENABLE_GAP_VERIFY`：缺口「全网实证核验」开关，默认 `1`；设为 `0` / `false` / `no` 后不再请求全网搜索，缺口只保留站内口径（不消耗额外配额）。
+- `GLOBAL_SEARCH_COUNT`：每次全网核验取回的候选条数，默认 `5`；再经站外白名单清洗后，每条最多保留 2 条对照信源。
 
 ## 分步验证命令
 
@@ -225,7 +230,7 @@ MOCK_MODE=0 python app.py            # 成功：打印中文设置指引，退�
 ## 参考与引用披露
 
 - **AI 辅助开发**：本作品由学生团队完成，开发过程全程使用 AI 辅助编程（结对 AI + 人工验收）。
-- **数据来源**：知乎开放平台 API（热榜、站内搜索）与知乎直答；所有延伸阅读链接均来自知乎搜索 API 的真实返回并跳回知乎站内。
+- **数据来源**：知乎开放平台 API（热榜、站内搜索、全网搜索）与知乎直答；所有延伸阅读链接均来自知乎搜索 API 的真实返回并跳回知乎站内。全网核验展示的站外信源同样是当次搜索真实返回的候选，经协议 / 域名 / 去重清洗后才渲染。
 - **开源组件**：Flask（BSD-3-Clause），通过 `pip install flask` 引入，未修改其源码。
 - **设计打磨**：页面视觉参考开源 Skill [heydamir/unslop](https://github.com/heydamir/unslop)（作者 Damir Sokolovsky，[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)）进行九层审查，未执行其第三方脚本。
 - **README 文案**：参考 [MohamedAbdallah-14/unslop](https://github.com/MohamedAbdallah-14/unslop)（MIT）的自然语言清理原则；保留命令、路径、数字与技术事实，未使用 AI 检测规避功能。

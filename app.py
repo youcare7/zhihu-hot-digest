@@ -50,6 +50,18 @@ HOT_LIST_LIMIT = 10          # 热榜固定取 10 条
 SEARCH_COUNT = 10            # 每条热点的搜索素材上限
 ZHIDA_MODEL = os.environ.get("ZHIDA_MODEL", "zhida-fast-1p5")
 
+# ---- v3.1：缺口「全网实证核验」----
+# 开关默认开：关掉后不再请求全网搜索，缺口只保留站内口径。
+ENABLE_GAP_VERIFY = os.getenv("ENABLE_GAP_VERIFY", "1").strip().lower() not in ("0", "false", "no")
+try:
+    GLOBAL_SEARCH_COUNT = int(os.getenv("GLOBAL_SEARCH_COUNT", "5"))
+except ValueError:  # 环境变量写错也不能让整站起不来
+    GLOBAL_SEARCH_COUNT = 5
+GAP_VERIFY_MAX_SOURCES = 2   # 每条缺口最多给 2 条站外对照，与延伸阅读上限同构
+GAP_VERIFY_NOTE_MAX = 60     # 核验说明的字数上限
+# 这些文案意味着「本来就没有可核验材料」，再检索只会白烧配额。
+_SKIP_GAP_MARKERS = ("暂无", "目前无公开可核验材料", "无需补充材料")
+
 NOTICE_LIVE = "由知乎开放平台 API 实时生成，AI 内容仅供参考。"
 NOTICE_FALLBACK = "当前为演示兜底数据，接口暂不可用。"
 NOTICE_MOCK = "【模拟数据】当前为 mock 模式：全部内容来自本地示例，并非知乎 API 真实返回，链接不可点击。"
@@ -213,6 +225,157 @@ def api_search(query: str, count: int = SEARCH_COUNT) -> list:
     data = zhihu_get("/api/v1/content/zhihu_search", {"Query": query, "Count": count})
     items = data.get("Items") or []
     return items
+
+
+# ---------------------------------------------------------------------------
+# v3.1：缺口「全网实证核验」
+#
+# 定位不是替读者下结论，而是给「缺的那块拼图」补一次站外对照：
+# 站内延伸阅读回答「知乎上谁说得最好」，这一层回答「知乎外有没有一手材料」。
+# 防幻觉原则与延伸阅读同构：URL 只能来自当次搜索真实返回的候选池，
+# 再由程序做协议 / 域名 / 去重三道闸，绝不拼接、绝不猜测。
+# ---------------------------------------------------------------------------
+_GAP_PREFIXES = ("需要当事方披露", "目前缺少", "还需要", "待核验", "缺乏", "缺")
+_GAP_PUNCT_RE = re.compile(
+    r"[\s\u3000，。！？、；：\"“”‘’（）()《》〈〉【】\[\]{}<>·—…,.;:!?/\\|~`'^*#%&+=@$]+"
+)
+
+
+def _clean_gap_fragment(text) -> str:
+    """清掉标点与多余空白；引导语对搜索引擎没有信息量，只会稀释关键词。"""
+    return re.sub(r"\s+", " ", _GAP_PUNCT_RE.sub(" ", str(text or ""))).strip()
+
+
+def build_gap_query(title: str, gap: str) -> str:
+    """把「标题 + 缺口」压成一条不超过 60 字的站外检索式。
+
+    标题取前 24 字（够定位事件），缺口取前 32 字（够定位要找的材料），
+    合计留出 4 字余量给分隔与截断。
+    """
+    head = _clean_gap_fragment(title)[:24]
+    tail = _clean_gap_fragment(gap)
+    changed = True
+    while changed and tail:  # 「目前缺少 / 还需要 / 缺乏」可能叠着出现，循环剥干净
+        changed = False
+        for prefix in _GAP_PREFIXES:
+            if tail.startswith(prefix):
+                tail = tail[len(prefix):].strip()
+                changed = True
+                break
+    tail = tail[:32]
+    return ((head + " " + tail).strip() if tail else head)[:60]
+
+
+def api_global_search(query: str, count: int = GLOBAL_SEARCH_COUNT) -> list:
+    """v3.1：调知乎「全网搜索」取站外候选；异常由上层统一静默降级。"""
+    data = zhihu_get(
+        "/api/v1/content/global_search",
+        {"Query": query, "Count": count, "Filter": 'host!="zhihu.com"'},
+    )
+    if not isinstance(data, dict):
+        return []
+    items = data.get("Items") or []
+    return items if isinstance(items, list) else []
+
+
+def _gap_checked_at(now_text: str | None) -> str:
+    """核验时间戳：默认取北京时间，格式 %m-%d %H:%M，便于前端直接展示。"""
+    if now_text:
+        return str(now_text).strip()
+    return datetime.datetime.now(CN_TZ).strftime("%m-%d %H:%M")
+
+
+def _gap_result(status: str, checked_at: str, query: str = "",
+                sources: list | None = None, note: str = "") -> dict:
+    return {
+        "status": status,
+        "checked_at": checked_at,
+        "query": query,
+        "sources": list(sources or []),
+        "note": note,
+    }
+
+
+def _pick_gap_sources(items) -> list:
+    """防幻觉白名单：只认当次搜索真实返回的 URL，再过协议 / 域名 / 去重三道闸。
+
+    返回结构固定为 {"title": ≤48 字, "url": 原始链接, "host": 主机名}，
+    前端只读这三个字段，不做二次推断。
+    """
+    if not isinstance(items, list):
+        return []
+    out, seen = [], set()
+    for raw in items:
+        if not isinstance(raw, dict):
+            continue
+        # 上游大小写不统一：候选池是 Url，组装输出约定小写 url。
+        url = str(raw.get("Url") or raw.get("url") or "").strip()
+        if not url or url in seen:
+            continue
+        try:
+            parsed = urllib.parse.urlparse(url)
+        except (TypeError, ValueError):
+            continue
+        if parsed.scheme not in ("http", "https"):
+            continue  # 拦掉 javascript: / data: 等伪协议
+        host = (parsed.hostname or "").lower().rstrip(".")
+        if not host or host == "zhihu.com" or host.endswith(".zhihu.com"):
+            continue  # 站内材料已由延伸阅读承担，这一层只收站外对照
+        seen.add(url)
+        title = str(raw.get("Title") or raw.get("title") or "").strip() or host
+        out.append({"title": title[:48], "url": url, "host": host})
+        if len(out) >= GAP_VERIFY_MAX_SOURCES:
+            break
+    return out
+
+
+def verify_gap_with_global_search(
+    title: str,
+    gap: str,
+    *,
+    mock_mode: bool = False,
+    enabled: bool = ENABLE_GAP_VERIFY,
+    search_fn=None,
+    now_str: str | None = None,
+) -> dict:
+    """给「缺的那块拼图」补一次站外实证检索。
+
+    三种结局：found（命中站外信源）/ not_found（检索过但无命中）/ skipped（未检索）。
+    skipped 覆盖关闭开关、占位文案与上游异常——这一层任何情况下都不能中断主流程。
+    """
+    checked_at = _gap_checked_at(now_str)
+    gap_text = str(gap or "").strip()
+
+    if not enabled or not gap_text or any(mark in gap_text for mark in _SKIP_GAP_MARKERS):
+        # 不消耗 API 配额：开关关闭、缺口为空，或本来就是「暂无材料」的占位文案
+        return _gap_result("skipped", checked_at)
+
+    query = build_gap_query(title, gap_text)
+    if not query:
+        return _gap_result("skipped", checked_at)
+
+    if mock_mode:
+        # 模拟模式绝不触网：给明确的示例文案，避免把假结果当成真核验
+        return _gap_result(
+            "not_found", checked_at, query=query,
+            note=f"全网核验（示例）：截至 {checked_at} 暂未检索到公开权威披露",
+        )
+
+    search = search_fn or api_global_search
+    try:
+        candidates = search(query)
+    except Exception:
+        # 限流（429）、超时、返回结构异常一律静默降级：核验失败不该影响简报本身
+        return _gap_result("skipped", checked_at)
+
+    sources = _pick_gap_sources(candidates)
+    if sources:
+        note = f"全网核验：截至 {checked_at} 命中 {len(sources)} 条站外公开信源可供对照"
+        return _gap_result("found", checked_at, query=query,
+                           sources=sources, note=_clip(note, GAP_VERIFY_NOTE_MAX))
+    note = f"全网核验：截至 {checked_at} 暂未检索到公开权威材料"
+    return _gap_result("not_found", checked_at, query=query,
+                       note=_clip(note, GAP_VERIFY_NOTE_MAX))
 
 
 # ---------------------------------------------------------------------------
@@ -505,6 +668,14 @@ def process_item(rank: int, hot: dict) -> dict:
         _log(f"  第 {rank} 条生成成功[{item_type}]：{title[:24]}")
     except Exception as exc:
         _log(f"  第 {rank} 条生成失败（单条降级，不影响整份简报）：{exc}")
+
+    # v3.1：给「缺的那块拼图」补一次站外实证核验。
+    # 放在 try/except 之外，是为了让「降级条目」也能按占位缺口走 skipped，而不会误触发检索。
+    item["gap_verification"] = verify_gap_with_global_search(
+        item["title"],
+        item["gap"],
+        mock_mode=bool(MOCK_MODE),
+    )
     return item
 
 
