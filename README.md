@@ -116,7 +116,7 @@ tcb cloudrun deploy \
 
 **本项目没有接入 CI**，所有检查均为本地脚本手动执行。
 
-九项 Python 测试是**独立脚本，不是 unittest 用例**（没有 `TestCase` 类），因此 `python -m unittest discover` 会显示 0 项——这是预期行为，不是"测试不存在"。正确运行方式：
+十项 Python 测试是**独立脚本，不是 unittest 用例**（没有 `TestCase` 类），因此 `python -m unittest discover` 会显示 0 项——这是预期行为，不是"测试不存在"。正确运行方式：
 
 ```bash
 python tests/test_cache_timestamp.py  # 缓存保留真实生成时刻，旧缓存按 mtime 补齐
@@ -128,12 +128,14 @@ python tests/test_cold_start.py       # 冷缓存立即兜底、并发只生成�
 python tests/test_refresh_cooldown.py # 异常与劣化刷新后的重试冷却
 python tests/test_invalid_cache.py    # 空/非对象/损坏 JSON 缓存均能自动恢复
 python tests/test_verification_scripts.py # 验收脚本有界等待、兜底不误判版本
+python tests/test_reading_index_guard.py # 延伸阅读编号守卫：bool/非整数编号不得选中候选
 ```
 
-前端恢复另有一项 Node 行为测试，覆盖四个场景（仅开发验收需要 Node.js，线上运行时不增加依赖）：
+前端行为另有两项 Node 测试（仅开发验收需要 Node.js，线上运行时不增加依赖）：
 
 ```bash
 node tests/test_frontend_recovery.js  # 异常轮询、空缓存、首次恢复、健康缓存不循环刷新
+node tests/test_paged_navigation.js   # 分页导航与目录行为
 ```
 
 其余验收脚本：
@@ -153,10 +155,10 @@ python scripts/audit_gap_quality.py                                      # gap �
 ## 研发工具链
 
 - **Kimi Code**：正式用于代码阅读、功能开发、调试、测试与差异审查；提交、推送、部署仍须负责人确认。
-- **Kimi Claw**：仅用于只读云端巡检、公开资料调研和匿名反馈归纳；账号端任务尚未启用，不进入核心生成链路，不持有密钥，不自动修改仓库或生产环境。
+- **Kimi Claw**：云端「柳东凯」的两个首页只读巡检条目已启用，分别在每天 09:17、21:23（Asia/Shanghai）仅 GET 生产根路径；本机旧条目已于 2026-11-19 21:28 删除。21:23 自动触发、日志与异常告警已验证，结果为 HTTP 503；这表示巡检机制正常、被巡检首页不可用，不代表简报内容验收通过。Claw 不进入核心生成链路，不持有密钥，不自动修改仓库或生产环境。
 - **Kimi Work**：继续承担本地文件处理与综合交付。
 
-具体权限、任务模板和试点验收条件见 `研发工具链_Kimi_Code_Claw.md`。这些工具属于研发与运营辅助，不改变 Demo 架构，也不作为产品核心创新宣称。
+具体权限、实际任务编号、运行记录和退出条件见 `研发工具链_Kimi_Code_Claw.md` 与 `HANDOFF.md`。这些工具属于研发与运营辅助，不改变 Demo 架构，也不作为产品核心创新宣称；首页巡检不能替代 10 条内容完整性与质量验收。
 
 ## 目录结构
 
