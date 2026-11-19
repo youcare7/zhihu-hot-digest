@@ -116,7 +116,7 @@ tcb cloudrun deploy \
 
 **本项目没有接入 CI**，所有检查均为本地脚本手动执行。
 
-十项 Python 测试是**独立脚本，不是 unittest 用例**（没有 `TestCase` 类），因此 `python -m unittest discover` 会显示 0 项——这是预期行为，不是"测试不存在"。正确运行方式：
+十一项 Python 测试是**独立脚本，不是 unittest 用例**（没有 `TestCase` 类），因此 `python -m unittest discover` 会显示 0 项——这是预期行为，不是"测试不存在"。正确运行方式：
 
 ```bash
 python tests/test_cache_timestamp.py  # 缓存保留真实生成时刻，旧缓存按 mtime 补齐
@@ -129,6 +129,7 @@ python tests/test_refresh_cooldown.py # 异常与劣化刷新后的重试冷却
 python tests/test_invalid_cache.py    # 空/非对象/损坏 JSON 缓存均能自动恢复
 python tests/test_verification_scripts.py # 验收脚本有界等待、兜底不误判版本
 python tests/test_reading_index_guard.py # 延伸阅读编号守卫：bool/非整数编号不得选中候选
+python tests/test_quota_guard.py      # 按接口按日计数、失败/429 计入、达上限熔断跳过
 ```
 
 前端行为另有两项 Node 测试（仅开发验收需要 Node.js，线上运行时不增加依赖）：
