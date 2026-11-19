@@ -202,6 +202,8 @@ def zhihu_get(path: str, params: dict | None = None) -> dict:
 
 def api_hot_list() -> list:
     """FR-01：取当日热榜 10 条。"""
+    if not _QUOTA.attempt("hot_list"):
+        raise UpstreamError("热榜接口当日配额已达上限（配额守卫）")
     data = zhihu_get("/api/v1/content/hot_list", {"Limit": HOT_LIST_LIMIT})
     items = data.get("Items") or []
     _log(f"热榜接口返回 {len(items)} 条")
@@ -210,6 +212,8 @@ def api_hot_list() -> list:
 
 def api_search(query: str, count: int = SEARCH_COUNT) -> list:
     """FR-02：站内搜索该热点的回答素材；Data 为 null 时返回空列表，不崩溃。"""
+    if not _QUOTA.attempt("search"):
+        raise UpstreamError("搜索接口当日配额已达上限（配额守卫）")
     data = zhihu_get("/api/v1/content/zhihu_search", {"Query": query, "Count": count})
     items = data.get("Items") or []
     return items
@@ -251,10 +255,84 @@ REFRESH_COOLDOWN_SECONDS = max(0, int(os.environ.get("REFRESH_COOLDOWN_SECONDS",
 _REFRESH_LOCK = threading.Lock()   # 保证同时只有一个后台刷新线程
 _REFRESH_NOT_BEFORE = 0.0          # monotonic 时间；仅进程内状态，不假装持久化
 
+# ---- 配额守卫：按接口、按自然日统计「请求尝试次数」，失败/超时/429 全部计入 ----
+# 修订版方案 P1 前置（reviews/2026-11-19/zhihu_top15_optimization_plan_审查修订版_2026-11-19.md）：
+# 接入任何新接口（如全网搜索）之前，必须先有按日计数与上限熔断，
+# 防止补跑/重试连带打满官方配额（热榜 100 / 搜索 5000 / 直答 100，次/用户/天）。
+QUOTA_LIMITS = {
+    "hot_list": int(os.environ.get("QUOTA_HOT_LIST_DAILY", "100")),
+    "search": int(os.environ.get("QUOTA_SEARCH_DAILY", "2000")),
+    "zhida": int(os.environ.get("QUOTA_ZHIDA_DAILY", "90")),
+    "model_alt": int(os.environ.get("QUOTA_MODEL_ALT_DAILY", "500")),
+    # 全网搜索试点前保持 0 = 完全禁用；试点时按需调大并配合试点规范上线
+    "web_search": int(os.environ.get("QUOTA_WEB_SEARCH_DAILY", "0")),
+}
+QUOTA_STATE_PATH = DATA_DIR / "quota_counters.json"
+QUOTA_GUARD_DISABLED = os.environ.get("QUOTA_GUARD_DISABLED", "0") == "1"
+
+
+class QuotaGuard:
+    """按接口、按自然日统计请求尝试次数（成功/失败/429 全部计入）。
+
+    计数按日落盘（原子写），新进程实例读回同一天已累计次数；
+    只保留当天，不假装跨日持久化。达上限后 attempt() 返回 False，
+    调用方必须放弃本次请求，不得重试。
+    """
+
+    def __init__(self, path):
+        self._path = path
+        self._lock = threading.Lock()
+        self._day = today_str()
+        self._counts = {k: 0 for k in QUOTA_LIMITS}
+        self._load()
+
+    def _load(self):
+        try:
+            raw = json.loads(self._path.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        if raw.get("date") == self._day and isinstance(raw.get("counts"), dict):
+            for k in self._counts:
+                v = raw["counts"].get(k)
+                if isinstance(v, int) and v > 0:
+                    self._counts[k] = v
+
+    def _save(self):
+        tmp = self._path.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"date": self._day, "counts": self._counts},
+                                ensure_ascii=False), encoding="utf-8")
+        tmp.replace(self._path)
+
+    def attempt(self, kind: str) -> bool:
+        """记录一次请求尝试并返回是否允许；False = 已达当日上限，调用方必须放弃。"""
+        if QUOTA_GUARD_DISABLED or kind not in QUOTA_LIMITS:
+            return True
+        with self._lock:
+            if today_str() != self._day:
+                self._day = today_str()
+                self._counts = {k: 0 for k in QUOTA_LIMITS}
+            limit = QUOTA_LIMITS[kind]
+            if self._counts[kind] >= limit:
+                _log(f"配额守卫：{kind} 已达当日上限 {limit}，跳过本次调用")
+                return False
+            self._counts[kind] += 1
+            self._save()
+            return True
+
+    def used(self, kind: str) -> int:
+        return self._counts.get(kind, 0)
+
+
+_QUOTA = QuotaGuard(QUOTA_STATE_PATH)
+
 
 def _chat_with_retry(url: str, headers: dict, payload: dict, label: str) -> str:
-    """限流友好：遇 429 按 RETRY_WAIT 秒退避重试。简报每日只生成一次，慢一点没关系。"""
+    """限流友好：遇 429 按 RETRY_WAIT 秒退避重试。简报每日只生成一次，慢一点没关系。
+
+    每次尝试（含 429 重试）都经配额守卫计数；达当日上限立即放弃，不再重试。"""
     for attempt in range(1, RETRY_TIMES + 1):
+        if not _QUOTA.attempt("zhida"):
+            raise UpstreamError(f"{label} 当日配额已达上限，停止调用（配额守卫）")
         try:
             return _chat(url, headers, payload, label)
         except UpstreamError as exc:
@@ -292,6 +370,8 @@ def generate_brief(title: str, candidates_text: str) -> dict:
         return extract_json(text)
     except UpstreamError as exc:
         _log(f"知乎直答调用失败，尝试备选通用大模型：{exc}")
+        if not _QUOTA.attempt("model_alt"):
+            raise UpstreamError("备选通用大模型当日配额已达上限（配额守卫）")
         text = _chat(
             MODEL_BASE + "/v1/chat/completions",
             {"Authorization": f"Bearer {MODEL_API_KEY}", "Content-Type": "application/json"},
