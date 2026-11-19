@@ -363,7 +363,91 @@
     .page-panel.active, .loading::before { animation: none; }
     .primary-button, .secondary-button, .reading-progress span { transition: none; }
   }
-  @media print {
+  /* ==========================================================================
+   方案 A：桌面端 1280×800 双列非对称 Hero 网格（>= 960px 生效）
+   作用域只到「激活的卡片」：分页隐藏依赖 .card{display:none}，绝不对裸 .card 设 grid。
+   ========================================================================== */
+.card-left-col,
+.card-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+@media (min-width: 960px) {
+  .card.active,
+  .page-panel.active.card,
+  #reader.continuous .card.active,
+  #reader.continuous .page-panel.active.card {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.95fr);
+    grid-template-areas:
+      "seq  seq"
+      "head head"
+      "left right"
+      "foot foot";
+    column-gap: 28px;
+    row-gap: 14px;
+    padding: 28px 34px;
+    align-items: start;
+  }
+
+  .card-sequence {
+    grid-area: seq;
+    margin-bottom: 0;
+  }
+
+  /* 连续阅读模式下旧规则用 id 选择器压过 .card-sequence，这里同权重覆盖。 */
+  #reader.continuous .card-sequence {
+    margin-bottom: 0;
+  }
+
+  .card-head {
+    grid-area: head;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line, #e5e6eb);
+  }
+
+  .card-left-col {
+    grid-area: left;
+  }
+
+  .card-right-col {
+    grid-area: right;
+    gap: 14px;
+    padding-left: 22px;
+    border-left: 1px dashed rgba(29, 37, 46, 0.14);
+  }
+
+  .card-actions {
+    grid-area: foot;
+  }
+
+  /* 核心亮点：Hero 级视觉聚焦，首屏 0 滚动可见 */
+  .card-right-col .gap {
+    margin-top: 0;
+    background: #fff8e8;
+    border: 1.5px solid #f0a020;
+    box-shadow: 0 4px 14px rgba(240, 160, 32, 0.08);
+  }
+
+  .card-right-col .gap b {
+    font-size: 13px;
+    color: #b76018;
+  }
+}
+
+@media print {
+  .card.active,
+  .page-panel.active.card {
+    display: block !important;
+  }
+  .card-right-col {
+    padding-left: 0;
+    border-left: none;
+    margin-top: 12px;
+  }
     body { background: #fff; }
     .cover, .topbar, .reader-status, .notice, .page-tabs, .reading-progress, .pager, .back-top, footer, .directory { display: none !important; }
     .wrap { max-width: none; padding: 0; }
@@ -782,6 +866,11 @@
     head.appendChild(renderTitle(item));
     card.appendChild(head);
 
+    // 方案 A：桌面端双列。左列放「解释」，右列放「结论与出处」——
+    // 移动端两列容器自然纵向堆叠，DOM 顺序仍是原来的阅读顺序。
+    var leftCol = el('div', 'card-left-col');
+    var rightCol = el('div', 'card-right-col');
+
     if (item.background === '暂无解读。' && item.question_url && !isDemo) {
       var note = el('p', 'degrade-note');
       note.appendChild(document.createTextNode('本条暂无可用素材，未生成解读。我们不编造背景与争议，你可以'));
@@ -790,27 +879,27 @@
       go.target = '_blank';
       go.rel = 'noopener';
       note.appendChild(go);
-      card.appendChild(note);
+      leftCol.appendChild(note);
     } else if (item.background) {
-      card.appendChild(el('p', 'background', item.background));
+      leftCol.appendChild(el('p', 'background', item.background));
     }
 
     if (item.type) {
       var tags = el('div', 'tags');
       tags.appendChild(el('span', 'tag ' + item.type, TYPE_LABEL[item.type] || item.type));
       if (item.claim_type) tags.appendChild(el('span', 'tag claim', '分歧性质：' + (CLAIM_LABEL[item.claim_type] || item.claim_type)));
-      card.appendChild(tags);
+      leftCol.appendChild(tags);
       if (item.focus) {
         var focusBox = el('div', 'focus');
         focusBox.appendChild(el('span', 'section-label', '值得回答的问题'));
         focusBox.appendChild(document.createTextNode(item.focus));
-        card.appendChild(focusBox);
+        leftCol.appendChild(focusBox);
       }
       if (item.consensus) {
         var cb = el('div', 'consensus-box');
         cb.appendChild(el('b', '', '已有共识'));
         cb.appendChild(document.createTextNode(item.consensus));
-        card.appendChild(cb);
+        leftCol.appendChild(cb);
       }
       if (item.sides && item.sides.length === 2) {
         var sidesGrid = el('div', 'sides');
@@ -821,7 +910,7 @@
           box.appendChild(document.createTextNode(s.claim));
           sidesGrid.appendChild(box);
         });
-        card.appendChild(sidesGrid);
+        leftCol.appendChild(sidesGrid);
       }
       if (item.gap) {
         var gapBox = el('div', 'gap');
@@ -829,7 +918,8 @@
         gapBox.appendChild(document.createTextNode(item.gap));
         var gapVerify = renderGapVerify(item);
         if (gapVerify) gapBox.appendChild(gapVerify);
-        card.appendChild(gapBox);
+        // 桌面端首屏视觉焦点：缺口放在右列顶端。
+        rightCol.appendChild(gapBox);
       }
     } else {
       // 兼容旧缓存：没有 type 字段时仍可显示原有三种观点，不出现空白页。
@@ -841,16 +931,21 @@
         block.appendChild(document.createTextNode(vp[cfg[0]] || ''));
         grid.appendChild(block);
       });
-      card.appendChild(grid);
+      leftCol.appendChild(grid);
     }
+
+    card.appendChild(leftCol);
 
     if (item.reading && item.reading.length) {
       var readingBlock = el('section', 'reading-block');
       readingBlock.appendChild(el('h3', 'reading-title', '站内延伸阅读'));
       readingBlock.appendChild(renderReading(item.reading));
-      card.appendChild(readingBlock);
+      rightCol.appendChild(readingBlock);
     }
-    // v3.1：动作条固定在卡片最底部（延伸阅读之后），不插入既有区块。
+    // 右列没内容时整体不挂载，避免桌面端出现一条空的虚线边框。
+    if (rightCol.children.length) card.appendChild(rightCol);
+
+    // v3.1：动作条固定在卡片最底部（跨两列通栏），不插入既有区块。
     card.appendChild(renderCardActions(item));
     cardsEl.appendChild(card);
 
