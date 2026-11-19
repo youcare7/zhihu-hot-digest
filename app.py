@@ -355,8 +355,10 @@ def assemble_reading(model_output: dict, candidates: list) -> list:
             if not isinstance(pick, dict):
                 continue
             idx = pick.get("index")
-            if not isinstance(idx, int) or not (1 <= idx <= len(candidates)):
-                continue  # 编号越界，丢弃
+            # bool 是 int 的子类：True/False 不是合法编号，必须显式排除，
+            # 否则模型没给出编号时程序会静默替它选中第 1/0 条候选。
+            if isinstance(idx, bool) or not isinstance(idx, int) or not (1 <= idx <= len(candidates)):
+                continue  # 非整数编号或越界，丢弃
             src = candidates[idx - 1]
             url = src.get("Url")
             if not url or url not in allowed or not _is_zhihu_url(url) or url in seen_urls:
