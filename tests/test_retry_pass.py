@@ -11,8 +11,13 @@ os.environ.pop("MOCK_MODE", None)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import app  # noqa: E402
 
-# 加速测试：跳过补跑前的退避等待
-app.time = types.SimpleNamespace(sleep=lambda s: None, strftime=__import__("time").strftime)
+# 加速测试：跳过补跑前的退避等待。
+# 补跑不再无条件 sleep，但 build_brief 的整批预算需要 monotonic，桩必须一并提供。
+app.time = types.SimpleNamespace(
+    sleep=lambda s: None,
+    strftime=__import__("time").strftime,
+    monotonic=__import__("time").monotonic,
+)
 
 CANDIDATES = [{"Title": "候选回答1", "Url": "https://www.zhihu.com/question/1/answer/9"}]
 

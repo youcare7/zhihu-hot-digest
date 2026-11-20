@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import math
 import os
 import pathlib
 import re
@@ -23,6 +24,51 @@ import urllib.parse
 import urllib.request
 
 from flask import Flask, Response, send_file
+
+
+def _log(msg: str) -> None:
+    print(f"[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}] {msg}", flush=True)
+
+
+def _env_int(name: str, default: int, minimum: int | None = None) -> int:
+    """读取整数型环境变量；空值/非法值一律回退默认值，绝不让一条配置拖垮启动。
+
+    云控制台把 QUOTA_WEB_SEARCH_DAILY 之类留空、误填单位或写了中文说明，
+    旧写法会在模块导入阶段直接 ValueError —— 整个服务起不来。
+    配置错误应该降级并留日志，而不是变成线上 5xx。
+    """
+    raw = os.environ.get(name)
+    if raw is None or not str(raw).strip():
+        return default
+    try:
+        value = int(str(raw).strip())
+    except ValueError:
+        _log(f"环境变量 {name}={raw!r} 不是合法整数，回退默认值 {default}")
+        return default
+    if minimum is not None and value < minimum:
+        _log(f"环境变量 {name}={value} 低于下限 {minimum}，按 {minimum} 处理")
+        return minimum
+    return value
+
+
+def _env_float(name: str, default: float, minimum: float | None = None) -> float:
+    """读取浮点型环境变量，语义同 _env_int。"""
+    raw = os.environ.get(name)
+    if raw is None or not str(raw).strip():
+        return default
+    try:
+        value = float(str(raw).strip())
+        # nan/inf 能通过 float()，但后面 int(nan*3600) 会在导入阶段炸，必须挡住。
+        if not math.isfinite(value):
+            raise ValueError("not finite")
+    except ValueError:
+        _log(f"环境变量 {name}={raw!r} 不是合法数字，回退默认值 {default}")
+        return default
+    if minimum is not None and value < minimum:
+        _log(f"环境变量 {name}={value} 低于下限 {minimum}，按 {minimum} 处理")
+        return minimum
+    return value
+
 
 # ---------------------------------------------------------------------------
 # 路径
@@ -39,7 +85,7 @@ FALLBACK_PATH = DATA_DIR / "fallback.json"
 ZHIHU_BASE = os.environ.get("ZHIHU_BASE", "https://developer.zhihu.com").rstrip("/")
 ZHIHU_ACCESS_SECRET = os.environ.get("ZHIHU_ACCESS_SECRET", "").strip()
 MOCK_MODE = os.environ.get("MOCK_MODE", "0") == "1"
-REQUEST_TIMEOUT = int(os.environ.get("REQUEST_TIMEOUT", "30"))
+REQUEST_TIMEOUT = _env_int("REQUEST_TIMEOUT", 30, minimum=1)
 
 # 备选通用大模型（仅当知乎直答不可用时才走，见 generate_brief）
 MODEL_API_KEY = os.environ.get("MODEL_API_KEY", "").strip()
@@ -155,10 +201,6 @@ class UpstreamError(Exception):
     """上游（知乎 API / 大模型）调用失败。"""
 
 
-def _log(msg: str) -> None:
-    print(f"[{datetime.datetime.now():%Y-%m-%d %H:%M:%S}] {msg}", flush=True)
-
-
 try:  # 显式用北京时间，避免容器 UTC 导致缓存日期键/展示日期与读者差一天
     from zoneinfo import ZoneInfo
     CN_TZ = ZoneInfo("Asia/Shanghai")
@@ -198,7 +240,9 @@ def zhihu_get(path: str, params: dict | None = None) -> dict:
         raise
     except Exception as exc:
         raise UpstreamError(f"知乎接口请求失败 {path}：{exc}") from exc
-    if body.get("Code") != 0:
+    # 有些网关会把数字 Code 序列化成字符串 "0"；按值比较而不是按类型，
+    # 避免把成功响应误判成「错误码 0」直接失败。
+    if str(body.get("Code")).strip() != "0":
         raise UpstreamError(
             f"知乎接口返回错误码 {body.get('Code')}（{body.get('Message', '')}）：{path}"
         )
@@ -267,14 +311,19 @@ def _chat(url: str, headers: dict, payload: dict, label: str) -> str:
         raise UpstreamError(f"{label} 返回结构异常：{str(body)[:200]}") from exc
 
 
-RETRY_WAIT = int(os.environ.get("RETRY_WAIT", "30"))   # 429 限流后的等待秒数
-RETRY_TIMES = int(os.environ.get("RETRY_TIMES", "6"))  # 含首次共尝试次数
+RETRY_WAIT = _env_int("RETRY_WAIT", 30, minimum=0)   # 429 指数退避的单次等待上限（秒）
+RETRY_TIMES = _env_int("RETRY_TIMES", 6, minimum=1)  # 含首次共尝试次数；至少 1 次
+RETRY_BACKOFF_BASE = _env_int("RETRY_BACKOFF_BASE", 2, minimum=1)  # 首次 429 等待，之后按 2 倍递增
+# 整批生成软预算（秒）：耗尽后停止发起新的重试/补跑，保留已生成的部分结果，
+# 不杀线程；0 = 关闭预算。保留策略、冷却与劣化结果覆盖规则沿用 generate_and_cache 既有逻辑。
+GEN_BUDGET_SECONDS = _env_int("GEN_BUDGET_SECONDS", 180, minimum=0)
+_GEN_DEADLINE = 0.0  # monotonic 时间戳；0 表示本批不设预算；仅由 build_brief 写入/清除
 
 # 缓存有效期（小时）：过期后由访问流量惰性触发后台刷新（stale-while-revalidate），
 # 不引入定时任务；<=0 时恢复「每日只生成一次」的旧行为。
-CACHE_TTL_SECONDS = int(float(os.environ.get("CACHE_TTL_HOURS", "3")) * 3600)
+CACHE_TTL_SECONDS = int(_env_float("CACHE_TTL_HOURS", 3, minimum=0) * 3600)
 # 刷新失败或结果被防劣化门丢弃后，暂停后续整批生成，避免访客流量形成重试风暴。
-REFRESH_COOLDOWN_SECONDS = max(0, int(os.environ.get("REFRESH_COOLDOWN_SECONDS", "900")))
+REFRESH_COOLDOWN_SECONDS = _env_int("REFRESH_COOLDOWN_SECONDS", 900, minimum=0)
 _REFRESH_LOCK = threading.Lock()   # 保证同时只有一个后台刷新线程
 _REFRESH_NOT_BEFORE = 0.0          # monotonic 时间；仅进程内状态，不假装持久化
 
@@ -283,12 +332,12 @@ _REFRESH_NOT_BEFORE = 0.0          # monotonic 时间；仅进程内状态，不
 # 接入任何新接口（如全网搜索）之前，必须先有按日计数与上限熔断，
 # 防止补跑/重试连带打满官方配额（热榜 100 / 搜索 5000 / 直答 100，次/用户/天）。
 QUOTA_LIMITS = {
-    "hot_list": int(os.environ.get("QUOTA_HOT_LIST_DAILY", "100")),
-    "search": int(os.environ.get("QUOTA_SEARCH_DAILY", "2000")),
-    "zhida": int(os.environ.get("QUOTA_ZHIDA_DAILY", "90")),
-    "model_alt": int(os.environ.get("QUOTA_MODEL_ALT_DAILY", "500")),
+    "hot_list": _env_int("QUOTA_HOT_LIST_DAILY", 100, minimum=0),
+    "search": _env_int("QUOTA_SEARCH_DAILY", 2000, minimum=0),
+    "zhida": _env_int("QUOTA_ZHIDA_DAILY", 90, minimum=0),
+    "model_alt": _env_int("QUOTA_MODEL_ALT_DAILY", 500, minimum=0),
     # 全网搜索试点前保持 0 = 完全禁用；试点时按需调大并配合试点规范上线
-    "web_search": int(os.environ.get("QUOTA_WEB_SEARCH_DAILY", "0")),
+    "web_search": _env_int("QUOTA_WEB_SEARCH_DAILY", 0, minimum=0),
 }
 QUOTA_STATE_PATH = DATA_DIR / "quota_counters.json"
 QUOTA_GUARD_DISABLED = os.environ.get("QUOTA_GUARD_DISABLED", "0") == "1"
@@ -317,10 +366,17 @@ class QuotaGuard:
         if raw.get("date") == self._day and isinstance(raw.get("counts"), dict):
             for k in self._counts:
                 v = raw["counts"].get(k)
-                if isinstance(v, int) and v > 0:
+                # bool 是 int 的子类：True 不能被当成「已用 1 次」，
+                # 否则损坏/被篡改的计数文件会直接熔断接口（与编号守卫同类 bug）。
+                if isinstance(v, int) and not isinstance(v, bool) and v > 0:
                     self._counts[k] = v
 
     def _save(self):
+        """把当日计数原子落盘；目录不存在时先创建。
+
+        异常统一由 attempt() 兜住，这里保持纯 IO，便于测试注入真实磁盘错误。
+        """
+        self._path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self._path.with_suffix(".tmp")
         tmp.write_text(json.dumps({"date": self._day, "counts": self._counts},
                                 ensure_ascii=False), encoding="utf-8")
@@ -339,7 +395,13 @@ class QuotaGuard:
                 _log(f"配额守卫：{kind} 已达当日上限 {limit}，跳过本次调用")
                 return False
             self._counts[kind] += 1
-            self._save()
+            # 守卫是保护性旁路，绝不能反过来把生成链路打断：磁盘只读/写满、
+            # 目录不可创建时只记日志，内存计数仍准确、本次请求照常放行。
+            # 曾因落盘抛 OSError 导致整批生成失败 → 后台冷却 15 分钟 → 线上长期兜底。
+            try:
+                self._save()
+            except Exception as exc:
+                _log(f"配额计数落盘失败（内存计数仍生效，不影响本次请求）：{exc}")
             return True
 
     def used(self, kind: str) -> int:
@@ -350,20 +412,32 @@ _QUOTA = QuotaGuard(QUOTA_STATE_PATH)
 
 
 def _chat_with_retry(url: str, headers: dict, payload: dict, label: str) -> str:
-    """限流友好：遇 429 按 RETRY_WAIT 秒退避重试。简报每日只生成一次，慢一点没关系。
+    """429 采用有界指数退避（RETRY_BACKOFF_BASE 起步、RETRY_WAIT 封顶）。
 
+    旧实现每条都固定 sleep(RETRY_WAIT=30)，10 条串行只要各遇一次 429 就是 5 分钟，
+    这正是线上冷启动 3–5 分钟的主因（上游本身瞬时返回）。
+    整批生成预算 GEN_BUDGET_SECONDS 耗尽后停止新尝试，保留已有部分结果，不杀线程。
     每次尝试（含 429 重试）都经配额守卫计数；达当日上限立即放弃，不再重试。"""
     for attempt in range(1, RETRY_TIMES + 1):
+        if _GEN_DEADLINE and time.monotonic() >= _GEN_DEADLINE:
+            raise UpstreamError(f"{label} 整批生成预算耗尽，跳过剩余尝试")
         if not _QUOTA.attempt("zhida"):
             raise UpstreamError(f"{label} 当日配额已达上限，停止调用（配额守卫）")
         try:
             return _chat(url, headers, payload, label)
         except UpstreamError as exc:
             if "429" in str(exc) and attempt < RETRY_TIMES:
-                _log(f"{label} 触发限流（429），{RETRY_WAIT} 秒后重试（第 {attempt}/{RETRY_TIMES - 1} 次）")
-                time.sleep(RETRY_WAIT)
+                wait = max(0, min(RETRY_WAIT, RETRY_BACKOFF_BASE * (2 ** (attempt - 1))))
+                if _GEN_DEADLINE and time.monotonic() + wait > _GEN_DEADLINE:
+                    raise UpstreamError(f"{label} 整批生成预算耗尽，停止等待重试") from exc
+                _log(f"{label} 触发限流（429），{wait} 秒后重试（第 {attempt}/{RETRY_TIMES - 1} 次）")
+                if wait:
+                    time.sleep(wait)
                 continue
             raise
+    # 兜底：RETRY_TIMES 被改成 <=0 时循环空转，旧写法会静默返回 None，
+    # 调用方 extract_json(None) 才炸；这里直接给出明确错误。
+    raise UpstreamError(f"{label} 未执行任何调用（RETRY_TIMES={RETRY_TIMES}）")
 
 
 def generate_brief(title: str, candidates_text: str) -> dict:
@@ -714,44 +788,53 @@ def process_item(rank: int, hot: dict) -> dict:
 
 def build_brief() -> dict:
     """实时生成整份简报（含 mock 分支）。"""
+    global _GEN_DEADLINE, _WEB_EVIDENCE_BUDGET
     if MOCK_MODE:
         return build_brief_mock()
 
     # 每份简报重置全网核验状态：只选 1 条 verify 热点、同一热点只检索一次。
     # 进程内内存状态，不假装跨进程持久化（任务书 §2 明确此边界可接受）。
-    global _WEB_EVIDENCE_BUDGET
     _WEB_SEARCH_TRIED.clear()
     _WEB_EVIDENCE_BUDGET = 1
 
-    hot_items = api_hot_list()
-    if not hot_items:
-        raise UpstreamError("热榜接口返回 0 条")
+    # 整批软预算：耗尽后 _chat_with_retry 停止新尝试、补跑跳过，已生成条目照常保留；
+    # 不杀线程，冷却与劣化结果覆盖规则仍由 generate_and_cache 的既有逻辑负责。
+    _GEN_DEADLINE = (time.monotonic() + GEN_BUDGET_SECONDS) if GEN_BUDGET_SECONDS > 0 else 0.0
+    try:
+        hot_items = api_hot_list()
+        if not hot_items:
+            raise UpstreamError("热榜接口返回 0 条")
 
-    notice = NOTICE_LIVE
-    if len(hot_items) < HOT_LIST_LIMIT:
-        notice += f" 热榜接口本次仅返回 {len(hot_items)} 条，按实际条数展示。"
+        notice = NOTICE_LIVE
+        if len(hot_items) < HOT_LIST_LIMIT:
+            notice += f" 热榜接口本次仅返回 {len(hot_items)} 条，按实际条数展示。"
 
-    items = [process_item(i + 1, hot) for i, hot in enumerate(hot_items)]
+        items = [process_item(i + 1, hot) for i, hot in enumerate(hot_items)]
 
-    # 收尾补跑：首轮仍处降级态的条目再试一轮。429 突发通常几十秒内过去，
-    # 补跑能把「9/10」这类单条永久降级压到最低，且不改变 PRD 锁定的功能边界。
-    degraded = [i for i, it in enumerate(items) if it["background"] == NO_BACKGROUND]
-    if degraded:
-        _log(f"首轮生成完成，{len(degraded)} 条降级，收尾补跑")
-        time.sleep(RETRY_WAIT)  # 先让限流窗口过去再补跑
-        for idx in degraded:
-            items[idx] = process_item(items[idx]["rank"], hot_items[idx])
-        ok = sum(1 for it in items if it["background"] != NO_BACKGROUND)
-        _log(f"补跑完成：{ok}/{len(items)} 条生成成功")
+        # 收尾补跑：首轮仍处降级态的条目再试一轮。429 突发通常几十秒内过去，
+        # 补跑能把「9/10」这类单条永久降级压到最低，且不改变 PRD 锁定的功能边界。
+        # 不再无条件 sleep(RETRY_WAIT)：_chat_with_retry 内部已有指数退避，
+        # 且失败原因常是配额/超时/坏 JSON，等 30 秒纯属重复惩罚（旧实现每次冷启动白等）。
+        degraded = [i for i, it in enumerate(items) if it["background"] == NO_BACKGROUND]
+        if degraded and (not _GEN_DEADLINE or time.monotonic() < _GEN_DEADLINE):
+            _log(f"首轮生成完成，{len(degraded)} 条降级，收尾补跑")
+            for idx in degraded:
+                items[idx] = process_item(items[idx]["rank"], hot_items[idx])
+            ok = sum(1 for it in items if it["background"] != NO_BACKGROUND)
+            _log(f"补跑完成：{ok}/{len(items)} 条生成成功")
+        elif degraded:
+            _log(f"首轮生成完成，{len(degraded)} 条降级；预算已耗尽，跳过补跑并保留现有结果")
 
-    return {
-        "date": today_str(),
-        "source": "live",
-        "generated_at": now_str(),
-        "notice": notice,
-        "digest": build_digest(items),
-        "items": items,
-    }
+        return {
+            "date": today_str(),
+            "source": "live",
+            "generated_at": now_str(),
+            "notice": notice,
+            "digest": build_digest(items),
+            "items": items,
+        }
+    finally:
+        _GEN_DEADLINE = 0.0
 
 
 def build_digest(items: list) -> dict:
@@ -1082,10 +1165,18 @@ def generate_and_cache() -> dict:
 
 
 def load_fallback() -> dict:
-    """FR-08：任何异常下读取静态兜底，保证页面不白屏。"""
-    data = json.loads(FALLBACK_PATH.read_text(encoding="utf-8"))
-    if not isinstance(data, dict) or not isinstance(data.get("items"), list):
-        raise UpstreamError("fallback.json 结构不合法")
+    """FR-08：任何异常下都返回可渲染的兜底数据，保证页面不白屏。
+
+    fallback.json 缺失/损坏/结构不合法时退回内存最小结构；旧写法在这里抛异常，
+    会让 get_brief 的兜底分支二次失败，最终 /data.js 返回 500。
+    """
+    try:
+        data = json.loads(FALLBACK_PATH.read_text(encoding="utf-8"))
+        if not isinstance(data, dict) or not isinstance(data.get("items"), list):
+            raise UpstreamError("fallback.json 结构不合法")
+    except Exception as exc:
+        _log(f"静态兜底不可用，改用内存最小兜底：{exc}")
+        data = {"items": []}
     data["source"] = "fallback"
     data["date"] = data.get("date") or today_str()
     data["generated_at"] = data.get("generated_at") or now_str()
@@ -1199,7 +1290,11 @@ def get_brief() -> dict:
     try:
         cached = load_today_cache()
         if cached:
-            _maybe_background_refresh()
+            # 后台刷新是尽力而为：它的任何异常都不能让「已命中的健康缓存」被丢掉。
+            try:
+                _maybe_background_refresh()
+            except Exception as exc:
+                _log(f"后台刷新触发失败（不影响本次缓存响应）：{exc}")
             return cached
         if MOCK_MODE:
             with _GEN_LOCK:
@@ -1218,7 +1313,8 @@ def get_brief() -> dict:
         return _fallback_with_refresh_state(refreshing=started)
     except Exception as exc:
         _log(f"生成失败，切换到静态兜底：{exc}")
-        return load_fallback()
+        # 带恢复状态让前端按冷却时间轮询；load_fallback 已保证永不抛异常。
+        return _fallback_with_refresh_state()
 
 
 # ---------------------------------------------------------------------------
@@ -1268,6 +1364,6 @@ if __name__ == "__main__":
     if not check_config():
         sys.exit(1)
     DATA_DIR.mkdir(exist_ok=True)
-    port = int(os.environ.get("PORT", "5000"))
+    port = _env_int("PORT", 5000, minimum=1)
     _log(f"热榜深潜简报已启动：http://127.0.0.1:{port}/")
     app.run(host="0.0.0.0", port=port)

@@ -55,7 +55,8 @@ GET /data.js
 ### 质量与配额边界
 
 - **单条降级**：每次大模型只处理 1 条热点，失败只降级该条，不中断整份简报；页面保留主标题与原问题入口，并明确说明素材不足时不编造背景与争议。
-- **429 退避与配额边界**：知乎 API 限流时自动等待重试（默认 30s × 6 次）。零降级、不重试时，一轮生成消耗 1 次热榜 + 10 次搜索 + 10 次直答；3 小时 TTL 下理论最多约 8 轮/日，直答成功调用约 80–160 次/日，**不含 429 尝试**，且当前没有日配额计数或熔断。免费额度与价格以知乎控制台当期规则为准；真正限额需要另做配额守卫。
+- **429 退避与配额边界**：知乎 API 限流时按有界指数退避重试（`RETRY_BACKOFF_BASE` 默认 2s 起步、`RETRY_WAIT` 默认 30s 封顶、`RETRY_TIMES` 默认 6 次含首次），每次尝试都计入按日配额守卫（热榜 100 / 搜索 2000 / 直答 90 / 备选模型 500 / 全网搜索 0，达上限熔断跳过）。零降级、不重试时，一轮生成消耗 1 次热榜 + 10 次搜索 + 10 次直答；3 小时 TTL 下理论最多约 8 轮/日。**整批生成另有软预算** `GEN_BUDGET_SECONDS`（默认 180 秒）：预算耗尽后停止新的重试与补跑，保留已生成的部分结果，不杀线程；冷却与劣化结果覆盖规则沿用既有逻辑。免费额度与价格以知乎控制台当期规则为准。
+- **冷启动耗时**：2026-11-20 定位到旧实现冷启动 3–5 分钟的主因是固定 30s 退避 × 10 条串行（上游本身瞬时返回），不是上游慢或守卫开销；改为指数退避并去掉补跑前无条件等待后，轻度限流从约 300 秒降到约 20 秒。计时证据见 `tests/test_cold_start_latency.py`（虚拟时钟，不真睡）。
 
 ## 快速开始
 
@@ -116,7 +117,7 @@ tcb cloudrun deploy \
 
 **本项目没有接入 CI**，所有检查均为本地脚本手动执行。
 
-十二项 Python 测试是**独立脚本，不是 unittest 用例**（没有 `TestCase` 类），因此 `python -m unittest discover` 会显示 0 项——这是预期行为，不是"测试不存在"。正确运行方式：
+十四项 Python 测试是**独立脚本，不是 unittest 用例**（没有 `TestCase` 类），因此 `python -m unittest discover` 会显示 0 项——这是预期行为，不是"测试不存在"。正确运行方式：
 
 ```bash
 python tests/test_cache_timestamp.py  # 缓存保留真实生成时刻，旧缓存按 mtime 补齐
@@ -131,6 +132,8 @@ python tests/test_verification_scripts.py # 验收脚本有界等待、兜底不
 python tests/test_reading_index_guard.py # 延伸阅读编号守卫：bool/非整数编号不得选中候选
 python tests/test_quota_guard.py      # 按接口按日计数、失败/429 计入、达上限熔断跳过
 python tests/test_web_evidence.py     # 全网证据核验试点：单条、四态、补跑去重、配额 0 跳过
+python tests/test_stability_hardening.py # 稳定性加固：配置容错、计数落盘失败隔离、兜底链不 500、Code 类型宽容
+python tests/test_cold_start_latency.py  # 冷启动耗时：指数退避、补跑零等待、整批软预算（虚拟时钟）
 ```
 
 前端行为另有两项 Node 测试（仅开发验收需要 Node.js，线上运行时不增加依赖）：
@@ -190,7 +193,8 @@ python scripts/audit_gap_quality.py                                      # gap �
 - `PORT`：服务端口，默认 5000。
 - `CACHE_TTL_HOURS`：当日缓存有效期（小时），默认 3，过期后由访问流量惰性触发后台静默刷新；设为 `0` 恢复「每日只生成一次」。
 - `REFRESH_COOLDOWN_SECONDS`：刷新异常、整批 0 条成功或劣化结果丢弃后的冷却时间，默认 900 秒；冷却期间保留旧缓存或静态兜底，不重复调用上游。
-- `RETRY_WAIT` / `RETRY_TIMES`：429 限流退避的等待秒数与总尝试次数，默认 30 / 6。
+- `RETRY_BACKOFF_BASE` / `RETRY_WAIT` / `RETRY_TIMES`：429 有界指数退避，默认 `2` / `30` / `6`；首次等待 2s 后按 2 倍递增，`RETRY_WAIT` 为单次等待上限，`RETRY_TIMES` 含首次。
+- `GEN_BUDGET_SECONDS`：整批生成软预算，默认 180 秒；耗尽后停止新重试与补跑并保留已生成的部分结果，`0` = 不限制。
 
 ## 分步验证命令
 
