@@ -97,7 +97,7 @@ $env:ZHIHU_ACCESS_SECRET="你的密钥"; python app.py   # PowerShell
 
 1. 上传代码（不要上传 `.env` 与 `data/brief_*.json`）。
 2. 平台环境变量里填入 `ZHIHU_ACCESS_SECRET`（平台会自动提供 `PORT`）。
-3. 启动命令 `python app.py`。
+3. 启动命令：镜像默认用 `gunicorn -w 1 --threads 4 ... app:app`（见 `Dockerfile`）；本地调试可用 `python app.py`。**必须保持单进程（`-w 1`）**，进程内锁与配额计数才有效。
 4. **必须验证**：用手机流量打开公网链接，确认评委视角可完整访问。
 
 **CloudBase 部署命令（固定用仓库根目录，不要再建 `deploy/` 副本）**：
@@ -117,7 +117,7 @@ tcb cloudrun deploy \
 
 **本项目没有接入 CI**，所有检查均为本地脚本手动执行。
 
-十四项 Python 测试是**独立脚本，不是 unittest 用例**（没有 `TestCase` 类），因此 `python -m unittest discover` 会显示 0 项——这是预期行为，不是"测试不存在"。正确运行方式：
+十五项 Python 测试是**独立脚本，不是 unittest 用例**（没有 `TestCase` 类），因此 `python -m unittest discover` 会显示 0 项——这是预期行为，不是"测试不存在"。正确运行方式：
 
 ```bash
 python tests/test_cache_timestamp.py  # 缓存保留真实生成时刻，旧缓存按 mtime 补齐
@@ -131,6 +131,7 @@ python tests/test_invalid_cache.py    # 空/非对象/损坏 JSON 缓存均能�
 python tests/test_verification_scripts.py # 验收脚本有界等待、兜底不误判版本
 python tests/test_reading_index_guard.py # 延伸阅读编号守卫：bool/非整数编号不得选中候选
 python tests/test_quota_guard.py      # 按接口按日计数、失败/429 计入、达上限熔断跳过
+python tests/test_engineering_hardening.py # /healthz 只读、状态锁防重入、直答日配额、/data.js 转义
 python tests/test_web_evidence.py     # 全网证据核验试点：单条、四态、补跑去重、配额 0 跳过
 python tests/test_stability_hardening.py # 稳定性加固：配置容错、计数落盘失败隔离、兜底链不 500、Code 类型宽容
 python tests/test_cold_start_latency.py  # 冷启动耗时：指数退避、补跑零等待、整批软预算（虚拟时钟）

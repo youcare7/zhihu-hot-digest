@@ -324,8 +324,79 @@ _GEN_DEADLINE = 0.0  # monotonic 时间戳；0 表示本批不设预算；仅由
 CACHE_TTL_SECONDS = int(_env_float("CACHE_TTL_HOURS", 3, minimum=0) * 3600)
 # 刷新失败或结果被防劣化门丢弃后，暂停后续整批生成，避免访客流量形成重试风暴。
 REFRESH_COOLDOWN_SECONDS = _env_int("REFRESH_COOLDOWN_SECONDS", 900, minimum=0)
-_REFRESH_LOCK = threading.Lock()   # 保证同时只有一个后台刷新线程
+# 当日直答调用硬上限：比通用配额（QUOTA_ZHIDA_DAILY）更保守。
+# 触顶后跳过后台刷新、继续服务旧缓存，保证当天后续访客仍有额度可用。
+DAILY_ZHIDA_LIMIT = _env_int("DAILY_ZHIDA_LIMIT", 80, minimum=0)
+
+# 跨线程共享的刷新状态：只在这把短临界区锁内读写。
+# 旧实现让请求线程 acquire、后台线程 release，threading.Lock 跨线程释放属未定义行为，
+# 这里改为「标志位 + 短临界区」，所有加锁/解锁都发生在同一线程内。
+_STATE_LOCK = threading.Lock()
+_REFRESH_IN_PROGRESS = False
 _REFRESH_NOT_BEFORE = 0.0          # monotonic 时间；仅进程内状态，不假装持久化
+_ZHIDA_USED = 0                    # 当日直答尝试次数（北京时间自然日）
+_ZHIDA_USED_DAY = today_str()
+
+
+def _refresh_active() -> bool:
+    with _STATE_LOCK:
+        return _REFRESH_IN_PROGRESS
+
+
+def _refresh_claim() -> bool:
+    """短临界区内抢占刷新权；已有线程在跑或仍在冷却期返回 False。"""
+    global _REFRESH_IN_PROGRESS
+    with _STATE_LOCK:
+        if _REFRESH_IN_PROGRESS:
+            return False
+        if _REFRESH_NOT_BEFORE > time.monotonic():
+            return False
+        _REFRESH_IN_PROGRESS = True
+        return True
+
+
+def _refresh_release() -> None:
+    global _REFRESH_IN_PROGRESS
+    with _STATE_LOCK:
+        _REFRESH_IN_PROGRESS = False
+
+
+class _RefreshStateView:
+    """兼容旧测试：.locked() 暴露刷新状态；acquire/release 复用同一临界区。"""
+
+    def locked(self) -> bool:
+        return _refresh_active()
+
+    def acquire(self, blocking: bool = True) -> bool:
+        return _refresh_claim()
+
+    def release(self) -> None:
+        _refresh_release()
+
+
+_REFRESH_LOCK = _RefreshStateView()
+
+
+def _zhida_quota_take() -> bool:
+    """记录一次直答调用尝试（按北京时间自然日）；触达上限返回 False。"""
+    global _ZHIDA_USED, _ZHIDA_USED_DAY
+    with _STATE_LOCK:
+        day = today_str()
+        if day != _ZHIDA_USED_DAY:
+            _ZHIDA_USED_DAY, _ZHIDA_USED = day, 0
+        if DAILY_ZHIDA_LIMIT > 0 and _ZHIDA_USED >= DAILY_ZHIDA_LIMIT:
+            return False
+        _ZHIDA_USED += 1
+        return True
+
+
+def _zhida_used_today() -> int:
+    with _STATE_LOCK:
+        return _ZHIDA_USED if _ZHIDA_USED_DAY == today_str() else 0
+
+
+def _zhida_quota_exhausted() -> bool:
+    return DAILY_ZHIDA_LIMIT > 0 and _zhida_used_today() >= DAILY_ZHIDA_LIMIT
 
 # ---- 配额守卫：按接口、按自然日统计「请求尝试次数」，失败/超时/429 全部计入 ----
 # 修订版方案 P1 前置（reviews/2026-11-19/zhihu_top15_optimization_plan_审查修订版_2026-11-19.md）：
@@ -423,6 +494,10 @@ def _chat_with_retry(url: str, headers: dict, payload: dict, label: str) -> str:
             raise UpstreamError(f"{label} 整批生成预算耗尽，跳过剩余尝试")
         if not _QUOTA.attempt("zhida"):
             raise UpstreamError(f"{label} 当日配额已达上限，停止调用（配额守卫）")
+        if not _zhida_quota_take():
+            raise UpstreamError(
+                f"{label} 当日调用已达 {DAILY_ZHIDA_LIMIT} 次上限（DAILY_ZHIDA_LIMIT），停止调用"
+            )
         try:
             return _chat(url, headers, payload, label)
         except UpstreamError as exc:
@@ -705,14 +780,12 @@ def build_web_evidence(title: str, gap: str) -> dict:
 # ---------------------------------------------------------------------------
 # 单条处理与整份组装
 # ---------------------------------------------------------------------------
-def process_item(rank: int, hot: dict) -> dict:
-    """处理一条热点：搜索素材 → 大模型 → 组装成 v2 六字段。单条失败只降级该条。"""
-    title = str(hot.get("Title") or "").strip()
-    question_url = str(hot.get("Url") or "").strip()
-    item = {
+def _base_item(rank: int, hot: dict) -> dict:
+    """降级态骨架：任何条目在生成失败/预算耗尽时都能安全渲染，不编造内容。"""
+    return {
         "rank": rank,
-        "title": title,
-        "question_url": question_url,
+        "title": str(hot.get("Title") or "").strip(),
+        "question_url": str(hot.get("Url") or "").strip(),
         # 降级态默认「待验证」：不确定时不假装有分歧
         "type": TYPE_VERIFY,
         "claim_type": "",
@@ -729,6 +802,12 @@ def process_item(rank: int, hot: dict) -> dict:
             "undecided": EMPTY_VIEWPOINT,
         },
     }
+
+
+def process_item(rank: int, hot: dict) -> dict:
+    """处理一条热点：搜索素材 → 大模型 → 组装成 v2 六字段。单条失败只降级该条。"""
+    item = _base_item(rank, hot)
+    title = item["title"]
     try:
         candidates = fetch_search(title, rank)
         if not candidates:
@@ -1186,27 +1265,31 @@ def load_fallback() -> dict:
 
 def _refresh_retry_after() -> int:
     """距离允许下一次整批生成的秒数；0 表示现在可以尝试。"""
-    remaining = _REFRESH_NOT_BEFORE - time.monotonic()
+    with _STATE_LOCK:
+        remaining = _REFRESH_NOT_BEFORE - time.monotonic()
     return max(0, int(remaining + 0.999))
 
 
 def _set_refresh_cooldown() -> None:
     global _REFRESH_NOT_BEFORE
-    _REFRESH_NOT_BEFORE = time.monotonic() + REFRESH_COOLDOWN_SECONDS
+    with _STATE_LOCK:
+        _REFRESH_NOT_BEFORE = time.monotonic() + REFRESH_COOLDOWN_SECONDS
 
 
 def _start_background_refresh() -> bool:
-    """尝试启动唯一后台生成线程；冷却中或已有线程时返回 False。"""
-    if not _REFRESH_LOCK.acquire(blocking=False):
+    """尝试启动唯一后台生成线程；冷却中、已有线程或直答配额触顶时返回 False。"""
+    if _zhida_quota_exhausted():
+        _log(
+            f"当日直答调用已达 {DAILY_ZHIDA_LIMIT} 次上限，跳过后台刷新，继续服务现有缓存"
+        )
+        return False
+    if not _refresh_claim():
         return False
     try:
-        if _refresh_retry_after() > 0:
-            _REFRESH_LOCK.release()
-            return False
         threading.Thread(target=_background_refresh, daemon=True).start()
         return True
     except Exception:
-        _REFRESH_LOCK.release()
+        _refresh_release()
         raise
 
 
@@ -1264,13 +1347,13 @@ def _background_refresh() -> None:
             f"冷却 {REFRESH_COOLDOWN_SECONDS} 秒：{exc}"
         )
     finally:
-        _REFRESH_LOCK.release()
+        _refresh_release()
 
 
 def _fallback_with_refresh_state(refreshing: bool = False) -> dict:
     """冷缓存时立即给出可读的静态兜底，并向前端暴露自动恢复状态。"""
     data = load_fallback()
-    data["refreshing"] = bool(refreshing or _REFRESH_LOCK.locked())
+    data["refreshing"] = bool(refreshing or _refresh_active())
     data["retry_after"] = _refresh_retry_after()
     if data["refreshing"]:
         data["notice"] = "当前为演示兜底数据，今日简报正在后台生成；页面会在生成完成后自动更新。"
@@ -1328,14 +1411,61 @@ def index():
     return send_file(INDEX_PATH)
 
 
+@app.route("/healthz")
+def healthz():
+    """只读健康检查：不触发任何生成/刷新，仅汇报进程内状态与当日缓存年龄。
+
+    供云托管探针与值班巡检使用；零副作用是本端点唯一硬约束。
+    """
+    age = cache_age_seconds()
+    payload = {
+        "status": "ok",
+        "date": today_str(),
+        "has_today_cache": age is not None,
+        "cache_age_sec": None if age is None else int(age),
+        "refreshing": _refresh_active(),
+        "cooldown_remaining": _refresh_retry_after(),
+        "zhida_calls_today": _zhida_used_today(),
+        "zhida_daily_limit": DAILY_ZHIDA_LIMIT,
+        # 只暴露布尔值，不泄露密钥内容：用于部署后确认环境变量是否注入成功，
+        # 避免"没有报错、但一直静默服务兜底数据"这类最难排查的故障。
+        "secret_configured": bool(ZHIHU_ACCESS_SECRET) or MOCK_MODE,
+    }
+    return Response(
+        json.dumps(payload, ensure_ascii=False),
+        mimetype="application/json",
+        headers={
+            "Cache-Control": "no-store, max-age=0",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+def _js_safe_json(payload: str) -> str:
+    """把 JSON 文本转义成可安全内联进 <script> 的 JS 字面量。
+
+    只替换 <、>、U+2028、U+2029：它们在 JSON 字符串里等价于 \\u003c 等转义，
+    解析结果不变，但可避免提前闭合 <script> 或触发旧引擎的换行解析错误。
+    """
+    return (
+        payload.replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("\u2028", "\\u2028")
+        .replace("\u2029", "\\u2029")
+    )
+
+
 @app.route("/data.js")
 def data_js():
     brief = get_brief()
-    payload = json.dumps(brief, ensure_ascii=False)
+    payload = _js_safe_json(json.dumps(brief, ensure_ascii=False))
     return Response(
         f"window.BRIEF_DATA = {payload};",
         mimetype="application/javascript",
-        headers={"Cache-Control": "no-store, max-age=0"},
+        headers={
+            "Cache-Control": "no-store, max-age=0",
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 
@@ -1358,6 +1488,29 @@ def check_config() -> bool:
     print("  Windows CMD:         set MOCK_MODE=1")
     print("  macOS / Linux:       export MOCK_MODE=1")
     return False
+
+
+def log_startup_diagnostics() -> None:
+    """WSGI（gunicorn）启动时的非阻断自检。
+
+    `if __name__ == "__main__"` 分支在 gunicorn 下不会执行，所以 check_config()
+    的提示也就不会出现。这里补一次只写日志、不退出进程的自检：容器进程应由编排
+    系统管理，缺密钥时明确告警并继续用兜底/缓存数据服务，避免反复重启放大故障。
+    """
+    try:
+        DATA_DIR.mkdir(exist_ok=True)
+    except Exception as exc:  # 目录不可写不应阻断启动，但必须留痕
+        _log(f"启动告警：数据目录不可写（{exc}），缓存与配额计数将无法落盘")
+    if MOCK_MODE:
+        _log("启动自检：mock 模式，不请求知乎 API")
+        return
+    if ZHIHU_ACCESS_SECRET:
+        _log(f"启动自检：密钥已配置（{len(ZHIHU_ACCESS_SECRET)} 字符），数据目录 {DATA_DIR}")
+        return
+    _log("启动告警：未检测到 ZHIHU_ACCESS_SECRET——只会返回兜底/缓存数据，不会发起真实生成")
+
+
+log_startup_diagnostics()
 
 
 if __name__ == "__main__":
