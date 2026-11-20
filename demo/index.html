@@ -208,6 +208,11 @@
   .gap { margin-top: 12px; padding: 14px 16px; border: 1px dashed rgba(183,96,24,.34); border-radius: 10px; background: #faf6eb; color: var(--secondary); font-size: 14px; line-height: 1.85; }
   .gap b { display: block; margin-bottom: 4px; color: var(--orange); font-size: 12px; font-weight: 500; }
   .gap b::after { content: "找到这份材料，这场争论就能有定论"; display: block; margin-top: 3px; color: var(--muted); font-size: 11px; font-weight: 400; }
+  .web-evidence { margin-top: 12px; padding: 14px 16px; border: 1px solid rgba(96,110,183,.30); border-radius: 10px; background: #f2f4fb; font-size: 14px; line-height: 1.85; overflow-wrap: anywhere; word-break: break-word; }
+  .web-evidence b { display: block; margin-bottom: 4px; color: var(--violet); font-size: 12px; font-weight: 500; }
+  .web-evidence a.web-evidence-title { display: block; color: var(--ink); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; word-break: break-all; }
+  .web-evidence .web-evidence-meta { display: block; margin-top: 4px; color: var(--secondary); font-size: 12px; }
+  .web-evidence .web-evidence-query { display: block; margin-top: 8px; padding-top: 6px; border-top: 1px dashed rgba(96,110,183,.25); color: var(--muted); font-size: 11px; text-align: right; overflow-wrap: anywhere; word-break: break-all; }
   .viewpoints { display: grid; gap: 10px; margin-top: 16px; }
   .vp { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; color: var(--secondary); font-size: 14px; }
   .vp b { display: block; margin-bottom: 4px; color: var(--ink); font-size: 12px; }
@@ -623,6 +628,34 @@
     return ul;
   }
 
+  // ---------- 全网证据核验区块（单条试点） ----------
+  // 只渲染 found / no_result 两种态；status 为 error/skipped 或字段缺失时返回
+  // null 不渲染——此时卡片结构与无核验时完全一致（任务书 §5.3）。
+  // 文案固定（任务书 §4）：无结果时只说「本次检索未返回」，不做全称否定。
+  function renderWebEvidence(ev) {
+    if (!ev || typeof ev !== 'object') return null;
+    var box = el('div', 'web-evidence');
+    if (ev.status === 'found') {
+      if (!ev.title || !ev.url) return null;
+      box.appendChild(el('b', '', '全网检索到的第一手材料'));
+      var link = el('a', 'web-evidence-title', ev.title);
+      link.href = ev.url;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      box.appendChild(link);
+      box.appendChild(el('span', 'web-evidence-meta',
+        '来源：' + (ev.source || '未知来源') + '｜核验截至 ' + (ev.checked_at || '—')));
+    } else if (ev.status === 'no_result') {
+      box.appendChild(el('b', '', '全网证据核验'));
+      box.appendChild(document.createTextNode(
+        '本次全网检索未返回可用的一手材料｜核验截至 ' + (ev.checked_at || '—')));
+    } else {
+      return null; // error / skipped / 未知状态：不渲染，不影响原有结构
+    }
+    box.appendChild(el('span', 'web-evidence-query', '检索词：' + (ev.query || '')));
+    return box;
+  }
+
   // ---------- 卡片与目录 ----------
   var cardsEl = document.getElementById('cards');
   var directoryList = document.getElementById('directory-list');
@@ -687,6 +720,10 @@
         gapBox.appendChild(document.createTextNode(item.gap));
         card.appendChild(gapBox);
       }
+      // 全网核验区块挂在 gap 下方；renderWebEvidence 对 error/skipped/缺字段返回 null，
+      // 不满足条件时卡片结构与不渲染完全一致。
+      var webEvidenceBox = renderWebEvidence(item.web_evidence);
+      if (webEvidenceBox) card.appendChild(webEvidenceBox);
     } else {
       // 兼容旧缓存：没有 type 字段时仍可显示原有三种观点，不出现空白页。
       var vp = item.viewpoints || {};

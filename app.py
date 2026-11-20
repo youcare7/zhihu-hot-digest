@@ -89,6 +89,12 @@ SIDE_CLAIM_MAX = 80
 GAP_MAX = 100
 REASON_MAX = 30                # 延伸阅读推荐理由上限，与 PROMPT「reason ≤30 字」一致
 
+# ---- 全网证据核验（单条试点，任务书 2026-11-20）----
+# 每份简报只选 1 条 verify 热点做核验，每次只展示 0–1 条站外结果；
+# 站外链接只能来自知乎全网搜索接口的原始返回，大模型不得生成任何站外 URL。
+WEB_SEARCH_COUNT = 5           # 每次全网检索取回的候选条数（卡片最多只展示 1 条）
+WEB_QUERY_MAX = 80             # 检索词 = 热点标题 + gap 关键词，超长按句收束
+
 # ---------------------------------------------------------------------------
 # 大模型 Prompt（v2：先判定争议类型，再按类型填字段）
 # 与「知识洞察 v2」契约一致；改动此段必须同步 process_item 与前端渲染。
@@ -215,6 +221,23 @@ def api_search(query: str, count: int = SEARCH_COUNT) -> list:
     if not _QUOTA.attempt("search"):
         raise UpstreamError("搜索接口当日配额已达上限（配额守卫）")
     data = zhihu_get("/api/v1/content/zhihu_search", {"Query": query, "Count": count})
+    items = data.get("Items") or []
+    return items
+
+
+def api_web_search(query: str, count: int = WEB_SEARCH_COUNT) -> list:
+    """试点（任务书 2026-11-20 §5.1）：全网搜索该热点的站外一手材料。
+
+    接口事实已按任务书 §1 要求核实（来源：developer.zhihu.com 官方文档 JSON，
+    2026-11-20 抓取）：GET /api/v1/content/global_search，Query 必填、Count 默认
+    10 最大 20、SearchDB 可选（all/realtime/static）；Data.Items[] 每条含
+    Title/Url/ContentText/AuthorName/EditTime 等字段；Code 非 0 即错误
+    （10001 参数 / 20001 鉴权 / 30001 限流额度 / 30003 风控 / 90001 内部）。
+    官方不支持用 Filter 限定知乎域名的反向用法——站内链接由站内搜索链路承担。
+    """
+    if not _QUOTA.attempt("web_search"):
+        raise UpstreamError("全网搜索当日配额已达上限（配额守卫）")
+    data = zhihu_get("/api/v1/content/global_search", {"Query": query, "Count": count})
     items = data.get("Items") or []
     return items
 
@@ -518,6 +541,94 @@ def sanitize_sides(value, item_type: str) -> list:
 
 
 # ---------------------------------------------------------------------------
+# 全网证据核验（单条试点，任务书 2026-11-20 §3）
+# 每份简报只选 1 条 verify 且 gap 有效的热点；每次只展示 0–1 条站外结果；
+# 站外链接只能来自接口原始返回，标题/链接原样保存不改写。
+# ---------------------------------------------------------------------------
+# 同一热点在同一次生成中不重复发起全网检索：首轮与收尾补跑之间用进程内
+# 内存标记去重（_WEB_SEARCH_TRIED）；跨进程不保证（重启/并发进程可能各搜一次），
+# 由配额守卫按日熔断兜底——此边界为任务书 §2 明确写明可接受。
+_WEB_SEARCH_TRIED: dict = {}
+# 每份简报的核验配额：只有第一条满足条件（verify 且 gap 有效）的热点消耗它，
+# 不择优、不循环、不补选。
+_WEB_EVIDENCE_BUDGET = 1
+
+
+def _is_valid_web_url(url) -> bool:
+    """站外链接的独立校验（任务书 §3 url 规则）：scheme 必须 http(s)、host 合法，
+    且非知乎域名——站内链接已由站内搜索/延伸阅读链路承担，不得重复展示。"""
+    try:
+        parsed = urllib.parse.urlparse(str(url or "").strip())
+    except (TypeError, ValueError):
+        return False
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if parsed.scheme not in ("http", "https") or not host or "." not in host:
+        return False
+    return not (host == "zhihu.com" or host.endswith(".zhihu.com"))
+
+
+def build_web_evidence(title: str, gap: str) -> dict:
+    """对一条 verify 热点发起一次全网核验，返回可落盘的 web_evidence 对象。
+
+    status 四值之一必落盘：found / no_result / error / skipped。
+    任何失败只影响本字段（error/skipped），绝不使该条站内内容降级——
+    核验是增强不是依赖。同一热点在同一次生成中只真正发起一次检索。
+    """
+    query = _clip(f"{title} {gap}".strip(), WEB_QUERY_MAX)
+    cached = _WEB_SEARCH_TRIED.get(title)
+    if cached is not None:
+        return dict(cached)  # 补跑复用首轮结论，不重复发起全网检索
+
+    evidence = {"query": query, "checked_at": now_str()}
+    try:
+        items = api_web_search(query)
+    except UpstreamError as exc:
+        # 配额守卫拦截与接口失败分开记账：守卫拦截 = skipped（未发生上游请求），
+        # 403/429/超时等接口失败 = error。
+        evidence["status"] = "skipped" if "配额" in str(exc) else "error"
+        _log(f"  全网核验未执行[{evidence['status']}]：{title[:24]}（{exc}）")
+        _WEB_SEARCH_TRIED[title] = dict(evidence)
+        return evidence
+    except Exception as exc:  # 绝不因核验异常中断该条站内内容
+        evidence["status"] = "error"
+        _log(f"  全网核验异常[error]：{title[:24]}（{exc}）")
+        _WEB_SEARCH_TRIED[title] = dict(evidence)
+        return evidence
+
+    if not items:
+        # 「没搜到」只说这一次检索没返回，绝不说「全网没有」（任务书 §4 禁语）
+        evidence["status"] = "no_result"
+        _WEB_SEARCH_TRIED[title] = dict(evidence)
+        return evidence
+
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        url = str(it.get("Url") or "").strip()
+        item_title = str(it.get("Title") or "").strip()
+        if not item_title or not _is_valid_web_url(url):
+            continue  # 缺字段或链接未过独立校验：丢弃该条，不补选为虚假结果
+        evidence["status"] = "found"
+        evidence["title"] = item_title        # 接口原始标题，不改写
+        evidence["url"] = url                 # 接口原始链接（含溯源参数），原样保存
+        # 接口无「来源名」字段：取链接主机名作为 source，同为接口原始返回的一部分
+        evidence["source"] = urllib.parse.urlparse(url).hostname or ""
+        edit_time = it.get("EditTime")
+        if isinstance(edit_time, int) and not isinstance(edit_time, bool) and edit_time > 0:
+            evidence["published_at"] = datetime.datetime.fromtimestamp(
+                edit_time, CN_TZ).strftime("%Y-%m-%d")
+        break
+    else:
+        # 接口返回了条目但全部不可用（缺字段/链接非法）：结构异常记 error，
+        # 与「接口正常返回 0 条」的 no_result 区分，便于排查上游变化。
+        evidence["status"] = "error"
+        _log(f"  全网核验返回 {len(items)} 条但均不可用（缺字段/链接非法）[error]：{title[:24]}")
+
+    _WEB_SEARCH_TRIED[title] = dict(evidence)
+    return evidence
+
+
+# ---------------------------------------------------------------------------
 # 单条处理与整份组装
 # ---------------------------------------------------------------------------
 def process_item(rank: int, hot: dict) -> dict:
@@ -576,6 +687,17 @@ def process_item(rank: int, hot: dict) -> dict:
 
         item["reading"] = assemble_reading(model_output, candidates)
 
+        # 全网证据核验（单条试点）：仅 verify 且 gap 有效时触发；每份简报只核验
+        # 第一条满足条件的热点。任何异常只影响 web_evidence 字段，绝不使该条
+        # 站内内容降级（核验是增强不是依赖）；补跑时复用首轮结论，不重复检索。
+        if item_type == TYPE_VERIFY and item["gap"] and item["gap"] != EMPTY_GAP:
+            global _WEB_EVIDENCE_BUDGET
+            if title in _WEB_SEARCH_TRIED:
+                item["web_evidence"] = dict(_WEB_SEARCH_TRIED[title])
+            elif _WEB_EVIDENCE_BUDGET > 0:
+                _WEB_EVIDENCE_BUDGET -= 1
+                item["web_evidence"] = build_web_evidence(title, item["gap"])
+
         # 兼容字段：由 v2 字段回填，旧前端仍能渲染出大致正确的三派
         if item_type == TYPE_DISPUTE and sides:
             item["viewpoints"] = {
@@ -594,6 +716,12 @@ def build_brief() -> dict:
     """实时生成整份简报（含 mock 分支）。"""
     if MOCK_MODE:
         return build_brief_mock()
+
+    # 每份简报重置全网核验状态：只选 1 条 verify 热点、同一热点只检索一次。
+    # 进程内内存状态，不假装跨进程持久化（任务书 §2 明确此边界可接受）。
+    global _WEB_EVIDENCE_BUDGET
+    _WEB_SEARCH_TRIED.clear()
+    _WEB_EVIDENCE_BUDGET = 1
 
     hot_items = api_hot_list()
     if not hot_items:
