@@ -1,0 +1,1 @@
+window.TIMELINE_DATA = {"generated_at": "2026-11-21 21:51", "archive_files": 0, "tracked_days": 0, "missing_dates": [], "topics": []};
