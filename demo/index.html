@@ -3,472 +3,496 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#f4f1eb">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231d252e'/%3E%3Cpath d='M17 17h30v4H17zm0 11h30v4H17zm0 11h19v4H17z' fill='%23fff'/%3E%3Ccircle cx='45' cy='45' r='6' fill='%23056de8'/%3E%3C/svg%3E">
-<title>热榜深潜简报</title>
+<meta name="theme-color" content="#faf9f5">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23161614'/%3E%3Cpath d='M18 18h28v3H18zm0 10h28v3H18zm0 10h17v3H18z' fill='%23faf9f5'/%3E%3Ccircle cx='46' cy='46' r='5' fill='%23b43c28'/%3E%3C/svg%3E">
+<title>热榜深潜简报 · 10 分钟，看懂今天大家在吵什么</title>
 <style>
   :root {
-    --blue: #056de8;
-    --blue-deep: #0557b8;
-    --orange: #b76018;
-    --green: #24824f;
-    --violet: #7163b8;
-    --ink: #1d252e;
-    --secondary: #53606d;
-    --muted: #6e7882;
-    --line: rgba(29, 37, 46, .12);
-    --paper: #fffefa;
-    --raised: #f1efe9;
-    --page: #f4f1eb;
-    --glass: rgba(255, 254, 250, .72);
-    --shadow: 0 20px 60px rgba(37, 45, 53, .08);
+    --bg: #faf9f5;
+    --ink: #161614;
+    --ink-2: #4a4945;
+    --mute: #85837d;
+    --hair: rgba(22, 22, 20, .11);
+    --red: #b43c28;
+    --blue: #0f4c81;
+    --green: #2f6f4e;
     --serif: "Noto Serif SC", "Songti SC", "SimSun", Georgia, serif;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body {
     min-width: 320px;
-    background:
-      radial-gradient(circle at 8% 0%, rgba(5, 109, 232, .07), transparent 32rem),
-      radial-gradient(circle at 96% 82%, rgba(113, 99, 184, .055), transparent 30rem),
-      var(--page);
+    background: var(--bg);
     color: var(--ink);
     font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
-    line-height: 1.75;
+    font-size: 15px;
+    line-height: 1.8;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
-  button, input { font: inherit; }
-  button { -webkit-tap-highlight-color: transparent; }
+  button, input { font: inherit; color: inherit; }
+  button { background: none; border: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  a { color: inherit; }
   button:focus-visible, a:focus-visible, summary:focus-visible {
-    outline: 2px solid var(--blue); outline-offset: 4px; border-radius: 6px;
+    outline: 2px solid var(--blue); outline-offset: 3px;
   }
-  ::selection { background: rgba(5, 109, 232, .16); }
+  ::selection { background: rgba(15, 76, 129, .14); }
   [hidden] { display: none !important; }
-  .wrap { max-width: 1160px; margin: 0 auto; padding: 22px 28px 72px; }
-  .serif { font-family: var(--serif); }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; overflow: hidden;
+    clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 0 24px 110px; }
 
-  /* 液态玻璃只承担导航与控制，不覆盖正文。 */
-  .glass {
-    border: 1px solid rgba(255, 255, 255, .82);
-    background: var(--glass);
-    box-shadow: 0 10px 34px rgba(37, 45, 53, .10), inset 0 1px 0 rgba(255,255,255,.8);
-    -webkit-backdrop-filter: blur(22px) saturate(145%);
-    backdrop-filter: blur(22px) saturate(145%);
+  /* ---------- 报头 ---------- */
+  .mast {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 18px;
+    flex-wrap: wrap; padding: 26px 0 14px; border-bottom: 1px solid var(--hair);
   }
-  .topbar {
-    position: relative; z-index: 20; min-height: 60px;
-    display: flex; align-items: center; justify-content: space-between; gap: 16px;
-    padding: 8px 10px 8px 18px; border-radius: 20px;
+  .mast-brand { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+  .mast-title {
+    font-family: var(--serif); font-size: 17px; font-weight: 600; letter-spacing: .01em;
+    white-space: nowrap;
   }
-  .brand {
-    min-height: 44px; display: inline-flex; align-items: center; gap: 10px;
-    border: 0; background: transparent; color: var(--ink); cursor: pointer;
-    font-family: var(--serif); font-size: 17px; font-weight: 600; white-space: nowrap;
+  .mast-date { color: var(--mute); font-size: 12px; letter-spacing: .02em; white-space: nowrap; }
+  .mast-tabs { display: flex; gap: 22px; }
+  .mast-tab {
+    position: relative; padding: 2px 0 8px; color: var(--mute);
+    font-size: 14px; letter-spacing: .04em; white-space: nowrap;
+    transition: color 160ms ease;
   }
-  .brand-mark {
-    width: 27px; height: 27px; display: grid; place-items: center;
-    border-radius: 9px; background: var(--ink); color: #fff;
-    font: 600 13px/1 -apple-system, BlinkMacSystemFont, sans-serif;
+  .mast-tab::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px;
+    background: transparent; transition: background-color 160ms ease;
   }
-  .top-actions { display: flex; align-items: center; gap: 4px; }
-  .nav-button {
-    min-height: 44px; padding: 0 14px; border: 0; border-radius: 13px;
-    background: transparent; color: var(--secondary); cursor: pointer;
-    font-size: 13px; font-weight: 500; white-space: nowrap;
-    transition: background-color 160ms ease, color 160ms ease;
-  }
-  .nav-button:hover { background: rgba(5, 109, 232, .07); color: var(--blue); }
-  .nav-button.active { background: var(--ink); color: #fff; }
+  .mast-tab:hover { color: var(--ink-2); }
+  .mast-tab.active { color: var(--ink); font-weight: 500; }
+  .mast-tab.active::after { background: var(--ink); }
 
-  /* 首页：判断直接出现，不再另设重复的“今日”分页。 */
-  .cover { padding: clamp(42px, 7vw, 88px) 0 38px; }
-  .cover-grid {
-    display: grid; grid-template-columns: minmax(0, .9fr) minmax(420px, 1.1fr);
-    align-items: center; gap: clamp(42px, 7vw, 90px);
+  .notice {
+    margin: 16px 0 0; padding: 10px 0 10px 13px; border-left: 2.5px solid var(--red);
+    color: var(--ink-2); font-size: 13px; line-height: 1.75;
   }
-  .kicker {
+
+  /* ---------- 连续剧：手风琴 ---------- */
+  .topics { list-style: none; margin: 8px 0 0; }
+  .topic { position: relative; border-bottom: 1px solid var(--hair); }
+  .topic.open::before {
+    content: ""; position: absolute; left: -14px; top: 30px; bottom: 28px;
+    width: 2px; background: var(--ink);
+  }
+  .topic-head {
+    display: block; width: 100%; text-align: left;
+    padding: 24px 0 20px; color: var(--ink);
+  }
+  .topic-head:hover .topic-title { color: var(--blue); }
+  .topic-title {
+    display: block; font-family: var(--serif); font-size: 18px; font-weight: 600;
+    line-height: 1.5; overflow-wrap: anywhere; transition: color 160ms ease;
+  }
+  .topic-trace {
+    display: block; margin-top: 7px; color: var(--mute);
+    font-size: 12.5px; line-height: 1.7; letter-spacing: .01em;
+  }
+  .topic-body { padding: 0 0 10px; }
+
+  .nodes { list-style: none; margin: 4px 0 6px 3px; padding-left: 20px; border-left: 1px solid var(--hair); }
+  .node { position: relative; padding: 0 0 24px; }
+  .node::before {
+    content: ""; position: absolute; left: -24px; top: 8px;
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--bg); border: 1.5px solid var(--mute);
+  }
+  .node.dispute::before { border-color: var(--red); }
+  .node.consensus::before { border-color: var(--green); }
+  .node.verify::before { border-color: var(--blue); }
+  .node-meta { display: block; color: var(--mute); font-size: 12px; letter-spacing: .02em; }
+  .node-hook { margin-top: 4px; font-size: 15px; line-height: 1.78; overflow-wrap: anywhere; }
+  .node-answer, .node-ext {
+    display: block; margin-top: 6px; font-size: 13.5px; line-height: 1.7;
+    text-decoration: none; overflow-wrap: anywhere;
+  }
+  .node-answer { color: var(--blue); border-bottom: 1px solid rgba(15, 76, 129, .22); padding-bottom: 1px; }
+  .node-answer:hover { border-bottom-color: var(--blue); }
+  .node-answer.dead, .node-ext { color: var(--mute); border-bottom: 0; }
+  .node-ext { font-size: 12.5px; }
+
+  .empty-note {
+    margin: 40px 0 8px; color: var(--ink-2); font-size: 14.5px; line-height: 1.9;
+  }
+  .empty-note b { font-weight: 500; color: var(--ink); }
+  .missing-note { margin-top: 22px; color: var(--mute); font-size: 12px; line-height: 1.8; }
+
+  /* ---------- 今日：统计条 ---------- */
+  .today-strip { padding: 26px 0 0; }
+  .today-heading {
+    font-family: var(--serif); font-size: clamp(19px, 2.6vw, 23px); font-weight: 600;
+    line-height: 1.62; overflow-wrap: anywhere;
+  }
+  .stat-line {
+    display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px;
+    margin-top: 12px; color: var(--mute); font-size: 12.5px; letter-spacing: .01em;
+  }
+  .stat-line b { font-weight: 500; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .badge { color: var(--mute); font-size: 11.5px; border-bottom: 1px solid var(--hair); }
+  .badge.fallback { color: var(--red); border-bottom-color: rgba(180, 60, 40, .3); }
+
+  /* ---------- 今日：索引条 ---------- */
+  .index-bar {
     display: flex; align-items: center; gap: 10px;
-    color: var(--blue); font-size: 11px; font-weight: 600; letter-spacing: .12em;
+    margin-top: 22px; padding-bottom: 2px;
   }
-  .kicker::before { content: ""; width: 28px; height: 1px; background: var(--blue); }
-  h1 {
-    margin-top: 22px; font-family: var(--serif); font-size: clamp(52px, 6.2vw, 80px);
-    line-height: 1.12; letter-spacing: -.045em; font-weight: 600;
+  .page-tabs {
+    display: flex; gap: 2px; overflow-x: auto; flex: 1; min-width: 0;
+    scrollbar-width: none; -webkit-overflow-scrolling: touch;
   }
-  h1 span { color: var(--blue); }
-  .slogan {
-    margin-top: 26px; font-family: var(--serif); font-size: clamp(20px, 2.2vw, 27px);
-    line-height: 1.55; font-weight: 600;
-  }
-  .cover-description { max-width: 490px; margin-top: 14px; color: var(--secondary); font-size: 15px; line-height: 1.9; }
-  .cover-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
-  .primary-button, .secondary-button {
-    min-height: 48px; padding: 0 20px; border-radius: 14px; cursor: pointer;
-    font-size: 14px; font-weight: 600;
-    transition: transform 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
-  }
-  .primary-button { border: 1px solid var(--ink); background: var(--ink); color: #fff; }
-  .secondary-button { border: 1px solid var(--line); background: rgba(255,254,250,.62); color: var(--ink); }
-  .primary-button:hover, .secondary-button:hover { transform: translateY(-1px); box-shadow: 0 8px 22px rgba(29,37,46,.10); }
-  .cover-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 14px; margin-top: 24px; color: var(--muted); font-size: 12px; }
-  .cover-meta .dot { width: 4px; height: 4px; border-radius: 50%; background: #9aa2aa; }
-
-  .today-card {
-    position: relative; overflow: hidden; padding: clamp(26px, 4vw, 40px);
-    border: 1px solid var(--line); border-radius: 28px; background: var(--paper); box-shadow: var(--shadow);
-  }
-  .today-card::before {
-    content: ""; position: absolute; top: 0; left: 40px; right: 40px; height: 2px;
-    background: linear-gradient(90deg, var(--green), var(--orange), var(--violet));
-  }
-  .section-eyebrow { color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .12em; }
-  .today-heading { margin-top: 12px; font-family: var(--serif); font-size: 21px; line-height: 1.7; font-weight: 600; }
-  .judgement-counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 24px 0; }
-  .judgement-count {
-    min-width: 0; padding: 16px 12px; border: 1px solid var(--line); border-radius: 15px; background: #faf9f5;
-  }
-  .judgement-count strong { display: block; font: 500 32px/1.1 Georgia, serif; font-variant-numeric: tabular-nums; }
-  .judgement-count span { display: flex; align-items: center; gap: 6px; margin-top: 8px; color: var(--secondary); font-size: 12px; white-space: nowrap; }
-  .judgement-count span::before, .type-dot { content: ""; flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; }
-  .judgement-count.consensus strong { color: var(--green); }
-  .judgement-count.consensus span::before, .type-dot.consensus { background: var(--green); }
-  .judgement-count.dispute strong { color: var(--orange); }
-  .judgement-count.dispute span::before, .type-dot.dispute { background: var(--orange); }
-  .judgement-count.verify strong { color: var(--violet); }
-  .judgement-count.verify span::before, .type-dot.verify { background: var(--violet); }
-  .insight-list { list-style: none; border-top: 1px solid var(--line); padding-top: 16px; }
-  .insight-list li { position: relative; margin-top: 10px; padding-left: 17px; color: var(--secondary); font-size: 13px; line-height: 1.8; }
-  .insight-list li::before { content: ""; position: absolute; left: 0; top: .78em; width: 7px; height: 1px; background: var(--blue); }
-  .swipe-note { display: none; margin-top: 18px; color: var(--muted); font-size: 12px; text-align: center; }
-
-  /* 阅读器 */
-  #reader { padding-top: 22px; }
-  .reader-shell { max-width: 900px; margin: 0 auto; }
-  .reader-toolbar { position: sticky; top: 12px; z-index: 25; }
-  .reader-status { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 16px 4px 10px; color: var(--secondary); font-size: 12px; }
-  .badge {
-    display: inline-flex; align-items: center; min-height: 24px; padding: 2px 8px;
-    border: 1px solid rgba(5,109,232,.25); border-radius: 6px; color: var(--blue); background: rgba(255,255,255,.32);
-    font-size: 11px; font-weight: 500;
-  }
-  .badge.fallback { color: var(--orange); border-color: rgba(183,96,24,.3); }
-  .badge.demo { color: var(--secondary); border-color: var(--line); }
-  .notice { margin: 6px 0 14px; padding: 12px 15px; border: 1px solid rgba(183,96,24,.22); border-radius: 12px; background: #f6efe2; color: #754718; font-size: 13px; }
-  .reading-progress { height: 2px; overflow: hidden; border-radius: 99px; background: rgba(29,37,46,.08); }
-  .reading-progress span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--blue); transition: width 200ms ease; }
-  .page-tabs { display: flex; gap: 6px; overflow-x: auto; padding: 16px 2px 24px; scrollbar-width: none; }
   .page-tabs::-webkit-scrollbar { display: none; }
   .page-tab {
-    flex: 0 0 auto; min-width: 44px; min-height: 44px; padding: 0 12px;
-    border: 1px solid transparent; border-radius: 13px; background: transparent;
-    color: var(--muted); cursor: pointer; font-size: 12px;
+    flex: 0 0 auto; min-width: 34px; min-height: 34px; padding: 0 6px;
+    color: var(--mute); font: 12px/1 Georgia, serif; font-variant-numeric: tabular-nums;
+    border-bottom: 2px solid transparent; transition: color 140ms ease;
   }
-  .page-tab:hover { border-color: var(--line); color: var(--blue); background: rgba(255,255,255,.36); }
-  .page-tab.active { border-color: var(--ink); background: var(--ink); color: #fff; }
-  .page-panel { display: none; }
-  .page-panel.active { display: block; animation: page-in 220ms ease-out both; }
-  @keyframes page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .page-tab:hover { color: var(--ink-2); }
+  .page-tab.active { color: var(--ink); border-bottom-color: var(--ink); }
+  .ghost {
+    flex: 0 0 auto; padding: 4px 2px; color: var(--mute); font-size: 12px;
+    border-bottom: 1px solid var(--hair); white-space: nowrap;
+  }
+  .ghost:hover { color: var(--ink-2); border-bottom-color: var(--ink-2); }
 
-  .card {
-    padding: clamp(25px, 5vw, 44px); border: 1px solid var(--line); border-radius: 24px;
-    background: var(--paper); box-shadow: var(--shadow);
+  /* ---------- 今日：单卡 ---------- */
+  #reader-pages { margin-top: 6px; }
+  .card { padding: 34px 0 46px; border-bottom: 1px solid var(--hair); }
+  .card:last-of-type { border-bottom: 0; }
+  .card[hidden] { display: none !important; }
+  .eyebrow {
+    color: var(--mute); font-size: 11px; letter-spacing: .12em;
+    font-variant-numeric: tabular-nums;
   }
-  .card-sequence { margin-bottom: 24px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .12em; }
-  .card-head { display: flex; align-items: flex-start; gap: 18px; }
-  .rank {
-    min-width: 48px; padding-top: 3px; color: var(--blue); text-align: right;
-    font: 500 44px/1 Georgia, serif; font-variant-numeric: tabular-nums;
+  .card-title {
+    margin-top: 12px; font-family: var(--serif); font-weight: 600;
+    font-size: clamp(23px, 3.6vw, 31px); line-height: 1.42; overflow-wrap: anywhere;
   }
-  .card-title-box { min-width: 0; flex: 1; }
-  .card-title { overflow-wrap: anywhere; font-family: var(--serif); font-size: clamp(20px, 3vw, 25px); font-weight: 600; line-height: 1.55; }
-  a.card-title { color: var(--ink); text-decoration: none; }
-  a.card-title:hover { color: var(--blue); }
-  .tag-demo { display: inline-block; margin-left: 8px; padding: 0 4px; border-bottom: 1px solid var(--line); color: var(--muted); font: 400 11px/1.7 -apple-system, BlinkMacSystemFont, sans-serif; vertical-align: 2px; }
-  .background { margin-top: 18px; color: var(--secondary); font-size: 15px; line-height: 1.95; }
-  .degrade-note { margin-top: 18px; padding: 13px 15px; border: 1px dashed var(--line); border-radius: 10px; background: var(--raised); color: var(--secondary); font-size: 14px; }
-  .degrade-note a { color: var(--blue); text-decoration: none; }
-  .tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
-  .tag { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 7px; color: var(--secondary); font-size: 12px; }
-  .tag::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
-  .tag.dispute::before { background: var(--orange); }
-  .tag.consensus::before { background: var(--green); }
-  .tag.verify::before { background: var(--violet); }
-  .tag.claim { background: var(--raised); }
-  .tag.claim::before { display: none; }
-  .focus { margin-top: 18px; padding: 14px 16px; border-left: 2px solid var(--blue); border-radius: 0 10px 10px 0; background: var(--raised); font-size: 15px; line-height: 1.8; }
-  .section-label, .reading-title { display: block; margin-bottom: 5px; color: var(--muted); font-size: 11px; font-weight: 500; }
-  .consensus-box { margin-top: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--raised); color: var(--secondary); font-size: 14px; line-height: 1.85; }
-  .consensus-box b { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; color: var(--green); font-size: 12px; font-weight: 500; }
-  .consensus-box b::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
-  .sides { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; }
-  .side { padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #f8f7f3; color: var(--secondary); font-size: 14px; line-height: 1.85; }
-  .side b { display: block; margin-bottom: 6px; color: var(--ink); font-size: 12px; font-weight: 600; }
-  .side.a { border-top: 2px solid rgba(5,109,232,.5); }
-  .side.b { border-top: 2px solid rgba(183,96,24,.5); }
-  .gap { margin-top: 12px; padding: 14px 16px; border: 1px dashed rgba(183,96,24,.34); border-radius: 10px; background: #faf6eb; color: var(--secondary); font-size: 14px; line-height: 1.85; }
-  .gap b { display: block; margin-bottom: 4px; color: var(--orange); font-size: 12px; font-weight: 500; }
-  .gap b::after { content: "找到这份材料，这场争论就能有定论"; display: block; margin-top: 3px; color: var(--muted); font-size: 11px; font-weight: 400; }
-  .web-evidence { margin-top: 12px; padding: 14px 16px; border: 1px solid rgba(96,110,183,.30); border-radius: 10px; background: #f2f4fb; font-size: 14px; line-height: 1.85; overflow-wrap: anywhere; word-break: break-word; }
-  .web-evidence b { display: block; margin-bottom: 4px; color: var(--violet); font-size: 12px; font-weight: 500; }
-  .web-evidence a.web-evidence-title { display: block; color: var(--ink); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; overflow-wrap: anywhere; word-break: break-all; }
-  .web-evidence .web-evidence-meta { display: block; margin-top: 4px; color: var(--secondary); font-size: 12px; }
-  .web-evidence .web-evidence-query { display: block; margin-top: 8px; padding-top: 6px; border-top: 1px dashed rgba(96,110,183,.25); color: var(--muted); font-size: 11px; text-align: right; overflow-wrap: anywhere; word-break: break-all; }
-  .viewpoints { display: grid; gap: 10px; margin-top: 16px; }
-  .vp { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; color: var(--secondary); font-size: 14px; }
-  .vp b { display: block; margin-bottom: 4px; color: var(--ink); font-size: 12px; }
-  .reading-block { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
-  .reading { margin-top: 8px; list-style: none; }
-  .reading li { margin-top: 12px; font-size: 14px; line-height: 1.7; }
-  .reading a { color: var(--blue); text-decoration: none; overflow-wrap: anywhere; }
-  .reading .rt { color: var(--ink); font-weight: 500; }
-  .reading .reason { display: block; margin-top: 4px; color: var(--secondary); font-size: 13px; }
-  .reading .dead { color: var(--muted); }
-  a.zhihu-link { cursor: pointer; text-decoration: none; }
-  a.zhihu-link::after { content: "知乎 ↗"; display: inline-block; margin-left: 6px; border-bottom: 1px solid rgba(5,109,232,.28); color: var(--blue); font: 500 11px/1.4 -apple-system, BlinkMacSystemFont, sans-serif; white-space: nowrap; vertical-align: 2px; }
-  a.zhihu-link:hover { color: var(--blue); text-decoration: underline; text-underline-offset: 3px; }
+  .card-title a { text-decoration: none; }
+  .card-title a:hover { color: var(--blue); }
+  .tag-demo {
+    display: inline-block; margin-left: 8px; padding: 0 1px;
+    color: var(--mute); font: 400 11px/1.6 -apple-system, sans-serif;
+    vertical-align: 3px; border-bottom: 1px solid var(--hair);
+  }
+  .verdict {
+    margin-top: 22px; padding-left: 14px; border-left: 2.5px solid var(--mute);
+    font-size: 17px; line-height: 1.82; overflow-wrap: anywhere;
+  }
+  .verdict[data-type="dispute"] { border-left-color: var(--red); }
+  .verdict[data-type="consensus"] { border-left-color: var(--green); }
+  .verdict[data-type="verify"] { border-left-color: var(--blue); }
 
-  /* 来源说明：名称与正文都使用用户能直接理解的语言。 */
-  .guard summary { cursor: pointer; list-style: none; font-family: var(--serif); font-size: 22px; font-weight: 600; line-height: 1.55; }
+  .sides {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0 30px;
+    margin-top: 28px; border-top: 1px solid var(--hair);
+  }
+  .side { padding: 16px 0; border-bottom: 1px solid var(--hair); }
+  .side b {
+    display: block; margin-bottom: 7px; color: var(--mute);
+    font-size: 11px; font-weight: 500; letter-spacing: .1em;
+  }
+  .side p { font-size: 14.5px; line-height: 1.82; color: var(--ink-2); overflow-wrap: anywhere; }
+
+  .more { margin-top: 26px; border-top: 1px solid var(--hair); }
+  .more summary {
+    padding: 14px 0; list-style: none; cursor: pointer;
+    color: var(--ink-2); font-size: 13px; letter-spacing: .01em;
+  }
+  .more summary::-webkit-details-marker { display: none; }
+  .more summary:hover { color: var(--ink); }
+  .more[open] summary { color: var(--mute); }
+  .more-body { padding: 2px 0 6px; }
+  .background { color: var(--ink-2); font-size: 15px; line-height: 1.92; overflow-wrap: anywhere; }
+  .line { margin-top: 14px; color: var(--ink-2); font-size: 14.5px; line-height: 1.86; overflow-wrap: anywhere; }
+  .line span {
+    display: block; margin-bottom: 5px; color: var(--mute);
+    font-size: 11px; font-weight: 500; letter-spacing: .1em;
+  }
+  .line.consensus span { color: var(--green); }
+  .degrade-note { margin-top: 18px; color: var(--ink-2); font-size: 14.5px; line-height: 1.85; }
+  .degrade-note a { color: var(--blue); text-decoration: none; border-bottom: 1px solid rgba(15,76,129,.24); }
+
+  .viewpoints { margin-top: 22px; border-top: 1px solid var(--hair); }
+  .vp { padding: 14px 0; border-bottom: 1px solid var(--hair); font-size: 14.5px; color: var(--ink-2); }
+  .vp b { display: block; margin-bottom: 5px; color: var(--mute); font-size: 11px; font-weight: 500; letter-spacing: .1em; }
+
+  .reading { margin-top: 30px; }
+  .reading-title {
+    color: var(--mute); font-size: 11px; font-weight: 500; letter-spacing: .12em;
+  }
+  .reading-list { list-style: none; margin-top: 10px; }
+  .reading-list li { padding: 12px 0; border-top: 1px solid var(--hair); font-size: 14.5px; line-height: 1.72; }
+  .reading-list a.rt {
+    color: var(--ink); text-decoration: none; overflow-wrap: anywhere;
+    border-bottom: 1px solid var(--hair);
+  }
+  .reading-list a.rt:hover { color: var(--blue); border-bottom-color: var(--blue); }
+  .reading-list .dead { color: var(--mute); overflow-wrap: anywhere; }
+  .reading-list .reason { display: block; margin-top: 5px; color: var(--mute); font-size: 12.5px; }
+
+  .web-evidence {
+    margin-top: 22px; color: var(--mute); font-size: 12.5px; line-height: 1.8;
+    overflow-wrap: anywhere;
+  }
+  .web-evidence a { color: var(--blue); text-decoration: none; border-bottom: 1px solid rgba(15,76,129,.22); }
+  .web-evidence a:hover { border-bottom-color: var(--blue); }
+  .web-evidence-query { display: block; margin-top: 3px; color: rgba(22,22,20,.3); font-size: 11px; }
+
+  .to-timeline {
+    margin-top: 28px; padding: 0; color: var(--blue); font-size: 13.5px;
+    border-bottom: 1px solid rgba(15, 76, 129, .24);
+  }
+  .to-timeline:hover { border-bottom-color: var(--blue); }
+
+  /* ---------- 来源与链接 ---------- */
+  .guard { margin-top: 54px; padding-top: 26px; border-top: 1px solid var(--hair); }
+  .guard summary {
+    list-style: none; cursor: pointer;
+    font-family: var(--serif); font-size: 19px; font-weight: 600; line-height: 1.6;
+  }
   .guard summary::-webkit-details-marker { display: none; }
-  .guard .guard-sub { margin-top: 10px; color: var(--secondary); font-size: 14px; }
-  .guard .gate { display: flex; align-items: flex-start; gap: 14px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line); }
-  .guard .gate .rank { min-width: 28px; font-size: 26px; }
-  .guard .gate-body { flex: 1; min-width: 0; }
-  .guard .gate-title { font-size: 15px; font-weight: 600; line-height: 1.7; }
-  .guard .gate-desc { margin-top: 5px; color: var(--secondary); font-size: 14px; line-height: 1.8; }
-  .guard .gate-block { margin-top: 8px; color: var(--muted); font-size: 12px; line-height: 1.8; }
+  .guard summary:hover { color: var(--blue); }
+  .guard-sub { margin-top: 12px; color: var(--ink-2); font-size: 14px; line-height: 1.85; }
+  .gate {
+    display: flex; gap: 14px; padding: 16px 0; margin-top: 4px;
+    border-top: 1px solid var(--hair);
+  }
+  .gate .rank {
+    flex: 0 0 15px; color: var(--mute); font: 500 13px/1.75 Georgia, serif;
+  }
+  .gate-body { min-width: 0; flex: 1; }
+  .gate-title { font-size: 14.5px; font-weight: 500; line-height: 1.7; }
+  .gate-desc { margin-top: 5px; color: var(--ink-2); font-size: 13.5px; line-height: 1.82; }
+  .gate-block { margin-top: 6px; color: var(--mute); font-size: 12px; line-height: 1.8; }
 
+  /* ---------- 页脚 ---------- */
+  footer {
+    margin-top: 60px; padding-top: 22px; border-top: 1px solid var(--hair);
+    color: var(--mute); font-size: 11.5px; line-height: 1.95;
+  }
+  footer p + p { margin-top: 8px; }
+
+  /* ---------- 翻页与回顶 ---------- */
   .pager {
-    position: fixed; z-index: 30; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%);
-    display: flex; align-items: center; gap: 5px; padding: 7px; border-radius: 20px;
+    position: fixed; z-index: 30; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center; gap: 16px;
+    padding: 9px 18px calc(9px + env(safe-area-inset-bottom));
+    background: rgba(250, 249, 245, .95);
+    border-top: 1px solid var(--hair);
   }
-  .pager button { min-height: 46px; padding: 0 17px; border: 0; border-radius: 14px; background: transparent; color: var(--ink); cursor: pointer; font-size: 13px; font-weight: 600; }
-  .pager button:hover:not(:disabled) { background: rgba(5,109,232,.08); color: var(--blue); }
-  .pager button:disabled { color: #a2a8ad; cursor: default; }
-  .page-label { min-width: 76px; color: var(--secondary); text-align: center; font: 13px/1 Georgia, serif; font-variant-numeric: tabular-nums; }
-  .back-top { position: fixed; right: 20px; bottom: 22px; z-index: 29; min-width: 48px; min-height: 48px; padding: 0 13px; border-radius: 15px; color: var(--secondary); cursor: pointer; }
-  footer { margin-top: 28px; padding: 22px 4px 82px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.9; }
-
-  /* 目录：全部标题 + 三态筛选 + 直达，补足分页的比较成本。 */
-  .directory { width: min(720px, calc(100% - 28px)); max-height: min(82vh, 760px); padding: 0; border: 1px solid rgba(255,255,255,.85); border-radius: 24px; background: rgba(250,249,245,.94); color: var(--ink); box-shadow: 0 30px 100px rgba(20,28,36,.22); -webkit-backdrop-filter: blur(26px) saturate(140%); backdrop-filter: blur(26px) saturate(140%); }
-  .directory::backdrop { background: rgba(25,32,40,.24); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
-  .directory-inner { padding: 22px; }
-  .directory-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-  .directory-head h2 { font-family: var(--serif); font-size: 23px; font-weight: 600; }
-  .icon-button { min-width: 44px; min-height: 44px; border: 0; border-radius: 12px; background: var(--raised); color: var(--secondary); cursor: pointer; font-size: 20px; }
-  .directory-sub { margin-top: 4px; color: var(--muted); font-size: 12px; }
-  .directory-filters { display: flex; gap: 6px; overflow-x: auto; margin: 18px 0 12px; padding-bottom: 4px; }
-  .filter-button { flex: 0 0 auto; min-height: 44px; padding: 0 13px; border: 1px solid var(--line); border-radius: 12px; background: transparent; color: var(--secondary); cursor: pointer; font-size: 12px; }
-  .filter-button.active { border-color: var(--ink); background: var(--ink); color: #fff; }
-  .directory-list { list-style: none; overflow-y: auto; max-height: 52vh; overscroll-behavior: contain; }
-  .directory-item { border-top: 1px solid var(--line); }
-  .directory-link { width: 100%; min-height: 62px; display: grid; grid-template-columns: 30px 10px 1fr auto; align-items: center; gap: 10px; padding: 12px 4px; border: 0; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
-  .directory-link:hover { color: var(--blue); }
-  .directory-rank { color: var(--muted); font: 14px/1 Georgia, serif; }
-  .directory-title { font-size: 13px; line-height: 1.65; }
-  .directory-type { color: var(--muted); font-size: 11px; white-space: nowrap; }
-  .directory-empty { padding: 28px 4px; color: var(--muted); text-align: center; font-size: 13px; }
-  .directory-continuous { width: 100%; margin-top: 16px; }
-
-  /* 连续阅读保留旧版长页优势，但不牺牲直接深链。 */
-  #reader.continuous .page-tabs, #reader.continuous .reading-progress { display: none; }
-  #reader.continuous .page-panel { display: block; margin-top: 18px; animation: none; }
-  #reader.continuous .card-sequence { margin-bottom: 18px; }
-  #reader.continuous .guard { margin-bottom: 18px; }
-
-  .loading { max-width: 680px; margin: 18vh auto 0; padding: 0 20px; color: var(--muted); text-align: center; font-size: 14px; }
-  .loading::before { content: ""; display: block; width: 26px; height: 26px; margin: 0 auto 16px; border: 2px solid var(--line); border-top-color: var(--blue); border-radius: 50%; animation: spin 800ms linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  @media (max-width: 900px) {
-    .cover-grid { grid-template-columns: 1fr; gap: 38px; }
-    .cover-copy { max-width: 680px; }
-    .cover-description { max-width: 620px; }
-    .today-card { max-width: 680px; }
+  .pager button {
+    min-height: 40px; padding: 0 8px; color: var(--ink-2);
+    font-size: 13px; white-space: nowrap;
   }
-  @media (max-width: 600px) {
-    .wrap { padding: 12px 14px 50px; }
-    .topbar { min-height: 56px; padding: 5px 6px 5px 12px; border-radius: 17px; gap: 4px; }
-    .brand { gap: 7px; font-size: 14px; }
-    .brand-mark { width: 25px; height: 25px; }
-    .nav-button { min-height: 44px; padding: 0 9px; font-size: 12px; }
-    .cover { padding: 42px 4px 26px; }
-    .cover-grid { gap: 32px; }
-    h1 { margin-top: 17px; font-size: 51px; }
-    .slogan { margin-top: 20px; font-size: 21px; }
-    .cover-description { font-size: 14px; }
-    .cover-actions { display: grid; grid-template-columns: 1fr 1fr; }
-    .primary-button, .secondary-button { padding: 0 12px; }
-    .cover-actions .primary-button { grid-column: 1 / -1; }
-    .cover-meta { gap: 6px 10px; }
-    .today-card { padding: 24px 18px; border-radius: 22px; }
-    .today-heading { font-size: 18px; }
-    .judgement-counts { gap: 7px; margin: 20px 0; }
-    .judgement-count { padding: 13px 7px; }
-    .judgement-count strong { font-size: 28px; }
-    .judgement-count span { gap: 4px; font-size: 10px; }
-    .judgement-count span::before { width: 5px; height: 5px; }
-    .swipe-note { display: block; }
-    #reader { padding-top: 12px; }
-    .reader-toolbar { top: 8px; }
-    .reader-status { padding-top: 13px; gap: 5px 10px; }
-    .page-tabs { padding: 12px 0 18px; }
-    .page-tab { min-height: 44px; }
-    .card { padding: 25px 19px; border-radius: 20px; }
-    .card-sequence { margin-bottom: 18px; }
-    .card-head { gap: 12px; }
-    .rank { min-width: 32px; font-size: 32px; }
-    .card-title { font-size: 20px; }
-    .background { font-size: 15px; }
-    .sides { grid-template-columns: 1fr; }
-    .guard summary { font-size: 20px; }
-    .guard .gate { gap: 9px; }
-    .pager { bottom: max(10px, env(safe-area-inset-bottom)); width: calc(100% - 24px); justify-content: space-between; border-radius: 18px; }
-    .pager button { min-height: 48px; padding: 0 11px; font-size: 12px; }
-    .page-label { min-width: 62px; }
-    .back-top { right: 14px; bottom: 14px; }
-    .directory-inner { padding: 18px 14px; }
-    .directory-link { grid-template-columns: 25px 8px 1fr; gap: 8px; }
+  .pager button:hover:not(:disabled) { color: var(--blue); }
+  .pager button:disabled { color: rgba(22, 22, 20, .26); cursor: default; }
+  .page-label {
+    min-width: 62px; text-align: center; color: var(--mute);
+    font: 12px/1 Georgia, serif; font-variant-numeric: tabular-nums;
+  }
+  .back-top {
+    position: fixed; right: 18px; bottom: 74px; z-index: 29;
+    min-width: 40px; min-height: 40px; padding: 0 10px;
+    background: var(--bg); border: 1px solid var(--hair);
+    color: var(--ink-2); font-size: 14px;
+  }
+
+  /* ---------- 目录 ---------- */
+  .directory {
+    width: min(660px, calc(100% - 28px)); max-height: min(84vh, 720px);
+    padding: 0; border: 1px solid var(--hair); background: var(--bg);
+    color: var(--ink);
+  }
+  .directory::backdrop { background: rgba(22, 22, 20, .3); }
+  .directory-inner { padding: 24px 22px; }
+  .directory-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+  .directory-head h2 { font-family: var(--serif); font-size: 20px; font-weight: 600; }
+  .directory-sub { margin-top: 5px; color: var(--mute); font-size: 12px; }
+  .icon-button { min-width: 36px; min-height: 36px; color: var(--mute); font-size: 21px; line-height: 1; }
+  .icon-button:hover { color: var(--ink); }
+  .directory-filters {
+    display: flex; gap: 16px; overflow-x: auto; margin: 20px 0 10px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--hair);
+  }
+  .filter-button {
+    flex: 0 0 auto; padding: 0 0 8px; margin-bottom: -9px;
+    color: var(--mute); font-size: 12.5px; white-space: nowrap;
+    border-bottom: 2px solid transparent;
+  }
+  .filter-button.active { color: var(--ink); border-bottom-color: var(--ink); }
+  .directory-list { list-style: none; overflow-y: auto; max-height: 54vh; }
+  .directory-item { border-top: 1px solid var(--hair); }
+  .directory-item:first-child { border-top: 0; }
+  .directory-link {
+    width: 100%; display: grid; grid-template-columns: 26px 1fr auto;
+    align-items: baseline; gap: 12px; padding: 14px 2px; text-align: left;
+  }
+  .directory-link:hover .directory-title { color: var(--blue); }
+  .directory-rank { color: var(--mute); font: 12px/1.6 Georgia, serif; }
+  .directory-title { font-size: 14px; line-height: 1.65; overflow-wrap: anywhere; }
+  .directory-type { color: var(--mute); font-size: 11.5px; white-space: nowrap; }
+  .directory-empty { padding: 26px 2px; color: var(--mute); font-size: 13px; text-align: center; }
+  .directory-continuous { margin-top: 14px; color: var(--ink-2); font-size: 13px; border-bottom: 1px solid var(--hair); }
+
+  .loading {
+    max-width: 620px; margin: 26vh auto 0; padding: 0 24px;
+    color: var(--mute); text-align: center; font-size: 14px; line-height: 1.9;
+  }
+
+  @media (max-width: 620px) {
+    .wrap { padding: 0 18px 104px; }
+    .mast { padding: 20px 0 11px; gap: 10px; }
+    .mast-brand { gap: 9px; }
+    .mast-title { font-size: 16px; }
+    .mast-date { font-size: 11.5px; }
+    .mast-tabs { gap: 18px; }
+    .mast-tab { font-size: 13.5px; }
+    .topics { margin-top: 4px; }
+    .topic-head { padding: 20px 0 17px; }
+    .topic-title { font-size: 17px; }
+    .node { padding-bottom: 22px; }
+    .card { padding: 26px 0 38px; }
+    .card-title { font-size: 23px; }
+    .verdict { margin-top: 18px; font-size: 16px; padding-left: 12px; }
+    .sides { grid-template-columns: 1fr; gap: 0; margin-top: 22px; }
+    .side { padding: 13px 0; }
+    .guard { margin-top: 40px; padding-top: 22px; }
+    .guard summary { font-size: 17px; }
+    .gate { gap: 10px; }
+    .page-label { min-width: 54px; }
+    .back-top { right: 12px; bottom: 70px; }
+    .directory-inner { padding: 20px 16px; }
+    .directory-link { grid-template-columns: 22px 1fr; gap: 10px; }
     .directory-type { display: none; }
-    .directory-list { max-height: 55vh; }
-    footer { padding-bottom: 84px; }
   }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
-    .page-panel.active, .loading::before { animation: none; }
-    .primary-button, .secondary-button, .reading-progress span { transition: none; }
+    .mast-tab, .mast-tab::after, .page-tab, .topic-title, .filter-button { transition: none; }
   }
   @media print {
     body { background: #fff; }
-    .cover, .topbar, .reader-status, .notice, .page-tabs, .reading-progress, .pager, .back-top, footer, .directory { display: none !important; }
+    .mast-tabs, .index-bar, .pager, .back-top, .directory, .notice { display: none !important; }
     .wrap { max-width: none; padding: 0; }
-    #reader, #reader[hidden] { display: block !important; padding: 0; }
-    .reader-shell { max-width: none; }
-    .page-panel, .page-panel.active { display: block !important; break-before: page; animation: none; }
-    .card { box-shadow: none; }
+    .card, .topic-body { display: block !important; border-bottom: 0; }
+    .more[open] .more-body, .more .more-body { display: block !important; }
+    .guard { break-before: page; }
   }
 </style>
 </head>
 <body>
-<div id="loading" class="loading">正在生成今日简报，首次访问约需 1–3 分钟，请稍候…</div>
+<h1 class="sr-only">热榜深潜简报</h1>
+<div id="loading" class="loading">正在读取今日简报…<br>首次访问需要生成，约 1–3 分钟。</div>
 
 <div id="app" class="wrap" hidden>
-  <section id="cover" aria-labelledby="cover-title">
-    <nav class="topbar glass" aria-label="首页导航">
-      <button class="brand" type="button" data-go="cover" aria-label="热榜深潜简报首页"><span class="brand-mark">深</span>热榜深潜简报</button>
-      <div class="top-actions">
-        <button class="nav-button" type="button" data-open-directory>目录</button>
-        <button class="nav-button" type="button" data-go="all">连续阅读</button>
-      </div>
-    </nav>
-
-    <div class="cover">
-      <div class="cover-grid">
-        <div class="cover-copy">
-          <div class="kicker">ZHIHU HOT DIGEST · 今日深读</div>
-          <h1 id="cover-title">热榜<br>深潜<span>简报</span></h1>
-          <p class="slogan">不是热榜摘要，<br>是深读判断。</p>
-          <p class="cover-description">从知乎热榜里筛出真正值得深读的争议。每条只讲清背景、双方观点和缺失证据，帮你判断该相信什么、还该追问什么。</p>
-          <div class="cover-actions">
-            <button class="primary-button" type="button" data-go="card-1">开始深读　→</button>
-            <button class="secondary-button" type="button" data-open-directory>选一条读</button>
-            <button class="secondary-button" type="button" data-go="all">连续阅读</button>
-          </div>
-          <div class="cover-meta">
-            <span id="cover-date">今日简报</span><span class="dot" aria-hidden="true"></span>
-            <span id="cover-total">10 条热点</span><span class="dot" aria-hidden="true"></span>
-            <span id="cover-source">3 类判断</span>
-          </div>
-        </div>
-
-        <section class="today-card" aria-labelledby="today-heading">
-          <div class="section-eyebrow">TODAY'S JUDGMENT · 今日判断</div>
-          <h2 id="today-heading" class="today-heading">正在整理今天的争议分布。</h2>
-          <div class="judgement-counts" aria-label="今日三态判断分布">
-            <div class="judgement-count consensus"><strong id="cover-consensus">—</strong><span>已有共识</span></div>
-            <div class="judgement-count dispute"><strong id="cover-dispute">—</strong><span>仍有分歧</span></div>
-            <div class="judgement-count verify"><strong id="cover-verify">—</strong><span>需补材料</span></div>
-          </div>
-          <ul id="cover-insights" class="insight-list"></ul>
-        </section>
-      </div>
-      <p class="swipe-note">进入热点后，左右滑动即可翻页；垂直滚动不受影响。</p>
+  <header class="mast">
+    <div class="mast-brand">
+      <span class="mast-title">热榜深潜</span>
+      <span id="m-date" class="mast-date"></span>
     </div>
-  </section>
+    <nav id="main-tabs" class="mast-tabs" aria-label="视图切换">
+      <button class="mast-tab" type="button" data-tab="timeline">连续剧</button>
+      <button class="mast-tab" type="button" data-tab="today">今日</button>
+    </nav>
+  </header>
 
-  <section id="reader" hidden>
-    <div class="reader-shell">
-      <nav class="topbar reader-toolbar glass" aria-label="阅读导航">
-        <button id="back-cover" class="brand" type="button"><span class="brand-mark">深</span>热榜深潜</button>
-        <div class="top-actions">
-          <button class="nav-button" type="button" data-open-directory>目录</button>
-          <button id="continuous-toggle" class="nav-button" type="button">连续阅读</button>
-        </div>
-      </nav>
+  <div id="notice" class="notice" hidden></div>
 
-      <div class="reader-status">
-        <span id="m-date"></span><span id="badge" class="badge"></span>
-        <span id="m-count"></span><span id="m-gen"></span>
-        <span id="reader-page-name" aria-live="polite"></span>
+  <main>
+    <section id="view-timeline" class="view" hidden aria-label="争议演化合订本">
+      <ol id="topic-list" class="topics"></ol>
+      <p id="timeline-empty" class="empty-note" hidden></p>
+      <p id="timeline-missing" class="missing-note" hidden></p>
+    </section>
+
+    <section id="view-today" class="view" hidden aria-label="今日十条">
+      <div class="today-strip">
+        <h2 id="today-heading" class="today-heading">正在整理今天的热点。</h2>
+        <p class="stat-line">
+          <span><b id="cover-total">—</b></span>
+          <span class="type-count">有真分歧 <b id="cover-dispute">—</b></span>
+          <span class="type-count">已形成共识 <b id="cover-consensus">—</b></span>
+          <span class="type-count">待验证 <b id="cover-verify">—</b></span>
+          <span id="badge" class="badge"></span>
+        </p>
+        <ul id="cover-insights" class="sr-only" aria-label="今日判断要点"></ul>
       </div>
-      <div id="notice" class="notice" hidden></div>
-      <div class="reading-progress" aria-hidden="true"><span id="reading-progress-bar"></span></div>
-      <nav id="page-tabs" class="page-tabs" aria-label="热点直接导航"></nav>
+
+      <div class="index-bar">
+        <nav id="page-tabs" class="page-tabs" aria-label="条目索引"></nav>
+        <button id="open-directory" class="ghost" type="button" data-open-directory>目录</button>
+        <button id="continuous-toggle" class="ghost" type="button" aria-pressed="false">展开全部</button>
+      </div>
 
       <div id="reader-pages">
         <main id="cards" aria-label="今日热榜深潜"></main>
-        <details id="page-guard" class="card guard page-panel" data-page="guard" data-title="来源与链接" open>
+
+        <details id="page-guard" class="guard" data-page="guard" data-title="来源与链接">
           <summary>来源与链接：每一条延伸阅读如何核验</summary>
-          <p class="guard-sub">AI 生成可能带来链接幻觉。这里用四道程序校验降低风险：模型只选编号，链接由程序映射并限制域名。</p>
-          <div class="gate"><span class="rank">1</span><div class="gate-body"><p class="gate-title"><span class="tag claim">第 1 道</span>　模型没有写网址的权利</p><p class="gate-desc">给模型的指令里明令“不要输出任何 URL”。它只能从候选素材里挑编号，输出位置不接受网址。</p><p class="gate-block">拦截：模型想编一个网址　｜　拦截：输出格式不是编号，整段作废</p></div></div>
-          <div class="gate"><span class="rank">2</span><div class="gate-body"><p class="gate-title"><span class="tag claim">第 2 道</span>　编号由程序翻译成真链接</p><p class="gate-desc">拿到编号后，由程序从知乎搜索返回的候选池里取出真实链接。编号越界或非整数，直接丢弃，不拿别的顶上。</p><p class="gate-block">拦截：编号超出候选池范围　｜　拦截：宁可少一条，不凑数</p></div></div>
-          <div class="gate"><span class="rank">3</span><div class="gate-body"><p class="gate-title"><span class="tag claim">第 3 道</span>　主机名白名单</p><p class="gate-desc">只放行 http(s) 的 zhihu.com 及其子域名。仿冒域名和伪协议在这一步全部拦掉，连候选池都进不去。</p><p class="gate-block">拦截：zhihu.com.evil.com 仿冒域名　｜　拦截：javascript: 伪协议</p></div></div>
-          <div class="gate"><span class="rank">4</span><div class="gate-body"><p class="gate-title"><span class="tag claim">第 4 道</span>　去重与上限</p><p class="gate-desc">同一条链接在一张卡里只出现一次；每条热点最多 2 条延伸阅读，不堆量。</p><p class="gate-block">拦截：同一卡内重复引用　｜　拦截：超过 2 条的选取自动截断</p></div></div>
-          <p class="focus">页面只消费通过候选编号映射、域名校验与去重的知乎链接；内容可及性仍以知乎页面当前状态为准。</p>
+          <p class="guard-sub">AI 生成可能带来链接幻觉。这里用四道程序校验降低风险：模型只选编号，链接由程序映射并限定域名。</p>
+          <div class="gate"><span class="rank">1</span><div class="gate-body"><p class="gate-title">模型没有写网址的权利</p><p class="gate-desc">给模型的指令里明令不许输出任何网址。它只能从候选素材里挑编号，输出位置不接受网址。</p><p class="gate-block">拦截：模型想编一个网址　｜　拦截：输出格式不是编号，整段作废</p></div></div>
+          <div class="gate"><span class="rank">2</span><div class="gate-body"><p class="gate-title">编号由程序翻译成真链接</p><p class="gate-desc">拿到编号后，由程序从知乎搜索返回的候选池里取出真实链接。编号越界或非整数，直接丢弃，不拿别的顶上。</p><p class="gate-block">拦截：编号超出候选池范围　｜　拦截：宁可少一条，不凑数</p></div></div>
+          <div class="gate"><span class="rank">3</span><div class="gate-body"><p class="gate-title">主机名白名单</p><p class="gate-desc">只放行 http(s) 的 zhihu.com 及其子域名。仿冒域名和伪协议在这一步全部拦掉，连候选池都进不去。</p><p class="gate-block">拦截：zhihu.com.evil.com 仿冒域名　｜　拦截：javascript: 伪协议</p></div></div>
+          <div class="gate"><span class="rank">4</span><div class="gate-body"><p class="gate-title">去重与上限</p><p class="gate-desc">同一条链接在一张卡里只出现一次；每条热点最多 2 条延伸阅读，不堆量。</p><p class="gate-block">拦截：同一卡内重复引用　｜　拦截：超过 2 条的选取自动截断</p></div></div>
         </details>
       </div>
-      <footer>
-        <p>本工具基于知乎开放平台 API 构建 · AI 生成内容仅供参考</p>
-        <p>参考与引用披露：本项目由 3 人大学生团队在 AI 辅助下完成开发；数据来自知乎开放平台 API（热榜 / 站内搜索 / 知乎直答），延伸阅读链接全部跳转回知乎站内；后端框架为 Flask（BSD-3-Clause 许可证）；页面视觉经开源 skill unslop（作者 Damir Sokolovsky，CC BY 4.0）辅助审查，特此署名。</p>
-        <p>阅读方式：分页支持按钮、键盘方向键、hash 深链与手机横向滑动；目录可直达任意热点，连续阅读可快速浏览全部内容。</p>
-      </footer>
-    </div>
-  </section>
+    </section>
+  </main>
 
-  <nav id="pager" class="pager glass" aria-label="分页控制" hidden>
-    <button id="prev-page" type="button" aria-label="上一页">← 上一页</button>
-    <span id="page-label" class="page-label">01 / 11</span>
-    <button id="next-page" type="button" aria-label="下一页">下一页 →</button>
-  </nav>
-  <button id="backTop" class="back-top glass" type="button" aria-label="回到页面顶部" hidden>↑</button>
+  <footer>
+    <p>本工具基于知乎开放平台 API 构建 · AI 生成内容仅供参考，观点与事实请以知乎站内原回答为准。</p>
+    <p>参考与引用披露：本项目由 3 人大学生团队在 AI 辅助下完成开发；数据来自知乎开放平台 API（热榜 / 站内搜索 / 知乎直答），延伸阅读链接全部跳转回知乎站内；后端框架为 Flask（BSD-3-Clause 许可证）；页面视觉经开源 skill unslop（作者 Damir Sokolovsky，CC BY 4.0）辅助审查，特此署名。</p>
+  </footer>
 </div>
+
+<nav id="pager" class="pager" aria-label="条目切换" hidden>
+  <button id="prev-page" type="button" aria-label="上一条">← 上一条</button>
+  <span id="page-label" class="page-label">01 / 10</span>
+  <button id="next-page" type="button" aria-label="下一条">下一条 →</button>
+</nav>
+<button id="backTop" class="back-top" type="button" aria-label="回到页面顶部" hidden>↑</button>
 
 <dialog id="directory" class="directory" aria-labelledby="directory-title">
   <div class="directory-inner">
-    <div class="directory-head"><div><h2 id="directory-title">今日目录</h2><p class="directory-sub">按判断类型筛选，或直接跳到任意一条。</p></div><button id="close-directory" class="icon-button" type="button" aria-label="关闭目录">×</button></div>
+    <div class="directory-head">
+      <div>
+        <h2 id="directory-title">今日目录</h2>
+        <p class="directory-sub">按判断类型筛选，或直接跳到任意一条。</p>
+      </div>
+      <button id="close-directory" class="icon-button" type="button" aria-label="关闭目录">×</button>
+    </div>
     <div id="directory-filters" class="directory-filters" aria-label="按判断类型筛选">
       <button class="filter-button active" type="button" data-filter="all" aria-pressed="true">全部</button>
-      <button class="filter-button" type="button" data-filter="dispute" aria-pressed="false">仍有分歧</button>
-      <button class="filter-button" type="button" data-filter="consensus" aria-pressed="false">已有共识</button>
-      <button class="filter-button" type="button" data-filter="verify" aria-pressed="false">需补材料</button>
+      <button class="filter-button" type="button" data-filter="dispute" aria-pressed="false">有真分歧</button>
+      <button class="filter-button" type="button" data-filter="consensus" aria-pressed="false">已形成共识</button>
+      <button class="filter-button" type="button" data-filter="verify" aria-pressed="false">待验证</button>
     </div>
     <ol id="directory-list" class="directory-list"></ol>
     <p id="directory-empty" class="directory-empty" hidden>这个分类下暂时没有条目。</p>
-    <button class="secondary-button directory-continuous" type="button" data-go="all">不翻页，连续阅读全部内容</button>
+    <button class="directory-continuous" type="button" data-go="all">不切换，连续读完全部</button>
   </div>
 </dialog>
 
 <script src="data.js"></script>
+<script src="timeline.js"></script>
 <script>
 (function () {
   'use strict';
+
+  // 只影响顶栏两个 Tab 是否出现；改为 false 时直接只展示「今日」，其余逻辑不变。
+  var ENABLE_TIMELINE_TAB = true;
 
   var data = window.BRIEF_DATA;
   var loadingEl = document.getElementById('loading');
 
   function showError(msg) {
+    if (!loadingEl) return;
     loadingEl.textContent = msg;
-    loadingEl.classList.remove('loading');
   }
 
   if (!data || !Array.isArray(data.items)) {
@@ -483,8 +507,11 @@
     || String(data.generated_at || '').indexOf('模拟') !== -1;
 
   var BADGES = { demo: '示例数据', live: '实时生成', cache: '当日缓存', fallback: '演示兜底' };
-  var TYPE_LABEL = { dispute: '仍有分歧', consensus: '已有共识', verify: '需补材料' };
-  var CLAIM_LABEL = { fact: '可裁决', inference: '推测对推测', impression: '观感对观感', value: '价值判断' };
+  var TYPE_LABEL = { dispute: '有真分歧', consensus: '已形成共识', verify: '待验证' };
+  var CLAIM_LABEL = { fact: '可裁决事实', inference: '推测对推测', impression: '观感对观感', value: '价值判断' };
+  var SENTINEL_GAP = '暂无可补的拼图。';
+  var SENTINEL_FOCUS = '暂无聚焦问题。';
+  var SENTINEL_BACKGROUND = '暂无解读。';
 
   // 冷缓存时后端立即返回兜底并后台生成；页面低频检查，成功后自动切换。
   // 轮询只读取 data.js，生成锁与冷却期保证它不会放大上游 API 调用量。
@@ -552,35 +579,81 @@
     }
   }
 
-  // ---------- 元信息与首页判断 ----------
-  var badgeEl = document.getElementById('badge');
-  badgeEl.textContent = isDemo ? BADGES.demo : (BADGES[data.source] || data.source);
-  if (data.source === 'fallback') badgeEl.classList.add('fallback');
-  if (isDemo) badgeEl.classList.add('demo');
-  document.getElementById('m-count').textContent = '共 ' + data.items.length + ' 条';
-  var generatedAt = String(data.generated_at || '').trim();
-  var hasExactTime = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(generatedAt);
-  var asOf = hasExactTime ? generatedAt : String(data.date || '').trim();
-  document.getElementById('m-date').textContent = asOf ? '数据截至：' + asOf : '';
-  document.getElementById('m-gen').textContent = '';
-  document.getElementById('cover-date').textContent = asOf || '今日简报';
-  document.getElementById('cover-total').textContent = data.items.length + ' 条热点';
-  document.getElementById('cover-source').textContent = isDemo ? BADGES.demo : (BADGES[data.source] || '3 类判断');
-
-  var digest = data.digest || {};
-  var hasDigest = Number.isFinite(Number(digest.total)) && Number(digest.total) > 0;
-  document.getElementById('today-heading').textContent = digest.headline || '这份示例使用旧版三派结构；真实简报会在这里显示三态统计。';
-  document.getElementById('cover-dispute').textContent = hasDigest ? String(digest.dispute || 0) : '—';
-  document.getElementById('cover-consensus').textContent = hasDigest ? String(digest.consensus || 0) : '—';
-  document.getElementById('cover-verify').textContent = hasDigest ? String(digest.verify || 0) : '—';
-  var insightList = document.getElementById('cover-insights');
-
+  // ---------- 基础工具 ----------
   function el(tag, className, text) {
     var node = document.createElement(tag);
     if (className) node.className = className;
     if (text !== undefined && text !== null) node.textContent = text;
     return node;
   }
+
+  // 外链一律先过协议校验；非法或示例模式下不生成可点击元素。
+  function safeHref(url) {
+    var value = String(url || '').trim();
+    return /^https?:\/\//i.test(value) ? value : '';
+  }
+
+  function linkNode(className, text, url) {
+    var href = safeHref(url);
+    if (isDemo || !href) return el('span', className + ' dead', text);
+    var a = el('a', className, text);
+    a.href = href;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    return a;
+  }
+
+  function pad2(n) {
+    return String(n).padStart(2, '0');
+  }
+
+  function isRealText(value, sentinel) {
+    var text = String(value || '').trim();
+    return Boolean(text) && text !== sentinel;
+  }
+
+  // 一句话核心判断：优先 gap，其次 focus，都不空才展示。
+  function verdictOf(item) {
+    if (isRealText(item.gap, SENTINEL_GAP)) return String(item.gap).trim();
+    if (isRealText(item.focus, SENTINEL_FOCUS)) return String(item.focus).trim();
+    return '';
+  }
+
+  // ---------- 元信息 ----------
+  var generatedAt = String(data.generated_at || '').trim();
+  var hasExactTime = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(generatedAt);
+  var asOf = hasExactTime ? generatedAt : String(data.date || '').trim();
+  document.getElementById('m-date').textContent = data.date ? String(data.date) : asOf;
+
+  var badgeEl = document.getElementById('badge');
+  badgeEl.textContent = isDemo ? BADGES.demo : (BADGES[data.source] || data.source || '');
+  if (data.source === 'fallback') badgeEl.classList.add('fallback');
+
+  var digest = data.digest || {};
+  var hasDigest = Number.isFinite(Number(digest.total)) && Number(digest.total) > 0;
+  var counts = { dispute: 0, consensus: 0, verify: 0 };
+  if (hasDigest) {
+    counts.dispute = Number(digest.dispute) || 0;
+    counts.consensus = Number(digest.consensus) || 0;
+    counts.verify = Number(digest.verify) || 0;
+  } else {
+    // 旧缓存 / 示例数据没有 digest：按条目实际类型现算，统计行不留空。
+    data.items.forEach(function (item) {
+      if (counts[item.type] !== undefined) counts[item.type] += 1;
+    });
+  }
+  document.getElementById('today-heading').textContent = digest.headline
+    || '今天的判断尚未生成，先按条目看。';
+  document.getElementById('cover-total').textContent = '今日 ' + data.items.length + ' 条';
+  document.getElementById('cover-dispute').textContent = String(counts.dispute);
+  document.getElementById('cover-consensus').textContent = String(counts.consensus);
+  document.getElementById('cover-verify').textContent = String(counts.verify);
+  if (counts.dispute + counts.consensus + counts.verify === 0) {
+    // 旧缓存没有 type 字段时三项计数全是 0，与其显示三个 0，不如不显示。
+    document.querySelectorAll('.type-count').forEach(function (node) { node.hidden = true; });
+  }
+
+  var insightList = document.getElementById('cover-insights');
   (digest.insights || []).forEach(function (text) { insightList.appendChild(el('li', '', text)); });
 
   if (data.notice) {
@@ -589,64 +662,110 @@
     noticeEl.hidden = false;
   }
 
-  function demoTag() { return el('span', 'tag-demo', '示例'); }
+  // ---------- 今日：卡片 ----------
+  var timelineData = window.TIMELINE_DATA;
+  var topics = (timelineData && Array.isArray(timelineData.topics)) ? timelineData.topics : [];
+  var hasTopics = ENABLE_TIMELINE_TAB && topics.length > 0;
+  var openTopicIndex = -1;
 
-  function renderTitle(item) {
-    var box = el('div', 'card-title-box');
-    var titleNode;
-    if (isDemo || !item.question_url) {
-      titleNode = el('span', 'card-title', item.title);
-      titleNode.appendChild(demoTag());
-    } else {
-      titleNode = el('a', 'card-title', item.title);
-      titleNode.href = item.question_url;
-      titleNode.target = '_blank';
-      titleNode.rel = 'noopener';
-    }
-    box.appendChild(titleNode);
-    return box;
-  }
+  var cardsEl = document.getElementById('cards');
+  var directoryList = document.getElementById('directory-list');
+  var directoryItems = [];
+  var panels = [];
 
-  function renderReading(list) {
-    var ul = el('ul', 'reading');
-    (list || []).forEach(function (r) {
-      var li = el('li');
-      if (isDemo || !r.url) {
-        var dead = el('span', 'rt dead', r.title);
-        dead.appendChild(demoTag());
-        li.appendChild(dead);
-      } else {
-        var a = el('a', 'rt', r.title);
-        a.href = r.url;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        li.appendChild(a);
-      }
-      if (r.reason) li.appendChild(el('span', 'reason', '—— ' + r.reason));
-      ul.appendChild(li);
+  function renderSides(item) {
+    if (!item.sides || item.sides.length !== 2) return null;
+    var grid = el('div', 'sides');
+    grid.setAttribute('aria-label', '双方观点');
+    item.sides.forEach(function (side) {
+      var box = el('div', 'side');
+      box.appendChild(el('b', '', side.label || ''));
+      box.appendChild(el('p', '', side.claim || ''));
+      grid.appendChild(box);
     });
-    return ul;
+    return grid;
   }
 
-  // ---------- 全网证据核验区块（单条试点） ----------
-  // 只渲染 found / no_result 两种态；status 为 error/skipped 或字段缺失时返回
-  // null 不渲染——此时卡片结构与无核验时完全一致（任务书 §5.3）。
-  // 文案固定（任务书 §4）：无结果时只说「本次检索未返回」，不做全称否定。
-  function renderWebEvidence(ev) {
+  function renderMore(item) {
+    var details = el('details', 'more');
+    var summary = el('summary', '', '展开背景与共识 ↓');
+    details.appendChild(summary);
+    details.addEventListener('toggle', function () {
+      summary.textContent = details.open ? '收起背景与共识 ↑' : '展开背景与共识 ↓';
+    });
+    var body = el('div', 'more-body');
+
+    if (isRealText(item.background, SENTINEL_BACKGROUND)) {
+      body.appendChild(el('p', 'background', item.background));
+    } else if (item.question_url && !isDemo) {
+      var note = el('p', 'degrade-note', '本条暂无可核验的素材，未生成解读。不编造背景与争议，你可以');
+      var href = safeHref(item.question_url);
+      if (href) {
+        var go = el('a', '', '直接去知乎原问题看看 →');
+        go.href = href;
+        go.target = '_blank';
+        go.rel = 'noopener noreferrer';
+        note.appendChild(go);
+      } else {
+        note.appendChild(document.createTextNode('直接去知乎原问题看看。'));
+      }
+      body.appendChild(note);
+    }
+
+    if (isRealText(item.focus, SENTINEL_FOCUS)) {
+      var focusLine = el('p', 'line');
+      focusLine.appendChild(el('span', '', '值得追问'));
+      focusLine.appendChild(document.createTextNode(item.focus));
+      body.appendChild(focusLine);
+    }
+    if (String(item.consensus || '').trim()) {
+      var consensusLine = el('p', 'line consensus');
+      consensusLine.appendChild(el('span', '', '已形成的共识'));
+      consensusLine.appendChild(document.createTextNode(item.consensus));
+      body.appendChild(consensusLine);
+    }
+    if (isRealText(item.gap, SENTINEL_GAP) && String(item.gap).trim() !== verdictOf(item)) {
+      var gapLine = el('p', 'line');
+      gapLine.appendChild(el('span', '', '缺的那块'));
+      gapLine.appendChild(document.createTextNode(item.gap));
+      body.appendChild(gapLine);
+    }
+
+    details.appendChild(body);
+    return details;
+  }
+
+  function renderReading(item) {
+    if (!item.reading || !item.reading.length) return null;
+    var section = el('section', 'reading');
+    section.appendChild(el('h3', 'reading-title', '值得读的知乎回答'));
+    var list = el('ol', 'reading-list');
+    item.reading.slice(0, 2).forEach(function (entry) {
+      var li = el('li');
+      var title = linkNode('rt', entry.title || '', entry.url);
+      li.appendChild(title);
+      if (isDemo || !safeHref(entry.url)) li.appendChild(el('span', 'tag-demo', '示例'));
+      if (entry.reason) li.appendChild(el('span', 'reason', entry.reason));
+      list.appendChild(li);
+    });
+    section.appendChild(list);
+    return section;
+  }
+
+  // 全网核验区块。found 才在版面出现（极简模式 quiet=true）；
+  // no_result 的句式按任务书 §4 保留在实现里，默认静默，避免机器腔占用版面。
+  // error / skipped 一律不渲染，页面结构与无核验时完全一致。
+  function renderWebEvidence(item, options) {
+    var quiet = Boolean(options && options.quiet);
+    var ev = item.web_evidence;
     if (!ev || typeof ev !== 'object') return null;
-    var box = el('div', 'web-evidence');
+    var box = el('p', 'web-evidence');
     if (ev.status === 'found') {
       if (!ev.title || !ev.url) return null;
-      box.appendChild(el('b', '', '全网检索到的第一手材料'));
-      var link = el('a', 'web-evidence-title', ev.title);
-      link.href = ev.url;
-      link.target = '_blank';
-      link.rel = 'noopener';
-      box.appendChild(link);
-      box.appendChild(el('span', 'web-evidence-meta',
-        '来源：' + (ev.source || '未知来源') + '｜核验截至 ' + (ev.checked_at || '—')));
+      box.appendChild(document.createTextNode('公开资料参考：'));
+      box.appendChild(linkNode('', ev.title, ev.url));
     } else if (ev.status === 'no_result') {
-      box.appendChild(el('b', '', '全网证据核验'));
+      if (quiet) return null;
       box.appendChild(document.createTextNode(
         '本次全网检索未返回可用的一手材料｜核验截至 ' + (ev.checked_at || '—')));
     } else {
@@ -656,130 +775,228 @@
     return box;
   }
 
-  // ---------- 卡片与目录 ----------
-  var cardsEl = document.getElementById('cards');
-  var directoryList = document.getElementById('directory-list');
-  var directoryItems = [];
-  data.items.forEach(function (item, itemIndex) {
+  function renderLegacyViewpoints(item) {
+    var vp = item.viewpoints || {};
+    var wrap = el('div', 'viewpoints');
+    [['support', '支持'], ['oppose', '反对'], ['undecided', '未定论']].forEach(function (cfg) {
+      var block = el('div', 'vp');
+      block.appendChild(el('b', '', cfg[1]));
+      block.appendChild(document.createTextNode(vp[cfg[0]] || ''));
+      wrap.appendChild(block);
+    });
+    return wrap;
+  }
+
+  function renderCard(item, index, total) {
     var card = el('article', 'card page-panel');
-    card.id = 'page-card-' + (itemIndex + 1);
-    card.setAttribute('data-page', 'card-' + (itemIndex + 1));
+    card.id = 'page-card-' + (index + 1);
+    card.setAttribute('data-page', 'card-' + (index + 1));
     card.setAttribute('data-title', '热点 #' + item.rank);
     card.setAttribute('aria-label', '第 ' + item.rank + ' 条：' + item.title);
-    card.appendChild(el('div', 'card-sequence', 'DEEP DIVE / ' + String(itemIndex + 1).padStart(2, '0') + ' · ' + (TYPE_LABEL[item.type] || '热点解读')));
 
-    var head = el('div', 'card-head');
-    head.appendChild(el('span', 'rank', String(item.rank)));
-    head.appendChild(renderTitle(item));
-    card.appendChild(head);
+    var eyebrow = el('p', 'eyebrow',
+      pad2(index + 1) + ' / ' + pad2(total) + ' · ' + (TYPE_LABEL[item.type] || '热点解读'));
+    if (isDemo) eyebrow.appendChild(el('span', 'tag-demo', '示例'));
+    card.appendChild(eyebrow);
 
-    if (item.background === '暂无解读。' && item.question_url && !isDemo) {
-      var note = el('p', 'degrade-note');
-      note.appendChild(document.createTextNode('本条暂无可用素材，未生成解读。我们不编造背景与争议，你可以'));
-      var go = el('a', '', '直接去知乎原问题看看大家怎么说 →');
-      go.href = item.question_url;
-      go.target = '_blank';
-      go.rel = 'noopener';
-      note.appendChild(go);
-      card.appendChild(note);
-    } else if (item.background) {
-      card.appendChild(el('p', 'background', item.background));
-    }
-
-    if (item.type) {
-      var tags = el('div', 'tags');
-      tags.appendChild(el('span', 'tag ' + item.type, TYPE_LABEL[item.type] || item.type));
-      if (item.claim_type) tags.appendChild(el('span', 'tag claim', '分歧性质：' + (CLAIM_LABEL[item.claim_type] || item.claim_type)));
-      card.appendChild(tags);
-      if (item.focus) {
-        var focusBox = el('div', 'focus');
-        focusBox.appendChild(el('span', 'section-label', '值得回答的问题'));
-        focusBox.appendChild(document.createTextNode(item.focus));
-        card.appendChild(focusBox);
-      }
-      if (item.consensus) {
-        var cb = el('div', 'consensus-box');
-        cb.appendChild(el('b', '', '已有共识'));
-        cb.appendChild(document.createTextNode(item.consensus));
-        card.appendChild(cb);
-      }
-      if (item.sides && item.sides.length === 2) {
-        var sidesGrid = el('div', 'sides');
-        sidesGrid.setAttribute('aria-label', '双方观点');
-        item.sides.forEach(function (s, i) {
-          var box = el('div', 'side ' + (i === 0 ? 'a' : 'b'));
-          box.appendChild(el('b', '', s.label));
-          box.appendChild(document.createTextNode(s.claim));
-          sidesGrid.appendChild(box);
-        });
-        card.appendChild(sidesGrid);
-      }
-      if (item.gap) {
-        var gapBox = el('div', 'gap');
-        gapBox.appendChild(el('b', '', '缺的那块拼图'));
-        gapBox.appendChild(document.createTextNode(item.gap));
-        card.appendChild(gapBox);
-      }
-      // 全网核验区块挂在 gap 下方；renderWebEvidence 对 error/skipped/缺字段返回 null，
-      // 不满足条件时卡片结构与不渲染完全一致。
-      var webEvidenceBox = renderWebEvidence(item.web_evidence);
-      if (webEvidenceBox) card.appendChild(webEvidenceBox);
+    var heading = el('h2', 'card-title');
+    var href = safeHref(item.question_url);
+    if (isDemo || !href) {
+      heading.appendChild(el('span', '', item.title));
     } else {
-      // 兼容旧缓存：没有 type 字段时仍可显示原有三种观点，不出现空白页。
-      var vp = item.viewpoints || {};
-      var grid = el('div', 'viewpoints');
-      [['support', 'vp support', '支持'], ['oppose', 'vp oppose', '反对'], ['undecided', 'vp undecided', '未定论']].forEach(function (cfg) {
-        var block = el('div', cfg[1]);
-        block.appendChild(el('b', '', cfg[2]));
-        block.appendChild(document.createTextNode(vp[cfg[0]] || ''));
-        grid.appendChild(block);
-      });
-      card.appendChild(grid);
+      var link = el('a', '', item.title);
+      link.href = href;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      heading.appendChild(link);
+    }
+    card.appendChild(heading);
+
+    var verdict = verdictOf(item);
+    if (verdict) {
+      var verdictEl = el('p', 'verdict', verdict);
+      verdictEl.setAttribute('data-type', item.type || '');
+      card.appendChild(verdictEl);
     }
 
-    if (item.reading && item.reading.length) {
-      var readingBlock = el('section', 'reading-block');
-      readingBlock.appendChild(el('h3', 'reading-title', '站内延伸阅读'));
-      readingBlock.appendChild(renderReading(item.reading));
-      card.appendChild(readingBlock);
+    var sides = renderSides(item);
+    if (sides) card.appendChild(sides);
+    else if (!item.type) card.appendChild(renderLegacyViewpoints(item));
+
+    card.appendChild(renderMore(item));
+
+    var reading = renderReading(item);
+    if (reading) card.appendChild(reading);
+
+    var evidence = renderWebEvidence(item, { quiet: true });
+    if (evidence) card.appendChild(evidence);
+
+    var hit = findTopicByUrl(item.question_url);
+    if (hit) {
+      var jump = el('button', 'to-timeline', '看这事这几天怎么反转 →');
+      jump.type = 'button';
+      jump.addEventListener('click', function () {
+        showTab('timeline', true);
+        openTopic(hit.index, true);
+      });
+      card.appendChild(jump);
     }
+
     cardsEl.appendChild(card);
+    panels.push(card);
 
     var directoryItem = el('li', 'directory-item');
     directoryItem.setAttribute('data-type', item.type || 'legacy');
     var directoryButton = el('button', 'directory-link');
     directoryButton.type = 'button';
-    directoryButton.setAttribute('data-go', 'card-' + (itemIndex + 1));
-    directoryButton.appendChild(el('span', 'directory-rank', String(item.rank).padStart(2, '0')));
-    directoryButton.appendChild(el('span', 'type-dot ' + (item.type || ''), ''));
+    directoryButton.setAttribute('data-go', 'card-' + (index + 1));
+    directoryButton.appendChild(el('span', 'directory-rank', pad2(item.rank)));
     directoryButton.appendChild(el('span', 'directory-title', item.title));
     directoryButton.appendChild(el('span', 'directory-type', TYPE_LABEL[item.type] || '旧版示例'));
     directoryItem.appendChild(directoryButton);
     directoryList.appendChild(directoryItem);
     directoryItems.push(directoryItem);
+  }
+
+  data.items.forEach(function (item, index) {
+    renderCard(item, index, data.items.length);
   });
 
-  // 示例数据不会生成 <a>，因此不会误标成可点击链接。
-  document.querySelectorAll('#cards a[href]').forEach(function (link) {
-    link.classList.add('zhihu-link');
-    link.setAttribute('aria-label', link.textContent.trim() + '（在知乎新窗口打开）');
-  });
+  // ---------- 连续剧：话题与节点 ----------
+  var topicListEl = document.getElementById('topic-list');
 
-  // ---------- 分页、连续阅读与深链 ----------
-  var coverEl = document.getElementById('cover');
-  var readerEl = document.getElementById('reader');
-  var pagerEl = document.getElementById('pager');
-  var panels = Array.prototype.slice.call(document.querySelectorAll('.page-panel'));
+  function nodeStateLabel(node) {
+    return node.state_label || TYPE_LABEL[node.state] || '';
+  }
+
+  function topicTrace(topic) {
+    var nodes = topic.nodes || [];
+    return nodes.map(function (node) {
+      var date = node.date_label || node.date || '';
+      var state = nodeStateLabel(node);
+      return date + (state ? ' ' + state : '');
+    }).join(' → ');
+  }
+
+  function renderNodes(topic) {
+    var list = el('ol', 'nodes');
+    (topic.nodes || []).forEach(function (node) {
+      var li = el('li', 'node ' + (node.state || ''));
+      var meta = node.date_label || node.date || '';
+      var state = nodeStateLabel(node);
+      if (state) meta += ' · ' + state;
+      li.appendChild(el('span', 'node-meta', meta));
+      if (node.hook) li.appendChild(el('p', 'node-hook', node.hook));
+
+      if (node.key_answer && node.key_answer.title) {
+        li.appendChild(linkNode('node-answer', '原回答：' + node.key_answer.title, node.key_answer.url));
+      }
+      if (Array.isArray(node.ext_ref) && node.ext_ref.length) {
+        node.ext_ref.forEach(function (ref) {
+          if (!ref || !ref.title) return;
+          li.appendChild(linkNode('node-ext', '公开资料参考：' + ref.title, ref.url));
+        });
+      }
+      list.appendChild(li);
+    });
+    return list;
+  }
+
+  function applyTopicState() {
+    Array.prototype.forEach.call(topicListEl.children, function (li, index) {
+      var open = index === openTopicIndex;
+      li.classList.toggle('open', open);
+      var head = li.querySelector('.topic-head');
+      var body = li.querySelector('.topic-body');
+      if (head) head.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (body) body.hidden = !open;
+    });
+  }
+
+  function openTopic(index, scroll) {
+    if (index < 0 || index >= topicListEl.children.length) return;
+    openTopicIndex = index;
+    applyTopicState();
+    if (scroll && topicListEl.children[index]) {
+      topicListEl.children[index].scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+  }
+
+  function toggleTopic(index) {
+    openTopicIndex = (openTopicIndex === index) ? -1 : index;
+    applyTopicState();
+  }
+
+  function renderTopics() {
+    topics.forEach(function (topic, index) {
+      var li = el('li', 'topic');
+      var head = el('button', 'topic-head');
+      head.type = 'button';
+      head.appendChild(el('span', 'topic-title', topic.title || '未命名话题'));
+      head.appendChild(el('span', 'topic-trace', topicTrace(topic)));
+      head.addEventListener('click', function () { toggleTopic(index); });
+      li.appendChild(head);
+      var body = el('div', 'topic-body');
+      body.hidden = true;
+      body.appendChild(renderNodes(topic));
+      li.appendChild(body);
+      topicListEl.appendChild(li);
+    });
+    if (topics.length) openTopic(0, false);
+  }
+
+  function renderTimelineEmpty() {
+    var emptyEl = document.getElementById('timeline-empty');
+    var tracked = (timelineData && (timelineData.tracked_days || timelineData.archive_files)) || 0;
+    var text = document.createTextNode('正在按天归档知乎热榜');
+    if (tracked > 0) text = document.createTextNode('正在按天归档知乎热榜（已记录 ' + tracked + ' 天）');
+    emptyEl.textContent = '';
+    emptyEl.appendChild(text);
+    emptyEl.appendChild(document.createTextNode('，连续 2 天以上的热议话题会自动汇入这里。今天的热点可以先看「今日」。'));
+    emptyEl.hidden = false;
+  }
+
+  function renderMissingDates() {
+    var missing = (timelineData && Array.isArray(timelineData.missing_dates)) ? timelineData.missing_dates : [];
+    if (!missing.length) return;
+    var noteEl = document.getElementById('timeline-missing');
+    noteEl.textContent = '注：' + missing.join('、') + ' 暂无归档记录。';
+    noteEl.hidden = false;
+  }
+
+  if (ENABLE_TIMELINE_TAB) renderTopics();
+  if (!hasTopics) {
+    // 没有任何跨天话题时只在用户主动点进「连续剧」后才展示说明，不占默认首屏。
+    renderTimelineEmpty();
+    document.getElementById('timeline-empty').hidden = false;
+  }
+  renderMissingDates();
+
+  function findTopicByUrl(url) {
+    var target = String(url || '').trim();
+    if (!target || !topics.length) return null;
+    for (var i = 0; i < topics.length; i += 1) {
+      var nodes = topics[i].nodes || [];
+      for (var j = 0; j < nodes.length; j += 1) {
+        if (String(nodes[j].question_url || '').trim() === target) return { index: i, topic: topics[i] };
+      }
+    }
+    return null;
+  }
+
+  // ---------- 视图切换 ----------
+  var viewTimeline = document.getElementById('view-timeline');
+  var viewToday = document.getElementById('view-today');
   var tabsEl = document.getElementById('page-tabs');
+  var pagerEl = document.getElementById('pager');
   var pageLabel = document.getElementById('page-label');
-  var pageName = document.getElementById('reader-page-name');
-  var progressBar = document.getElementById('reading-progress-bar');
   var prevButton = document.getElementById('prev-page');
   var nextButton = document.getElementById('next-page');
   var continuousToggle = document.getElementById('continuous-toggle');
+  var tabButtons = Array.prototype.slice.call(document.querySelectorAll('[data-tab]'));
+  var mode = 'today';
+  var singleCard = true;
   var currentPage = 0;
-  var mode = 'cover';
-  var pageButtons = [];
 
   function updateHash(value, replace) {
     try {
@@ -790,91 +1007,144 @@
     }
   }
 
-  function setContinuousState(active) {
-    readerEl.classList.toggle('continuous', active);
-    continuousToggle.textContent = active ? '返回分页' : '连续阅读';
-    continuousToggle.classList.toggle('active', active);
-    continuousToggle.setAttribute('aria-pressed', active ? 'true' : 'false');
+  function syncTabs() {
+    tabButtons.forEach(function (button) {
+      var active = button.getAttribute('data-tab') === mode;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-current', active ? 'page' : 'false');
+    });
   }
 
-  function showCover(shouldUpdateHash) {
-    mode = 'cover';
-    coverEl.hidden = false;
-    readerEl.hidden = true;
-    pagerEl.hidden = true;
-    setContinuousState(false);
-    if (shouldUpdateHash !== false) updateHash('cover');
+  function showTab(name, shouldUpdateHash) {
+    if (!ENABLE_TIMELINE_TAB && name === 'timeline') name = 'today';
+    mode = name === 'timeline' ? 'timeline' : 'today';
+    viewTimeline.hidden = mode !== 'timeline';
+    viewToday.hidden = mode !== 'today';
+    pagerEl.hidden = !(mode === 'today' && singleCard);
+    syncTabs();
+    if (mode === 'timeline' && openTopicIndex < 0 && topicListEl.children.length) openTopic(0, false);
+    if (mode === 'today' && singleCard) showPage(currentPage, false);
+    if (shouldUpdateHash !== false) updateHash(mode);
     window.scrollTo(0, 0);
   }
 
-  function showPage(index, shouldUpdateHash) {
-    if (index < 0 || index >= panels.length) return;
-    mode = 'page';
-    currentPage = index;
-    coverEl.hidden = true;
-    readerEl.hidden = false;
-    pagerEl.hidden = false;
-    setContinuousState(false);
-    panels.forEach(function (panel, panelIndex) {
-      var active = panelIndex === index;
-      panel.classList.toggle('active', active);
-      panel.setAttribute('aria-hidden', active ? 'false' : 'true');
+  function setSingleCard(active) {
+    singleCard = active;
+    continuousToggle.textContent = active ? '展开全部' : '回到单条';
+    continuousToggle.setAttribute('aria-pressed', active ? 'false' : 'true');
+    panels.forEach(function (panel, index) {
+      var visible = !active || index === currentPage;
+      panel.hidden = !visible;
     });
-    pageButtons.forEach(function (button, buttonIndex) {
-      var active = buttonIndex === index;
+    tabsEl.hidden = !active;
+    pagerEl.hidden = !(active && mode === 'today');
+  }
+
+  function showPage(index, shouldUpdateHash) {
+    if (!panels.length) return;
+    var next = Math.max(0, Math.min(index, panels.length - 1));
+    currentPage = next;
+    if (!singleCard) setSingleCard(true);
+    panels.forEach(function (panel, panelIndex) {
+      panel.hidden = panelIndex !== next;
+    });
+    Array.prototype.forEach.call(tabsEl.children, function (button, buttonIndex) {
+      var active = buttonIndex === next;
       button.classList.toggle('active', active);
       if (active) button.setAttribute('aria-current', 'page');
       else button.removeAttribute('aria-current');
     });
-    var panel = panels[index];
-    pageLabel.textContent = String(index + 1).padStart(2, '0') + ' / ' + String(panels.length).padStart(2, '0');
-    pageName.textContent = panel.getAttribute('data-title') || '今日简报';
-    progressBar.style.width = ((index + 1) / panels.length * 100) + '%';
-    prevButton.disabled = index === 0;
-    nextButton.disabled = index === panels.length - 1;
-    nextButton.textContent = index === panels.length - 1 ? '已到末页' : '下一页 →';
-    var activeTab = pageButtons[index];
-    if (activeTab && activeTab.scrollIntoView) activeTab.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'auto' });
-    if (shouldUpdateHash !== false) updateHash(panel.getAttribute('data-page'));
+    pageLabel.textContent = pad2(next + 1) + ' / ' + pad2(panels.length);
+    prevButton.disabled = next === 0;
+    nextButton.disabled = next === panels.length - 1;
+    nextButton.textContent = next === panels.length - 1 ? '已到末条' : '下一条 →';
+    var activeTab = tabsEl.children[next];
+    if (activeTab && activeTab.scrollIntoView) {
+      activeTab.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'auto' });
+    }
+    if (shouldUpdateHash !== false) updateHash(panels[next].getAttribute('data-page'));
     window.scrollTo(0, 0);
-  }
-
-  function showAll(shouldUpdateHash) {
-    mode = 'all';
-    coverEl.hidden = true;
-    readerEl.hidden = false;
-    pagerEl.hidden = true;
-    setContinuousState(true);
-    panels.forEach(function (panel) {
-      panel.classList.add('active');
-      panel.setAttribute('aria-hidden', 'false');
-    });
-    pageButtons.forEach(function (button) { button.classList.remove('active'); button.removeAttribute('aria-current'); });
-    pageName.textContent = '连续阅读 · 全部 ' + data.items.length + ' 条';
-    if (shouldUpdateHash !== false) updateHash('all');
-    window.scrollTo(0, 0);
-  }
-
-  function routeFromHash() {
-    var value = window.location.hash.replace(/^#/, '');
-    if (value === 'all') { showAll(false); return; }
-    var index = panels.findIndex(function (panel) { return panel.getAttribute('data-page') === value; });
-    if (index >= 0) showPage(index, false);
-    else showCover(false);
   }
 
   panels.forEach(function (panel, index) {
-    var pageId = panel.getAttribute('data-page');
-    var tabText = pageId === 'guard' ? '来源' : String(index + 1).padStart(2, '0');
-    var button = el('button', 'page-tab', tabText);
+    var button = el('button', 'page-tab', pad2(index + 1));
     button.type = 'button';
-    button.title = panel.getAttribute('data-title') || tabText;
-    button.setAttribute('aria-label', '前往' + (panel.getAttribute('data-title') || tabText));
+    button.title = panel.getAttribute('data-title') || String(index + 1);
+    button.setAttribute('aria-label', '第 ' + (index + 1) + ' 条');
     button.addEventListener('click', function () { showPage(index, true); });
     tabsEl.appendChild(button);
-    pageButtons.push(button);
   });
 
+  function routeFromHash() {
+    var value = window.location.hash.replace(/^#/, '');
+    if (!value) { showTab(hasTopics ? 'timeline' : 'today', false); return; }
+    if (value === 'timeline') { showTab('timeline', false); return; }
+    if (value === 'today') { showTab('today', false); return; }
+    if (value === 'all') { showTab('today', false); setSingleCard(false); return; }
+    if (value === 'guard') {
+      showTab('today', false);
+      setSingleCard(false);
+      document.getElementById('page-guard').scrollIntoView({ block: 'start', behavior: 'auto' });
+      return;
+    }
+    var index = panels.findIndex(function (panel) { return panel.getAttribute('data-page') === value; });
+    if (index >= 0) { showTab('today', false); showPage(index, false); return; }
+    showTab(hasTopics ? 'timeline' : 'today', false);
+  }
+
+  // ---------- 交互绑定 ----------
+  tabButtons.forEach(function (button) {
+    button.addEventListener('click', function () { showTab(button.getAttribute('data-tab'), true); });
+  });
+
+  continuousToggle.addEventListener('click', function () {
+    if (mode !== 'today') { showTab('today', true); setSingleCard(false); return; }
+    setSingleCard(!singleCard);
+    if (singleCard) showPage(currentPage, true);
+    else updateHash('all');
+  });
+
+  prevButton.addEventListener('click', function () { showPage(currentPage - 1, true); });
+  nextButton.addEventListener('click', function () { showPage(currentPage + 1, true); });
+  window.addEventListener('hashchange', routeFromHash);
+
+  document.addEventListener('keydown', function (event) {
+    if (mode !== 'today' || !singleCard || directory.open) return;
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    var tagName = event.target && event.target.tagName;
+    if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return;
+    if (event.key === 'ArrowLeft') { event.preventDefault(); showPage(currentPage - 1, true); }
+    else if (event.key === 'ArrowRight') { event.preventDefault(); showPage(currentPage + 1, true); }
+  });
+
+  // 只识别明确、快速的横向手势；不 preventDefault，垂直滚动与链接点击保持原生行为。
+  function getSwipeDirection(start, end, now) {
+    if (!start || !end) return 0;
+    var dx = end.x - start.x;
+    var dy = end.y - start.y;
+    var elapsed = now - start.time;
+    if (elapsed > 800 || Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 1.35) return 0;
+    return dx < 0 ? 1 : -1;
+  }
+  var gesture = null;
+  var readerPages = document.getElementById('reader-pages');
+  readerPages.addEventListener('touchstart', function (event) {
+    if (mode !== 'today' || !singleCard || event.touches.length !== 1) { gesture = null; return; }
+    if (event.target.closest('a, button, summary, input, textarea, select')) { gesture = null; return; }
+    var touch = event.touches[0];
+    gesture = { x: touch.clientX, y: touch.clientY, time: Date.now() };
+  }, { passive: true });
+  readerPages.addEventListener('touchcancel', function () { gesture = null; }, { passive: true });
+  readerPages.addEventListener('touchend', function (event) {
+    if (!gesture || mode !== 'today' || !singleCard || !event.changedTouches.length) { gesture = null; return; }
+    var touch = event.changedTouches[0];
+    var direction = getSwipeDirection(gesture, { x: touch.clientX, y: touch.clientY }, Date.now());
+    gesture = null;
+    if (direction > 0) showPage(currentPage + 1, true);
+    else if (direction < 0) showPage(currentPage - 1, true);
+  }, { passive: true });
+
+  // ---------- 目录 ----------
   var directory = document.getElementById('directory');
   function openDirectory() {
     if (typeof directory.showModal === 'function') {
@@ -887,19 +1157,20 @@
     if (typeof directory.close === 'function' && directory.open) directory.close();
     else directory.removeAttribute('open');
   }
-  document.querySelectorAll('[data-open-directory]').forEach(function (button) { button.addEventListener('click', openDirectory); });
+  document.querySelectorAll('[data-open-directory]').forEach(function (button) {
+    button.addEventListener('click', openDirectory);
+  });
   document.getElementById('close-directory').addEventListener('click', closeDirectory);
   directory.addEventListener('click', function (event) { if (event.target === directory) closeDirectory(); });
 
-  document.querySelectorAll('[data-go]').forEach(function (button) {
-    button.addEventListener('click', function () {
-      var target = button.getAttribute('data-go');
-      closeDirectory();
-      if (target === 'cover') { showCover(true); return; }
-      if (target === 'all') { showAll(true); return; }
-      var index = panels.findIndex(function (panel) { return panel.getAttribute('data-page') === target; });
-      if (index >= 0) showPage(index, true);
-    });
+  directoryList.addEventListener('click', function (event) {
+    var button = event.target.closest('[data-go]');
+    if (!button) return;
+    closeDirectory();
+    var target = button.getAttribute('data-go');
+    if (target === 'all') { showTab('today', true); setSingleCard(false); return; }
+    var index = panels.findIndex(function (panel) { return panel.getAttribute('data-page') === target; });
+    if (index >= 0) { showTab('today', true); showPage(index, true); }
   });
 
   document.querySelectorAll('[data-filter]').forEach(function (button) {
@@ -920,59 +1191,23 @@
     });
   });
 
-  document.getElementById('back-cover').addEventListener('click', function () { showCover(true); });
-  continuousToggle.addEventListener('click', function () { if (mode === 'all') showPage(currentPage, true); else showAll(true); });
-  prevButton.addEventListener('click', function () { showPage(currentPage - 1, true); });
-  nextButton.addEventListener('click', function () { showPage(currentPage + 1, true); });
-  window.addEventListener('hashchange', routeFromHash);
-
-  document.addEventListener('keydown', function (event) {
-    if (mode !== 'page' || directory.open || event.altKey || event.ctrlKey || event.metaKey) return;
-    var tagName = event.target && event.target.tagName;
-    if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return;
-    if (event.key === 'ArrowLeft') { event.preventDefault(); showPage(currentPage - 1, true); }
-    else if (event.key === 'ArrowRight') { event.preventDefault(); showPage(currentPage + 1, true); }
-    else if (event.key === 'Escape') showCover(true);
-  });
-
-  // 只识别明确、快速的横向手势；不 preventDefault，垂直滚动与链接点击保持原生行为。
-  function getSwipeDirection(start, end, now) {
-    if (!start || !end) return 0;
-    var dx = end.x - start.x;
-    var dy = end.y - start.y;
-    var elapsed = now - start.time;
-    if (elapsed > 800 || Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 1.35) return 0;
-    return dx < 0 ? 1 : -1;
-  }
-  var gesture = null;
-  var readerPages = document.getElementById('reader-pages');
-  readerPages.addEventListener('touchstart', function (event) {
-    if (mode !== 'page' || event.touches.length !== 1) { gesture = null; return; }
-    if (event.target.closest('a, button, summary, input, textarea, select')) { gesture = null; return; }
-    var touch = event.touches[0];
-    gesture = { x: touch.clientX, y: touch.clientY, time: Date.now() };
-  }, { passive: true });
-  readerPages.addEventListener('touchcancel', function () { gesture = null; }, { passive: true });
-  readerPages.addEventListener('touchend', function (event) {
-    if (!gesture || mode !== 'page' || !event.changedTouches.length) { gesture = null; return; }
-    var touch = event.changedTouches[0];
-    var direction = getSwipeDirection(gesture, { x: touch.clientX, y: touch.clientY }, Date.now());
-    gesture = null;
-    if (direction > 0) showPage(currentPage + 1, true);
-    else if (direction < 0) showPage(currentPage - 1, true);
-  }, { passive: true });
-
+  // ---------- 回顶 ----------
   var backTop = document.getElementById('backTop');
-  function updateBackTop() { backTop.hidden = window.scrollY < 600 || mode !== 'all'; }
+  function updateBackTop() { backTop.hidden = window.scrollY < 600; }
   window.addEventListener('scroll', updateBackTop, { passive: true });
   backTop.addEventListener('click', function () {
     var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' });
   });
 
-  loadingEl.remove();
-  document.getElementById('app').hidden = false;
+  // ---------- 启动 ----------
+  if (!ENABLE_TIMELINE_TAB) document.getElementById('main-tabs').hidden = true;
+  setSingleCard(true);
+  showTab(hasTopics ? 'timeline' : 'today', false);
   routeFromHash();
+
+  if (loadingEl) loadingEl.remove();
+  document.getElementById('app').hidden = false;
   updateBackTop();
   startRecoveryPolling(data);
 })();

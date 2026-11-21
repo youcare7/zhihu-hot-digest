@@ -7,8 +7,10 @@
 !demo/
 !demo/index.html
 !demo/data.js
+!demo/timeline.js
 !data/
 !data/fallback.json
+!data/topic_timeline.json
 
 # 当日缓存与线上快照是运行时产物，绝不能被打进镜像
 data/brief_*.json
