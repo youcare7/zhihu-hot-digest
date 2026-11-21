@@ -1407,10 +1407,10 @@ def _fallback_with_refresh_state(refreshing: bool = False) -> dict:
     data["refreshing"] = bool(refreshing or _refresh_active())
     data["retry_after"] = _refresh_retry_after()
     if data["refreshing"]:
-        data["notice"] = "当前为演示兜底数据，今日简报正在后台生成；页面会在生成完成后自动更新。"
+        data["notice"] = "当前展示缓存快照，实时接口暂未连通，正在后台重试；恢复后自动切换今日简报。"
     elif data["retry_after"] > 0:
         minutes = max(1, (data["retry_after"] + 59) // 60)
-        data["notice"] = f"当前为演示兜底数据，今日简报暂未生成成功，约 {minutes} 分钟后重试；页面会自动恢复。"
+        data["notice"] = f"当前展示缓存快照，实时接口暂未生成成功，约 {minutes} 分钟后重试；恢复后自动切换。"
     return data
 
 
