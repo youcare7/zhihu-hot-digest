@@ -1,10 +1,7 @@
 {
-  "name": "zhihu-hot-digest",
-  "version": "3.0.0",
+  "name": "zhihu-hot-digest-test",
   "private": true,
-  "description": "热榜深潜简报本地预览",
   "scripts": {
-    "dev": "node scripts/dev_server.mjs",
-    "test:frontend": "node tests/test_frontend_recovery.js && node tests/test_paged_navigation.js"
+    "dev": "node scripts/dev_server.mjs"
   }
 }
