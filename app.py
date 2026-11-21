@@ -24,7 +24,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from flask import Flask, Response, send_file
+from flask import Flask, Response, send_file, send_from_directory
 
 
 def _log(msg: str) -> None:
@@ -1469,6 +1469,13 @@ app = Flask(__name__)
 @app.route("/")
 def index():
     return send_file(INDEX_PATH)
+
+
+@app.route("/assets/<path:filename>")
+def assets(filename):
+    """v2.8 吉祥物/动效静态资源：前端以 assets/xx.webp 相对路径引用，
+    容器必须显式提供，否则正式站吉祥物 404（静态托管的临时站不受影响）。"""
+    return send_from_directory(DEMO_DIR / "assets", filename)
 
 
 @app.route("/healthz")
