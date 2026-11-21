@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>热榜深潜简报 · 两分钟调研</title>
+<style>
+:root{
+  /* 品牌色取自产品主站：纸面米白 + 墨蓝黑 + 知乎蓝点缀 */
+  --p-accent: oklch(0.52 0.16 252);
+  --p-ink: oklch(0.28 0.02 250);
+  --p-paper: oklch(0.985 0.005 95);
+  --p-muted: oklch(0.55 0.015 250);
+  --surface: var(--p-paper);
+  --surface-2: oklch(0.965 0.006 95);
+  --text: var(--p-ink);
+  --text-2: var(--p-muted);
+  --accent: var(--p-accent);
+  --line: oklch(0.28 0.02 250 / .14);
+  --radius: 14px;
+  --serif: "Noto Serif SC", "Songti SC", "SimSun", Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font:16px/1.75 var(--sans); color:var(--text); background:var(--surface);
+  -webkit-font-smoothing:antialiased; min-height:100dvh;
+}
+img{display:block}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+button{font:inherit;color:inherit;cursor:pointer;background:none;border:0}
+
+.stage{max-width:640px;margin:0 auto;padding:0 20px 64px;min-height:100dvh;display:flex;flex-direction:column}
+
+/* 顶部：进度 */
+.progress{position:sticky;top:0;z-index:5;padding:14px 0 10px;background:linear-gradient(var(--surface) 78%,transparent)}
+.progress-track{height:3px;border-radius:99px;background:oklch(0.28 0.02 250 / .10);overflow:hidden}
+.progress-bar{height:100%;width:0;border-radius:inherit;background:var(--accent);transition:width 260ms ease}
+.progress-meta{display:flex;justify-content:space-between;margin-top:8px;color:var(--text-2);font-size:12px;letter-spacing:.08em}
+
+/* 卡片与切换 */
+.card{flex:1;display:flex;flex-direction:column;padding-top:26px}
+.screen{display:none;flex:1;flex-direction:column}
+.screen.on{display:flex;animation:rise 240ms ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(10px) scale(.995)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.screen.on{animation:none}}
+
+/* 引言屏 */
+.host{display:flex;align-items:flex-end;gap:14px;margin-top:8px}
+.host img{width:84px;height:auto;filter:drop-shadow(0 8px 14px oklch(0.28 0.02 250 / .18))}
+.host-bubble{position:relative;margin-bottom:34px;padding:12px 16px;border:1px solid var(--line);border-radius:14px 14px 14px 4px;background:#fff;color:var(--text);font-size:14px;line-height:1.7}
+.kicker{display:flex;align-items:center;gap:10px;margin-top:34px;color:var(--accent);font-size:11px;font-weight:600;letter-spacing:.14em}
+.kicker::before{content:"";width:26px;height:1px;background:var(--accent)}
+h1{margin-top:14px;font-family:var(--serif);font-size:clamp(30px,7.4vw,42px);line-height:1.35;font-weight:700}
+.intro-copy{margin-top:16px;color:var(--text-2);font-size:15px;line-height:1.9}
+.intro-copy b{color:var(--text);font-weight:600}
+.intro-note{margin-top:14px;padding:11px 14px;border:1px dashed var(--line);border-radius:10px;color:var(--text-2);font-size:13px;line-height:1.8}
+.actions{display:flex;flex-direction:column;gap:10px;margin-top:26px}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;min-height:52px;padding:0 22px;border-radius:14px;font-size:15px;font-weight:600;text-decoration:none;transition:transform 160ms ease,background-color 160ms ease,color 160ms ease}
+.btn:active{transform:scale(.985)}
+.btn-primary{background:var(--text);color:var(--surface)}
+.btn-primary:hover{background:oklch(0.36 0.02 250)}
+.btn-ghost{border:1px solid var(--line);color:var(--text)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+
+/* 题目屏 */
+.q-no{display:flex;align-items:center;gap:10px;color:var(--text-2);font-size:12px;font-weight:600;letter-spacing:.16em}
+.q-no::after{content:"";flex:1;height:1px;background:var(--line)}
+.q-title{margin-top:14px;font-family:var(--serif);font-size:clamp(21px,5.2vw,26px);line-height:1.55;font-weight:600}
+.q-hint{margin-top:6px;color:var(--text-2);font-size:13px}
+.q-body{margin-top:22px;flex:1}
+
+.opts{display:grid;gap:10px}
+.opt{display:flex;align-items:center;gap:12px;min-height:52px;padding:13px 16px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;font-size:15px;line-height:1.6;text-align:left;transition:border-color 140ms ease,background-color 140ms ease,transform 140ms ease}
+.opt:hover{border-color:var(--accent);transform:translateY(-1px)}
+.opt .tick{flex:none;width:18px;height:18px;border:1.5px solid var(--line);border-radius:50%;transition:all 140ms ease}
+.opts.multi .opt .tick{border-radius:6px}
+.opt.sel{border-color:var(--text);background:var(--surface-2)}
+.opt.sel .tick{border-color:var(--accent);background:var(--accent);box-shadow:inset 0 0 0 3px #fff}
+.opt small{display:block;color:var(--text-2);font-size:12px}
+
+.rate{display:flex;align-items:center;gap:14px;padding:6px 2px}
+.rate-dot{width:44px;height:44px;border:1.5px solid var(--line);border-radius:50%;display:grid;place-items:center;font:600 15px/1 Georgia,serif;color:var(--text-2);transition:all 140ms ease}
+.rate-dot:hover{border-color:var(--accent);color:var(--accent);transform:scale(1.06)}
+.rate-dot.sel{border-color:var(--text);background:var(--text);color:var(--surface)}
+.rate-labels{display:flex;justify-content:space-between;margin-top:10px;color:var(--text-2);font-size:12px}
+
+.q-text{width:100%;min-height:120px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;color:var(--text);font:inherit;font-size:15px;line-height:1.8;resize:vertical}
+.q-text:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
+.q-text::placeholder{color:var(--text-2)}
+
+.err{display:none;margin-top:12px;color:oklch(0.55 0.19 30);font-size:13px}
+.err.on{display:block}
+
+.q-nav{display:flex;gap:10px;margin-top:26px}
+.q-nav .btn{flex:1}
+.q-nav .btn-back{flex:0 0 auto;min-width:88px}
+
+/* 完成屏 */
+.done-hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding-top:18px}
+.done-hero img{width:110px;height:auto}
+.done-title{margin-top:16px;font-family:var(--serif);font-size:26px;font-weight:700}
+.done-copy{margin-top:10px;color:var(--text-2);font-size:14px;line-height:1.9;max-width:42ch}
+.copy-preview{width:100%;margin-top:22px;padding:16px;border:1px solid var(--line);border-radius:var(--radius);background:#fff;color:var(--text-2);font-size:13px;line-height:1.9;white-space:pre-wrap;word-break:break-word;max-height:280px;overflow-y:auto;text-align:left}
+.copy-ok{color:var(--accent);font-weight:600}
+.done-links{margin-top:18px;color:var(--text-2);font-size:12px;line-height:2;text-align:center}
+
+@media (min-width:640px){.actions{flex-direction:row}.actions .btn{flex:1}}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="progress" aria-hidden="true">
+    <div class="progress-track"><div class="progress-bar" id="pbar"></div></div>
+    <div class="progress-meta"><span id="pstep">开始</span><span>约 2 分钟</span></div>
+  </div>
+
+  <main class="card" id="card"></main>
+</div>
+<script>
+'use strict';
+/* 产品测试站公网地址：发布后会替换占位符；未替换时隐藏「先去看看」入口 */
+var PRODUCT_URL = 'https://z7xxhut2352ei.ok.kimi.link/';
+
+var QUESTIONS = [
+  { type: 'text', key: 'q1', title: '用一句话说说——你觉得这个产品是干什么的？',
+    hint: '凭第一印象写，不用准确，我们想测的是「它看起来像什么」。', placeholder: '比如：一个帮我把热榜读薄的工具……' },
+  { type: 'choice', key: 'q2', title: '逛完第一眼，你的感受最接近哪个？',
+    options: ['信息清晰，我知道它能干嘛', '好看，但不太明白是干嘛的', '信息有点多，不知道先看哪', '没特别感觉'] },
+  { type: 'choice', key: 'q3', title: '每条热点最上方有一句「判断」（比如“双方都不否认两点”）——你注意到了吗？',
+    options: ['第一眼就看到，觉得很有用', '看到了，但没细读', '完全没注意到'] },
+  { type: 'choice', key: 'q4', title: '它有两种看法：「速览全部」一屏刷完所有结论，「分页深读」一页一条慢慢看。你更喜欢？',
+    options: ['速览全部：我就要快', '分页深读：我愿意细读', '看场景，两个都会用'] },
+  { type: 'choice', key: 'q5', title: '「双方观点」用蓝、橙两色标注立场，你能一眼分清吗？',
+    options: ['能，很清晰', '想一下才能分清', '容易混在一起'] },
+  { type: 'choice', key: 'q6', title: '「缺的那块拼图」「全网核验」这类“告诉你还缺什么证据”的区块，对你的影响是？',
+    options: ['会更信任里面的内容', '有意思，但我不会细看', '多余，我不关心证据'] },
+  { type: 'choice', key: 'q7', title: '封面那只白色小动物（知乎官方吉祥物刘看山）给你的感觉是？',
+    options: ['更官方、更可信', '可爱亲切', '有点幼稚', '没注意它'] },
+  { type: 'rating', key: 'q8', title: '给整体视觉打个分',
+    hint: '1 = 粗糙不想看，5 = 愿意截图发给朋友。' },
+  { type: 'multi', key: 'q9', title: '如果它每天更新，你会在什么场景打开？（可多选）',
+    options: ['通勤 / 课间刷手机时', '学习间隙在电脑上看', '睡前随便翻翻', '说实话，不会主动打开'] },
+  { type: 'text', key: 'q10', title: '最后一题：一句话建议——最希望我们改什么？',
+    hint: '选答。吐槽也行，越具体越好。', placeholder: '比如：字体再大点 / 加载再快点 / 想要夜间模式……' }
+];
+
+var STORE_KEY = 'kanshan-survey-v1';
+var card = document.getElementById('card');
+var pbar = document.getElementById('pbar');
+var pstep = document.getElementById('pstep');
+var state = load() || { idx: -1, answers: {} };
+
+function load() {
+  try { var v = JSON.parse(localStorage.getItem(STORE_KEY)); return v && typeof v === 'object' ? v : null; }
+  catch (e) { return null; }
+}
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {}
+}
+function el(tag, cls, text) {
+  var n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+function esc(s) { return String(s == null ? '' : s); }
+
+/* ---------- 屏幕渲染 ---------- */
+function render() {
+  save();
+  var total = QUESTIONS.length;
+  var pct = state.idx < 0 ? 2 : Math.min(100, Math.round((state.idx + 1) / (total + 1) * 100));
+  pbar.style.width = pct + '%';
+  pstep.textContent = state.idx < 0 ? '开始' : (state.idx >= total ? '完成' : '第 ' + (state.idx + 1) + ' / ' + total + ' 题');
+
+  card.innerHTML = '';
+  if (state.idx < 0) renderIntro();
+  else if (state.idx >= total) renderDone();
+  else renderQuestion(state.idx);
+  window.scrollTo(0, 0);
+}
+
+function renderIntro() {
+  var s = el('section', 'screen on');
+  var host = el('div', 'host');
+  host.innerHTML = '<img src="kanshan-front.png" alt="知乎吉祥物刘看山"><div class="host-bubble">我是看山，今天替产品组值班。先花 30 秒逛逛我们的小样，再答 10 道题，就算帮大忙了。</div>';
+  s.appendChild(host);
+  s.appendChild(el('div', 'kicker', '热榜深潜简报 · 用户调研'));
+  var h = el('h1', '', '两分钟，帮我们\n看清一件事。');
+  h.style.whiteSpace = 'pre-line';
+  s.appendChild(h);
+  var copy = el('p', 'intro-copy');
+  copy.innerHTML = '我们在做一个<b>把知乎热榜「读薄」</b>的小工具：每条热点只给<b>一句判断、双方观点和缺失的证据</b>。比赛演示前，想请最熟悉我们的你先用用看。';
+  s.appendChild(copy);
+  var note = el('div', 'intro-note', '全程匿名，不收集任何个人信息。答完后请把生成的结果粘贴回群里——这是本次调研唯一的回传方式。');
+  s.appendChild(note);
+  var actions = el('div', 'actions');
+  if (PRODUCT_URL && PRODUCT_URL.indexOf('http') === 0) {
+    var go = el('a', 'btn btn-ghost', '先去看看（30 秒，新窗口打开）↗');
+    go.href = PRODUCT_URL; go.target = '_blank'; go.rel = 'noopener';
+    actions.appendChild(go);
+  }
+  var start = el('button', 'btn btn-primary', '开始答题 →');
+  start.type = 'button';
+  start.addEventListener('click', function () { state.idx = 0; render(); });
+  actions.appendChild(start);
+  s.appendChild(actions);
+  card.appendChild(s);
+}
+
+function renderQuestion(i) {
+  var q = QUESTIONS[i];
+  var s = el('section', 'screen on');
+  s.appendChild(el('div', 'q-no', 'QUESTION ' + String(i + 1).padStart(2, '0')));
+  s.appendChild(el('h2', 'q-title', q.title));
+  if (q.hint) s.appendChild(el('p', 'q-hint', q.hint));
+  var body = el('div', 'q-body');
+
+  if (q.type === 'choice' || q.type === 'multi') {
+    var opts = el('div', 'opts' + (q.type === 'multi' ? ' multi' : ''));
+    var cur = state.answers[q.key] || (q.type === 'multi' ? [] : null);
+    q.options.forEach(function (label, oi) {
+      var b = el('button', 'opt', '');
+      b.type = 'button';
+      var selected = q.type === 'multi' ? cur.indexOf(label) >= 0 : cur === label;
+      if (selected) b.classList.add('sel');
+      b.appendChild(el('span', 'tick'));
+      b.appendChild(el('span', '', label));
+      b.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      b.addEventListener('click', function () {
+        if (q.type === 'multi') {
+          var list = (state.answers[q.key] || []).slice();
+          var at = list.indexOf(label);
+          if (at >= 0) list.splice(at, 1); else list.push(label);
+          state.answers[q.key] = list;
+        } else {
+          state.answers[q.key] = label;
+        }
+        render();
+      });
+      opts.appendChild(b);
+    });
+    body.appendChild(opts);
+  } else if (q.type === 'rating') {
+    var rate = el('div', 'rate');
+    rate.setAttribute('role', 'radiogroup');
+    rate.setAttribute('aria-label', '1 到 5 分');
+    for (var v = 1; v <= 5; v++) (function (v) {
+      var d = el('button', 'rate-dot' + (state.answers[q.key] === v ? ' sel' : ''), String(v));
+      d.type = 'button';
+      d.setAttribute('role', 'radio');
+      d.setAttribute('aria-checked', state.answers[q.key] === v ? 'true' : 'false');
+      d.addEventListener('click', function () { state.answers[q.key] = v; render(); });
+      rate.appendChild(d);
+    })(v);
+    body.appendChild(rate);
+    var labels = el('div', 'rate-labels');
+    labels.appendChild(el('span', '', '1 粗糙不想看'));
+    labels.appendChild(el('span', '', '5 愿意发给朋友'));
+    body.appendChild(labels);
+  } else if (q.type === 'text') {
+    var ta = el('textarea', 'q-text');
+    ta.placeholder = q.placeholder || '';
+    ta.value = state.answers[q.key] || '';
+    ta.setAttribute('aria-label', q.title);
+    ta.addEventListener('input', function () { state.answers[q.key] = ta.value; save(); });
+    body.appendChild(ta);
+  }
+  s.appendChild(body);
+
+  var err = el('p', 'err', '先选一个再继续～');
+  err.id = 'err';
+  s.appendChild(err);
+
+  var nav = el('div', 'q-nav');
+  var back = el('button', 'btn btn-ghost btn-back', '← 上一题');
+  back.type = 'button';
+  back.addEventListener('click', function () { state.idx -= 1; render(); });
+  nav.appendChild(back);
+  var next = el('button', 'btn btn-primary', i === QUESTIONS.length - 1 ? '完成 ✓' : '下一题 →');
+  next.type = 'button';
+  next.addEventListener('click', function () {
+    if (!valid(q)) { err.classList.add('on'); return; }
+    state.idx += 1; render();
+  });
+  nav.appendChild(next);
+  s.appendChild(nav);
+  card.appendChild(s);
+}
+
+function valid(q) {
+  var a = state.answers[q.key];
+  if (q.type === 'text') return true; /* 文本题选答 */
+  if (q.type === 'multi') return Array.isArray(a) && a.length > 0;
+  return a != null && a !== '';
+}
+
+/* ---------- 结果 ---------- */
+function fmtDate() {
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function resultText() {
+  var lines = ['【热榜深潜简报 · 调研回答】' + fmtDate()];
+  QUESTIONS.forEach(function (q, i) {
+    var a = state.answers[q.key];
+    var v = q.type === 'multi' ? (a || []).join('、') : (q.type === 'rating' ? (a ? a + ' 分' : '') : esc(a));
+    lines.push((i + 1) + '. ' + q.title.replace(/\s+/g, ' '));
+    lines.push('   ' + (v || '（未答）'));
+  });
+  return lines.join('\n');
+}
+
+function renderDone() {
+  var s = el('section', 'screen on');
+  var hero = el('div', 'done-hero');
+  hero.innerHTML = '<img src="kanshan-front.png" alt="">';
+  hero.appendChild(el('div', 'done-title', '谢谢你，看完了！'));
+  hero.appendChild(el('p', 'done-copy', '就差最后一步：复制下面的回答，粘贴回我们的群里。它不会被自动上传——这是故意做的匿名设计。'));
+  s.appendChild(hero);
+  var preview = el('div', 'copy-preview', resultText());
+  s.appendChild(preview);
+  var actions = el('div', 'actions');
+  var copy = el('button', 'btn btn-primary', '复制我的回答');
+  copy.type = 'button';
+  copy.addEventListener('click', function () {
+    var text = resultText();
+    function ok() { copy.textContent = '已复制 ✓ 去群里粘贴吧'; copy.classList.add('copy-ok'); }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); ok(); } catch (e) { copy.textContent = '复制失败，请长按上方文本手动复制'; }
+      ta.remove();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok, fallback);
+    } else fallback();
+  });
+  actions.appendChild(copy);
+  var again = el('button', 'btn btn-ghost', '重新填一份');
+  again.type = 'button';
+  again.addEventListener('click', function () { state = { idx: -1, answers: {} }; render(); });
+  actions.appendChild(again);
+  s.appendChild(actions);
+  var links = el('p', 'done-links');
+  links.innerHTML = '热榜深潜简报 · 知乎黑客松 S3<br>调研为匿名设计，结果仅由你手动发回';
+  s.appendChild(links);
+  card.appendChild(s);
+}
+
+render();
+</script>
+</body>
+</html>

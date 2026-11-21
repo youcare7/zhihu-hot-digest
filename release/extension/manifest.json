@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "热榜深潜简报 · 求真标签",
+  "version": "0.1.0",
+  "description": "在知乎热榜给今日深读条目盖求真印章：吵翻天 / 缺关键证据 / 有定论 / 已实锤，悬停看锐评与双方金句。",
+  "content_scripts": [
+    {
+      "matches": [
+        "*://www.zhihu.com/hot*",
+        "*://www.zhihu.com/billboard*"
+      ],
+      "js": ["data.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
