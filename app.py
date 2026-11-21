@@ -1361,12 +1361,26 @@ def _count_ok(data: dict) -> int:
     return sum(1 for it in (data or {}).get("items", []) if it.get("background") != NO_BACKGROUND)
 
 
+def _is_enriched(data: dict) -> bool:
+    """v2.8 富化缓存（含看山/判决卡/跨平台核验等人工增强字段）不可被管线覆盖：
+    管线生成器目前不产出这些字段，覆盖会让线上功能回退。"""
+    items = (data or {}).get("items") or []
+    return any(isinstance(it, dict) and (it.get("kanshan") or it.get("punch") or it.get("crosscheck"))
+               for it in items)
+
+
 def _background_refresh() -> None:
     try:
         with _GEN_LOCK:
             age = cache_age_seconds()
             if age is not None and age <= CACHE_TTL_SECONDS and load_today_cache() is not None:
                 return  # 等锁期间已被别的请求刷新过；仅有新鲜 mtime 的坏缓存不算
+            existing = load_today_cache()
+            if _is_enriched(existing):
+                _set_refresh_cooldown()
+                _log("现有缓存为 v2.8 富化快照（含看山/判决卡/跨平台核验），管线结果不覆盖，冷却 "
+                     f"{REFRESH_COOLDOWN_SECONDS} 秒")
+                return
             # 防劣化保护：只把 load_today_cache 认可的有效旧缓存作为基准。
             # 模拟缓存即使“成功条数”很多，也不能阻止真实新结果覆盖它。
             old_ok = _count_ok(load_today_cache() or {})
