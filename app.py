@@ -98,7 +98,7 @@ SEARCH_COUNT = 10            # 每条热点的搜索素材上限
 ZHIDA_MODEL = os.environ.get("ZHIDA_MODEL", "zhida-fast-1p5")
 
 NOTICE_LIVE = "由知乎开放平台 API 实时生成，AI 内容仅供参考。"
-NOTICE_FALLBACK = "当前为演示兜底数据，接口暂不可用。"
+NOTICE_FALLBACK = "当前展示缓存快照，知乎实时接口暂不可用，恢复后自动切换。"
 NOTICE_MOCK = "【模拟数据】当前为 mock 模式：全部内容来自本地示例，并非知乎 API 真实返回，链接不可点击。"
 
 EMPTY_VIEWPOINT = "站内暂无明确该立场声音"   # 保留：历史缓存 / fallback.json 兼容
