@@ -1307,10 +1307,9 @@ def load_fallback() -> dict:
         # 前端封面/总览直接读 digest.total / headline / 三态 / insights，
         # 最小兜底也必须带完整 digest，否则「有 JS、无字段」仍是白屏。
         data = {"items": [], "digest": build_digest([])}
-    data["source"] = "fallback"
     data["date"] = data.get("date") or today_str()
     data["generated_at"] = data.get("generated_at") or now_str()
-    data["notice"] = NOTICE_FALLBACK
+    # source / notice 保留快照文件原值，与静态演示站（demo/data.js）口径一致
     return data
 
 
@@ -1406,11 +1405,7 @@ def _fallback_with_refresh_state(refreshing: bool = False) -> dict:
     data = load_fallback()
     data["refreshing"] = bool(refreshing or _refresh_active())
     data["retry_after"] = _refresh_retry_after()
-    if data["refreshing"]:
-        data["notice"] = "当前展示缓存快照，实时接口暂未连通，正在后台重试；恢复后自动切换今日简报。"
-    elif data["retry_after"] > 0:
-        minutes = max(1, (data["retry_after"] + 59) // 60)
-        data["notice"] = f"当前展示缓存快照，实时接口暂未生成成功，约 {minutes} 分钟后重试；恢复后自动切换。"
+    # notice 保持快照原值，与静态演示站一致；refreshing/retry_after 仅驱动前端静默轮询
     return data
 
 
