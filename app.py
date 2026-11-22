@@ -77,6 +77,7 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 DEMO_DIR = BASE_DIR / "demo"
 INDEX_PATH = DEMO_DIR / "index.html"
+TIMELINE_PATH = DEMO_DIR / "timeline.js"
 FALLBACK_PATH = DATA_DIR / "fallback.json"
 
 # ---------------------------------------------------------------------------
@@ -1461,6 +1462,30 @@ def data_js():
     payload = _js_safe_json(json.dumps(brief, ensure_ascii=False))
     return Response(
         f"window.BRIEF_DATA = {payload};",
+        mimetype="application/javascript",
+        headers={
+            "Cache-Control": "no-store, max-age=0",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@app.route("/timeline.js")
+def timeline_js():
+    raw_payload = '{"generated_at":"","archive_files":0,"tracked_days":0,"missing_dates":[],"topics":[]}'
+    if TIMELINE_PATH.is_file():
+        try:
+            content = TIMELINE_PATH.read_text(encoding="utf-8").strip()
+            prefix = "window.TIMELINE_DATA = "
+            if content.startswith(prefix):
+                json_part = content[len(prefix):].rstrip().rstrip(";")
+                parsed = json.loads(json_part)
+                raw_payload = json.dumps(parsed, ensure_ascii=False)
+        except Exception as e:
+            _log(f"读取 timeline.js 异常，降级为空时间轴: {e}")
+    safe_payload = _js_safe_json(raw_payload)
+    return Response(
+        f"window.TIMELINE_DATA = {safe_payload};",
         mimetype="application/javascript",
         headers={
             "Cache-Control": "no-store, max-age=0",

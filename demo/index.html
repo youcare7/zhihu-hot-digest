@@ -1077,7 +1077,7 @@
 
   function routeFromHash() {
     var value = window.location.hash.replace(/^#/, '');
-    if (!value) { showTab(hasTopics ? 'timeline' : 'today', false); return; }
+    if (!value) { showTab('today', false); return; }
     if (value === 'timeline') { showTab('timeline', false); return; }
     if (value === 'today') { showTab('today', false); return; }
     if (value === 'all') { showTab('today', false); setSingleCard(false); return; }
@@ -1089,7 +1089,7 @@
     }
     var index = panels.findIndex(function (panel) { return panel.getAttribute('data-page') === value; });
     if (index >= 0) { showTab('today', false); showPage(index, false); return; }
-    showTab(hasTopics ? 'timeline' : 'today', false);
+    showTab('today', false);
   }
 
   // ---------- 交互绑定 ----------
@@ -1203,7 +1203,7 @@
   // ---------- 启动 ----------
   if (!ENABLE_TIMELINE_TAB) document.getElementById('main-tabs').hidden = true;
   setSingleCard(true);
-  showTab(hasTopics ? 'timeline' : 'today', false);
+  showTab('today', false);
   routeFromHash();
 
   if (loadingEl) loadingEl.remove();
