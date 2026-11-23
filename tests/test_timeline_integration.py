@@ -1,12 +1,5 @@
 # -*- coding: utf-8 -*-
-"""合订本与时间轴集成测试 (tests/test_timeline_integration.py)
-
-验证内容：
-1. daily_archive.py 归档生成：字段齐备、原子落盘、零额外模型消耗；
-2. build_timeline.py 编译生成：话题结构合法、跨天匹配准确；
-3. /timeline.js 服务端路由：HTTP 200、nosniff 标头、XSS 特殊字符转义、降级容错；
-4. 前端 hash 路由硬锁：默认根路由必须硬锁 #today，绝不自动劫持跳转至时间轴。
-"""
+"""Integration checks for the validated archive and timeline pipeline."""
 import json
 import os
 import pathlib
@@ -15,70 +8,82 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import app  # noqa: E402
-from scripts.daily_archive import archive_today
-from scripts.build_timeline import build_timeline, _escape_js_payload
-
-client = app.app.test_client()
-checks = []
+from scripts import build_timeline, daily_archive  # noqa: E402
 
 
-def check(name, cond, detail=""):
-    checks.append((name, bool(cond), detail))
-    print(f"  [{'PASS' if cond else 'FAIL'}] {name}" + (f" — {detail}" if detail else ""))
-    if not cond:
-        raise AssertionError(f"{name} 失败: {detail}")
+def archive_item(qid, title):
+    return {
+        "rank": 1,
+        "title": title,
+        "question_url": f"https://www.zhihu.com/question/{qid}",
+        "type": "verify",
+        "background": "已有有效解读",
+        "focus": "可核验材料",
+        "gap": "公开原始材料",
+        "reading": [{"title": "代表回答", "url": f"https://www.zhihu.com/question/{qid}/answer/1"}],
+    }
 
 
 def run_tests():
-    print("=== 开始合订本与时间轴集成测试 ===")
+    with tempfile.TemporaryDirectory(prefix="timeline-integration-") as temp:
+        root = pathlib.Path(temp)
+        old_data_dir = app.DATA_DIR
+        old_build_brief = app.build_brief
+        old_archive_dir = build_timeline.ARCHIVE_DIR
+        old_aliases_path = build_timeline.ALIASES_PATH
+        try:
+            app.DATA_DIR = root
+            date = "2026-11-20"
+            items = [archive_item(str(i), f"热点 {i}") for i in range(5)]
+            app.build_brief = lambda: {"date": date, "source": "live", "items": items}
+            assert daily_archive.main(["--date", date]) == 0
+            archive = json.loads((root / "archive" / f"{date}.json").read_text(encoding="utf-8"))
+            assert archive["source"] == "live"
+            assert archive["date"] == date and len(archive["items"]) == 5
 
-    # 1. 归档脚本测试
-    print("\n[1] 每日归档脚本契约")
-    archive_file = archive_today()
-    check("归档文件已生成", archive_file.is_file(), str(archive_file))
-    arc_data = json.loads(archive_file.read_text(encoding="utf-8"))
-    check("归档含 date 字段", "date" in arc_data, arc_data.get("date"))
-    check("归档含 items 列表", isinstance(arc_data.get("items"), list), f"len={len(arc_data.get('items', []))}")
-    check("归档 items 非空", len(arc_data["items"]) > 0, f"count={len(arc_data['items'])}")
+            second_date = "2026-11-21"
+            second_items = [archive_item(str(i), f"热点 {i}") for i in range(5)]
+            (root / "archive" / f"{second_date}.json").write_text(
+                json.dumps({"date": second_date, "source": "cache", "items": second_items}),
+                encoding="utf-8",
+            )
+            aliases_path = root / "topic_aliases.json"
+            aliases_path.write_text(json.dumps({"aliases": {}, "splits": [], "hidden_topics": []}),
+                                    encoding="utf-8")
+            build_timeline.ARCHIVE_DIR = root / "archive"
+            build_timeline.ALIASES_PATH = aliases_path
+            timeline = build_timeline.build_timeline()
+            assert timeline["archive_files"] == 2
+            assert timeline["topics"] and timeline["topics"][0]["days"] == 2
 
-    # 2. 时间轴编译器测试
-    print("\n[2] 时间轴编译器契约")
-    tl_data = build_timeline()
-    check("返回时间轴字典", isinstance(tl_data, dict))
-    check("含 topics 列表", isinstance(tl_data.get("topics"), list))
-    check("topics 话题数 >= 1", len(tl_data.get("topics", [])) >= 1, f"topics={len(tl_data.get('topics', []))}")
-    for idx, top in enumerate(tl_data.get("topics", [])):
-        check(f"话题 #{idx+1} 含 title", bool(top.get("title")), top.get("title"))
-        check(f"话题 #{idx+1} 含 nodes", len(top.get("nodes", [])) >= 2, f"nodes={len(top.get('nodes', []))}")
-        for n in top.get("nodes", []):
-            check(f"节点含合法 state", n.get("state") in ("dispute", "consensus", "verify"), n.get("state"))
+            (root / "topic_timeline.json").write_text(json.dumps({
+                "generated_at": "",
+                "archive_files": 0,
+                "tracked_days": 0,
+                "missing_dates": [],
+                "topics": [{"title": "</script><script>alert(1)</script>", "nodes": []}],
+            }), encoding="utf-8")
+            app.DATA_DIR = root
+            with app.app.test_client() as client:
+                response = client.get("/timeline.js")
+            body = response.get_data(as_text=True)
+            assert response.status_code == 200
+            assert response.headers.get("X-Content-Type-Options") == "nosniff"
+            assert "no-store" in response.headers.get("Cache-Control", "")
+            assert "<script>" not in body and "\\u003c" in body and "\\u003e" in body
+            payload = json.loads(body[len("window.TIMELINE_DATA = "):-1])
+            assert payload["topics"][0]["title"] == "</script><script>alert(1)</script>"
 
-    # 3. /timeline.js 服务端路由与安全契约
-    print("\n[3] /timeline.js 路由与安全契约")
-    resp = client.get("/timeline.js")
-    check("/timeline.js 返回 200", resp.status_code == 200, str(resp.status_code))
-    check("/timeline.js 带 nosniff 标头", resp.headers.get("X-Content-Type-Options") == "nosniff")
-    check("/timeline.js 带 no-store", "no-store" in resp.headers.get("Cache-Control", ""))
+            html = app.INDEX_PATH.read_text(encoding="utf-8")
+            assert "if (!value) { showTab('today', false); return; }" in html
+            assert "showTab(hasTopics ? 'timeline' : 'today', false)" not in html
+        finally:
+            app.DATA_DIR = old_data_dir
+            app.build_brief = old_build_brief
+            build_timeline.ARCHIVE_DIR = old_archive_dir
+            build_timeline.ALIASES_PATH = old_aliases_path
 
-    text = resp.get_data(as_text=True)
-    check("/timeline.js 前缀正确", text.startswith("window.TIMELINE_DATA = "))
-    check("/timeline.js 无裸 <script>", "<script>" not in text)
-
-    # 验证 XSS 转义与回原性
-    escaped = _escape_js_payload('{"test": "<script>alert(1)</script>", "p": "\u2028\u2029"}')
-    check("XSS 左括号转义", "\\u003c" in escaped and "<" not in escaped)
-    check("XSS 右括号转义", "\\u003e" in escaped and ">" not in escaped)
-    check("段落分隔符转义", "\\u2028" in escaped and "\u2028" not in escaped)
-
-    # 4. 前端防劫持路由硬锁契约
-    print("\n[4] 前端防劫持路由契约")
-    html_text = app.INDEX_PATH.read_text(encoding="utf-8")
-    check("无默认 hasTopics 劫持", "showTab(hasTopics ? 'timeline' : 'today', false)" not in html_text)
-    check("默认根路由硬锁 today", "if (!value) { showTab('today', false); return; }" in html_text)
-
-    print("\n" + "=" * 50)
-    failed = [name for name, ok, _ in checks if not ok]
-    print(f"全部 {len(checks)} 项检查通过！" if not failed else f"失败 {len(failed)} 项！")
+    print("Timeline integration checks passed")
 
 
 if __name__ == "__main__":

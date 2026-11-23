@@ -5,8 +5,11 @@
 [![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Flask](https://img.shields.io/badge/Flask-3.x-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![Deploy on Tencent CloudBase](https://img.shields.io/badge/Deploy-Tencent%20CloudBase-1783FF?logo=tencent-cloud&logoColor=white)](https://cloudbase.net/)
+[![Version](https://img.shields.io/badge/Version-v2.8-056de8)](#版本记录)
 
 **[打开线上简报 →](https://zhihu-hot-digest-348140-5-1533039364.sh.run.tcloudbase.com/)** · [快速开始](#快速开始) · [测试与验收](#测试与验收)
+
+> **v2.8（2026-11-21 深夜轮）**：封面 v18 居中单栏、吉祥物动画 WebP、手机端整页滑动翻页、data.js 防缓存，发布包与云端清理见 [HANDOFF_2026-11-21_深夜轮](HANDOFF_2026-11-21_深夜轮.md)，临时预览 https://u622vsmgqfewy.ok.kimi.link
 
 知乎黑客松 S3 参赛作品。基于知乎开放平台 API，把当日 10 条热榜整理成一份可核查的争议简报：先给背景，再标出真分歧、已共识和待验证，最后说明还缺哪份一手材料。
 
@@ -224,6 +227,10 @@ MOCK_MODE=0 python app.py            # 成功：打印中文设置指引，退�
 | 页面徽章「演示兜底」 | 生成链路任一环节失败 | 属预期兜底行为，看终端日志定位原因 |
 | 某卡片显示「本条暂无可用素材，未生成解读」 | 该条单点生成降级 | 保留主标题与原问题入口，不影响其余卡片；冒烟脚本会将该快照判为 FAIL，提交前须复查 |
 | 首次刷新后内容没变化 | 缓存未过期 | 正常；TTL 默认 3 小时，后台静默刷新 |
+
+## 版本记录
+
+- **v2.8（2026-11-21 深夜轮）**：封面 v18 居中单栏改版；吉祥物素材 GIF→动画 WebP（修复发布包动画丢失）；手机端整页滑动翻页动画；`data.js?v=2` 防缓存；新增 `release/` 公网发布包、`extension/` 插件、`archive/` 云端旧站存档。详见 [HANDOFF_2026-11-21_深夜轮](HANDOFF_2026-11-21_深夜轮.md)。
 
 ## 演进路线
 

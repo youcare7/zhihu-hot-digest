@@ -11,7 +11,13 @@
 !data/
 !data/fallback.json
 !data/topic_timeline.json
+!data/archive/
 
-# 当日缓存与线上快照是运行时产物，绝不能被打进镜像
+# 当日缓存与线上快照是运行时产物，默认不打进镜像；
+# 例外：v2.8 人工富化快照（含看山/判决卡/跨平台核验）必须预置进镜像，
+# 否则容器启动无富化缓存 → 管线后台刷新会写入无富化数据并直接服务（防覆盖保护只在
+# 加载到富化缓存时生效）。仅放行明确预置的日期文件，其余 brief_*.json 仍排除。
 data/brief_*.json
 data/live_*.json
+!data/brief_2026-11-23.json
+!data/brief_2026-11-24.json

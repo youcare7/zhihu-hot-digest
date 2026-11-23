@@ -1,186 +1,327 @@
 # -*- coding: utf-8 -*-
-"""时间轴与连续剧合订本编译器 (scripts/build_timeline.py)
+"""跨天归并话题并生成只读时间线数据。"""
+from __future__ import annotations
 
-落地原则：
-1. 启发式分级归并（L1 别名/锚点 -> L2 Question ID直连），不讲无依据的虚假百分比；
-2. 零数据库架构：读取 data/archive/ 与 data/topic_seed.json，编译输出至 data/topic_timeline.json；
-3. 同步更新 demo/timeline.js 并执行工业级字符安全转义（\u003c, \u003e, \u2028, \u2029）；
-4. 保证原子落盘，杜绝并发竞争。
-"""
-import glob
+import argparse
+import datetime
 import json
 import os
 import pathlib
 import re
 import sys
-import time
+from collections import defaultdict
 
-BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-ARCHIVE_DIR = DATA_DIR / "archive"
-DEMO_DIR = BASE_DIR / "demo"
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
-TIMELINE_JSON_PATH = DATA_DIR / "topic_timeline.json"
-TIMELINE_JS_PATH = DEMO_DIR / "timeline.js"
-SEED_PATH = DATA_DIR / "topic_seed.json"
-ALIASES_PATH = DATA_DIR / "topic_aliases.json"
+import app
 
-
-def _escape_js_payload(text: str) -> str:
-    """与 app.py 中的 _js_safe_json 保持 100% 一致的安全转义规范，杜绝 XSS。"""
-    return (
-        text.replace("<", "\\u003c")
-        .replace(">", "\\u003e")
-        .replace("\u2028", "\\u2028")
-        .replace("\u2029", "\\u2029")
-    )
+ARCHIVE_DIR = app.DATA_DIR / "archive"
+ALIASES_PATH = app.DATA_DIR / "topic_aliases.json"
+TIMELINE_PATH = app.DATA_DIR / "topic_timeline.json"
+DEMO_TIMELINE_PATH = app.DEMO_DIR / "timeline.js"
 
 
-def extract_question_id(url: str) -> str:
+def atomic_write_text(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.replace(str(tmp), str(path))
+
+
+def atomic_write_json(path, data):
+    atomic_write_text(path, json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def load_aliases():
+    try:
+        data = json.loads(ALIASES_PATH.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return data
+    except Exception:
+        pass
+    return {"aliases": {}, "splits": [], "hidden_topics": []}
+
+
+def question_id(item):
+    url = str(item.get("question_url") or "")
+    match = re.search(r"/question/(\d+)", url)
+    return match.group(1) if match else ""
+
+
+def normalize_title(title):
+    return re.sub(r"[^\w\u4e00-\u9fff]+", "", str(title or ""), flags=re.UNICODE).lower()
+
+
+def title_2grams(title):
+    text = normalize_title(title)
+    return {text[i:i + 2] for i in range(len(text) - 1)} if len(text) >= 2 else set()
+
+
+def jaccard_2gram(a, b):
+    left, right = title_2grams(a), title_2grams(b)
+    if not left or not right:
+        return 0.0
+    return len(left & right) / len(left | right)
+
+
+def shares_long_substring(a, b, minimum=3):
+    a, b = normalize_title(a), normalize_title(b)
+    if not a or not b:
+        return False
+    if len(a) > len(b):
+        a, b = b, a
+    generic = ("公司", "企业", "裁员", "公司裁员", "事件", "消息", "新闻", "发生", "相关")
+    longest = ""
+    for length in range(min(len(a), len(b)), minimum - 1, -1):
+        for start in range(len(a) - length + 1):
+            candidate = a[start:start + length]
+            if candidate in b:
+                longest = candidate if len(candidate) > len(longest) else longest
+                break
+        if longest:
+            break
+    if not longest or longest in generic:
+        return False
+    return True
+
+
+def is_semantic_match(a, b):
+    return jaccard_2gram(a, b) >= 0.30 and shares_long_substring(a, b, 3)
+
+
+def sentinel_filter(value):
+    sentinels = (app.NO_BACKGROUND, app.EMPTY_FOCUS, app.EMPTY_GAP)
+    if hasattr(app, "EMPTY_CONSENSUS"):
+        sentinels += (app.EMPTY_CONSENSUS,)
+    return str(value or "").strip() not in sentinels
+
+
+def clamp_hook(text, limit=24):
+    text = re.sub(r"\s+", " ", str(text or "").strip())
+    text = re.sub(r"^(目前缺少|需要当事方披露|本条热榜)", "", text).strip(" ，。,:：")
+    return text[:limit]
+
+
+def build_hook(item):
+    for field in ("focus", "gap"):
+        value = item.get(field)
+        if sentinel_filter(value):
+            hook = clamp_hook(value)
+            if hook:
+                return hook
+    return clamp_hook(item.get("title") or "未命名话题")
+
+
+def key_answer(item):
+    reading = item.get("reading")
+    if not isinstance(reading, list) or not reading:
+        return None
+    first = reading[0]
+    if not isinstance(first, dict):
+        return None
+    title = str(first.get("title") or "").strip()
+    url = str(first.get("url") or "").strip()
+    if not title or not url:
+        return None
+    return {"title": title, "url": url}
+
+
+def ext_ref(item):
+    evidence = item.get("web_evidence")
+    if not isinstance(evidence, dict) or evidence.get("status") != "found":
+        return []
+    url = str(evidence.get("url") or "").strip()
     if not url:
-        return ""
-    m = re.search(r"question/(\d+)", str(url))
-    return m.group(1) if m else ""
+        return []
+    title = str(evidence.get("title") or evidence.get("source") or "站外公开信源").strip()
+    return [{"title": title or "站外公开信源", "url": url}]
 
 
-def build_timeline():
-    ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
-    archive_files = sorted(ARCHIVE_DIR.glob("*.json"))
-
-    # 1. 加载别名表与种子数据
-    aliases = []
-    if ALIASES_PATH.is_file():
+def load_archives():
+    archives = []
+    if not ARCHIVE_DIR.exists():
+        return archives
+    pattern = re.compile(r"^(\d{4}-\d{2}-\d{2})\.json$")
+    for path in sorted(ARCHIVE_DIR.glob("*.json")):
+        match = pattern.match(path.name)
+        if not match:
+            continue
         try:
-            aliases = json.loads(ALIASES_PATH.read_text(encoding="utf-8")).get("topics", [])
-        except Exception as e:
-            print(f"[WARN] 别名表读取失败: {e}")
-
-    seed_topics = []
-    if SEED_PATH.is_file():
-        try:
-            seed_topics = json.loads(SEED_PATH.read_text(encoding="utf-8")).get("topics", [])
-        except Exception as e:
-            print(f"[WARN] 种子数据读取失败: {e}")
-
-    # 2. 统计归档日期与缺失日期
-    dates = []
-    daily_items = {}
-    for f in archive_files:
-        try:
-            data = json.loads(f.read_text(encoding="utf-8"))
-            d = data.get("date") or f.stem
-            dates.append(d)
-            daily_items[d] = data.get("items", [])
-        except Exception as e:
-            print(f"[WARN] 读取归档文件 {f.name} 失败: {e}")
-
-    dates = sorted(list(set(dates)))
-    missing_dates = []
-    if len(dates) >= 2:
-        # 简单日期连续性检查
-        import datetime
-        try:
-            start_dt = datetime.datetime.strptime(dates[0], "%Y-%m-%d").date()
-            end_dt = datetime.datetime.strptime(dates[-1], "%Y-%m-%d").date()
-            curr = start_dt
-            date_set = set(dates)
-            while curr <= end_dt:
-                s = curr.strftime("%Y-%m-%d")
-                if s not in date_set:
-                    missing_dates.append(s)
-                curr += datetime.timedelta(days=1)
+            datetime.date.fromisoformat(match.group(1))
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and isinstance(data.get("items"), list):
+                data["_path_date"] = match.group(1)
+                archives.append(data)
         except Exception:
-            pass
+            continue
+    return archives
 
-    # 3. 组织话题时间轴（以种子话题为骨架，融合跨天归档数据）
-    topics_map = {}
-    for st in seed_topics:
-        topics_map[st["title"]] = {
-            "title": st["title"],
-            "nodes": list(st.get("nodes", [])),
+
+def missing_dates(dates):
+    if len(dates) < 2:
+        return []
+    earliest = datetime.date.fromisoformat(min(dates))
+    latest = datetime.date.fromisoformat(max(dates))
+    present = set(dates)
+    result = []
+    day = earliest
+    while day <= latest:
+        value = day.isoformat()
+        if value not in present:
+            result.append(value)
+        day += datetime.timedelta(days=1)
+    return result
+
+
+def deduplicate_nodes(nodes):
+    if len(nodes) <= 2:
+        return nodes
+    keep = set([0, len(nodes) - 1])
+    previous_state = nodes[0].get("state")
+    previous_hook = nodes[0].get("hook")
+    for index in range(1, len(nodes)):
+        current_state = nodes[index].get("state")
+        current_hook = nodes[index].get("hook")
+        if current_state != previous_state or current_hook != previous_hook:
+            keep.add(index - 1)
+            keep.add(index)
+        previous_state, previous_hook = current_state, current_hook
+    return [node for index, node in enumerate(nodes) if index in keep]
+
+
+def build_timeline(min_days=2):
+    aliases = load_aliases()
+    alias_map = aliases.get("aliases") if isinstance(aliases.get("aliases"), dict) else {}
+    splits = aliases.get("splits") if isinstance(aliases.get("splits"), list) else []
+    hidden = set(aliases.get("hidden_topics") or [])
+    split_pairs = set()
+    for pair in splits:
+        if isinstance(pair, list) and len(pair) == 2:
+            split_pairs.add((str(pair[0]), str(pair[1])))
+
+    archives = load_archives()
+    present_dates = sorted({str(a["_path_date"]) for a in archives})
+    clusters = {}
+    titles = {}
+
+    for archive in sorted(archives, key=lambda a: a["_path_date"]):
+        date = archive["_path_date"]
+        for item in archive["items"]:
+            if not isinstance(item, dict):
+                continue
+            qid = question_id(item)
+            title = str(item.get("title") or "").strip()
+            split = qid and any(topic_q == qid for topic_q, question_q in split_pairs)
+            if qid and str(qid) in alias_map:
+                topic_id = str(alias_map[str(qid)])
+            elif split:
+                topic_id = qid
+            elif qid:
+                topic_id = qid
+            else:
+                topic_id = "title:" + normalize_title(title)
+
+            canonical = topic_id
+            if not split:
+                if topic_id in clusters:
+                    canonical = topic_id
+                else:
+                    for existing_id, existing_title in titles.items():
+                        if existing_id in hidden:
+                            continue
+                        if is_semantic_match(title, existing_title):
+                            canonical = existing_id
+                            break
+            if canonical not in clusters:
+                clusters[canonical] = []
+                titles[canonical] = title
+
+            state = str(item.get("type") or "verify")
+            hook = build_hook(item)
+            clusters[canonical].append({
+                "date": date,
+                "rank": item.get("rank"),
+                "title": title,
+                "question_id": qid,
+                "state": state,
+                "state_label": app.TYPE_NAMES.get(state, state),
+                "hook": hook,
+                "key_answer": key_answer(item),
+                "ext_ref": ext_ref(item),
+            })
+
+    topics = []
+    for topic_id, nodes in clusters.items():
+        if topic_id in hidden:
+            continue
+        unique_dates = sorted({node["date"] for node in nodes})
+        if len(unique_dates) < min_days:
+            continue
+        nodes.sort(key=lambda n: n["date"])
+        nodes = deduplicate_nodes(nodes)
+        state_changes = sum(
+            1 for i in range(1, len(nodes))
+            if nodes[i].get("state") != nodes[i - 1].get("state")
+        )
+        representative = next((node for node in reversed(nodes) if node.get("title")), {})
+        latest = representative
+        topic = {
+            "topic_id": topic_id,
+            "title": latest.get("title") or "",
+            "question_id": topic_id,
+            "question_ids": sorted({str(n["question_id"]) for n in nodes if n.get("question_id")}),
+            "days": len(unique_dates),
+            "appearances": len(unique_dates),
+            "dates": unique_dates,
+            "state_changes": state_changes,
+            "has_state_change": state_changes > 0,
+            "state_label": latest.get("state_label") or latest.get("state") or "",
+            "latest_state_label": latest.get("state_label") or latest.get("state") or "",
+            "key_answer": latest.get("key_answer"),
+            "ext_ref": latest.get("ext_ref") or [],
+            "nodes": nodes,
         }
+        topics.append(topic)
 
-    # 跨天归档数据匹配：检查是否命中别名表或已有话题的 Question ID
-    for d, items in daily_items.items():
-        for it in items:
-            q_url = it.get("question_url", "")
-            q_id = extract_question_id(q_url)
-            title = it.get("title", "")
-
-            # 匹配规则：1. ID 命中；2. 专名实体命中
-            matched_title = None
-            for topic_name, topic_obj in topics_map.items():
-                for node in topic_obj.get("nodes", []):
-                    if q_id and extract_question_id(node.get("question_url", "")) == q_id:
-                        matched_title = topic_name
-                        break
-                if matched_title:
-                    break
-
-            if not matched_title:
-                for alias in aliases:
-                    if q_id in alias.get("question_ids", []):
-                        matched_title = alias.get("canonical_title")
-                        break
-                    anchors = alias.get("anchor_entities", [])
-                    if any(anc in title for anc in anchors):
-                        matched_title = alias.get("canonical_title")
-                        break
-
-            if matched_title and matched_title in topics_map:
-                existing_dates = [n.get("date") for n in topics_map[matched_title]["nodes"]]
-                if d not in existing_dates:
-                    # 增量挂载归档节点
-                    state_map = {"dispute": "分歧爆发", "consensus": "形成共识", "verify": "待补材料"}
-                    t_type = it.get("type", "verify")
-                    new_node = {
-                        "date": d,
-                        "date_label": f"{d[5:]} 跟踪",
-                        "state": t_type,
-                        "state_label": state_map.get(t_type, "动态观察"),
-                        "hook": it.get("verdict") or it.get("background") or title,
-                        "question_url": q_url,
-                        "key_answer": {
-                            "title": it.get("reading", [{}])[0].get("title", "相关回答") if it.get("reading") else "知乎讨论原帖",
-                            "url": it.get("reading", [{}])[0].get("url", q_url) if it.get("reading") else q_url,
-                        },
-                        "ext_ref": [],
-                    }
-                    if it.get("web_evidence") and it["web_evidence"].get("status") == "found":
-                        new_node["ext_ref"].append({
-                            "title": it["web_evidence"].get("source_title", "全网公开证据"),
-                            "url": it["web_evidence"].get("url", ""),
-                        })
-                    topics_map[matched_title]["nodes"].append(new_node)
-                    topics_map[matched_title]["nodes"].sort(key=lambda x: x.get("date", ""))
-
-    compiled_topics = list(topics_map.values())
-
-    timeline_data = {
-        "generated_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-        "archive_files": len(archive_files),
-        "tracked_days": len(dates),
-        "missing_dates": missing_dates,
-        "topics": compiled_topics,
+    topics.sort(
+        key=lambda topic: (
+            bool(topic["has_state_change"]),
+            max(topic["dates"]) if topic["dates"] else "",
+            topic["days"],
+        ),
+        reverse=True,
+    )
+    topics = topics[:8]
+    missing = missing_dates(present_dates)
+    tracked_days = (
+        (datetime.date.fromisoformat(max(present_dates)) - datetime.date.fromisoformat(min(present_dates))).days + 1
+        if present_dates else 0
+    )
+    result = {
+        "generated_at": app.now_str(),
+        "archive_files": len(archives),
+        "tracked_days": tracked_days,
+        "missing_dates": missing,
+        "topics": topics,
     }
+    return result
 
-    # 4. 原子落盘 JSON 索引
-    tmp_json = TIMELINE_JSON_PATH.with_suffix(".tmp")
-    tmp_json.write_text(json.dumps(timeline_data, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp_json.replace(TIMELINE_JSON_PATH)
 
-    # 5. 生成前端 timeline.js（含转义保护）
-    raw_json = json.dumps(timeline_data, ensure_ascii=False)
-    safe_payload = _escape_js_payload(raw_json)
-    js_content = f"window.TIMELINE_DATA = {safe_payload};\n"
-
-    tmp_js = TIMELINE_JS_PATH.with_suffix(".tmp")
-    tmp_js.write_text(js_content, encoding="utf-8")
-    tmp_js.replace(TIMELINE_JS_PATH)
-
-    print(f"[OK] 时间轴编译成功：生成 {len(compiled_topics)} 个连续剧话题，更新 {TIMELINE_JS_PATH}")
-    return timeline_data
+def main(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--min-days", type=int, default=2)
+    args = parser.parse_args(argv)
+    result = build_timeline(max(1, args.min_days))
+    atomic_write_json(TIMELINE_PATH, result)
+    js_payload = app._js_safe_json(json.dumps(result, ensure_ascii=False))
+    atomic_write_text(DEMO_TIMELINE_PATH, f"window.TIMELINE_DATA = {js_payload};")
+    print(
+        f"时间线构建完成：归档 {result['archive_files']} 个，"
+        f"跨度 {result['tracked_days']} 天，话题 {len(result['topics'])} 个"
+    )
+    return 0
 
 
 if __name__ == "__main__":
-    build_timeline()
+    raise SystemExit(main())

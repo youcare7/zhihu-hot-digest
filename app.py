@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import datetime
+import ipaddress
 import json
 import math
 import os
@@ -23,7 +24,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from flask import Flask, Response, send_file
+from flask import Flask, Response, send_file, send_from_directory
 
 
 def _log(msg: str) -> None:
@@ -98,7 +99,7 @@ SEARCH_COUNT = 10            # 每条热点的搜索素材上限
 ZHIDA_MODEL = os.environ.get("ZHIDA_MODEL", "zhida-fast-1p5")
 
 NOTICE_LIVE = "由知乎开放平台 API 实时生成，AI 内容仅供参考。"
-NOTICE_FALLBACK = "当前为演示兜底数据，接口暂不可用。"
+NOTICE_FALLBACK = "当前展示缓存快照，知乎实时接口暂不可用，恢复后自动切换。"
 NOTICE_MOCK = "【模拟数据】当前为 mock 模式：全部内容来自本地示例，并非知乎 API 真实返回，链接不可点击。"
 
 EMPTY_VIEWPOINT = "站内暂无明确该立场声音"   # 保留：历史缓存 / fallback.json 兼容
@@ -251,12 +252,22 @@ def zhihu_get(path: str, params: dict | None = None) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _items_of(data: dict) -> list:
+    """Data.Items 必须是数组：上游契约漂移（返回对象/字符串）时按空列表处理。
+
+    旧代码直接 items[:N] / for c in items，遇到 dict 会 KeyError/TypeError 整批失败，
+    遇到字符串会在 c.get() 处静默单条降级，且日志看不出真实原因。
+    """
+    items = data.get("Items")
+    return items if isinstance(items, list) else []
+
+
 def api_hot_list() -> list:
     """FR-01：取当日热榜 10 条。"""
     if not _QUOTA.attempt("hot_list"):
         raise UpstreamError("热榜接口当日配额已达上限（配额守卫）")
     data = zhihu_get("/api/v1/content/hot_list", {"Limit": HOT_LIST_LIMIT})
-    items = data.get("Items") or []
+    items = [x for x in _items_of(data) if isinstance(x, dict)]
     _log(f"热榜接口返回 {len(items)} 条")
     return items[:HOT_LIST_LIMIT]
 
@@ -266,8 +277,7 @@ def api_search(query: str, count: int = SEARCH_COUNT) -> list:
     if not _QUOTA.attempt("search"):
         raise UpstreamError("搜索接口当日配额已达上限（配额守卫）")
     data = zhihu_get("/api/v1/content/zhihu_search", {"Query": query, "Count": count})
-    items = data.get("Items") or []
-    return items
+    return [x for x in _items_of(data) if isinstance(x, dict)]
 
 
 def api_web_search(query: str, count: int = WEB_SEARCH_COUNT) -> list:
@@ -283,8 +293,10 @@ def api_web_search(query: str, count: int = WEB_SEARCH_COUNT) -> list:
     if not _QUOTA.attempt("web_search"):
         raise UpstreamError("全网搜索当日配额已达上限（配额守卫）")
     data = zhihu_get("/api/v1/content/global_search", {"Query": query, "Count": count})
-    items = data.get("Items") or []
-    return items
+    # 站外候选保留原始元素类型（build_web_evidence 自行跳过非 dict 条目并用
+    # for/else 区分 no_result / error）；但 Items 非数组时必须归一为 []，
+    # 否则遍历字符串会打出「返回 N 条」的误导日志并记成 error 而非 no_result。
+    return _items_of(data)
 
 
 # ---------------------------------------------------------------------------
@@ -534,13 +546,16 @@ def generate_brief(title: str, candidates_text: str) -> dict:
         return extract_json(text)
 
     try:
+        # 只有「调用失败」才应落到下面的备选模型分支。extract_json 解析失败
+        # 同样抛 UpstreamError，但那是内容质量问题，必须与无备选配置分支一致地
+        # 直接降级：不得换模型重跑、多烧一次 model_alt 配额，也不得把解析错误
+        # 记成「直答调用失败」误导排查。故把解析移到 try 之外统一执行。
         text = _chat_with_retry(
             ZHIHU_BASE + "/v1/chat/completions",
             zhihu_headers(),
             {"model": ZHIDA_MODEL, "messages": messages, "stream": False},
             "知乎直答",
         )
-        return extract_json(text)
     except UpstreamError as exc:
         _log(f"知乎直答调用失败，尝试备选通用大模型：{exc}")
         if not _QUOTA.attempt("model_alt"):
@@ -551,7 +566,7 @@ def generate_brief(title: str, candidates_text: str) -> dict:
             {"model": MODEL_NAME, "messages": messages, "stream": False},
             "通用大模型",
         )
-        return extract_json(text)
+    return extract_json(text)
 
 
 def extract_json(text: str) -> dict:
@@ -632,8 +647,15 @@ def sanitize_viewpoint(value) -> str:
 
 # ---- v2：六字段清洗 ----
 def _clip(value, limit: int) -> str:
-    """按字符数安全收束：超长时优先保留完整句/分句，不直接切断句子。"""
-    text = str(value or "").strip()
+    """按字符数安全收束：超长时优先保留完整句/分句，不直接切断句子。
+
+    模型输出的自由文本字段本应是字符串；若返回 dict/list/数字，str() 会把
+    Python repr 静默写进正文，还会让 _count_ok / 防劣化门误判为「生成成功」。
+    脏类型一律按缺失处理，交给各调用点已有的降级哨兵，避免静默数据错。
+    """
+    if not isinstance(value, str):
+        value = ""
+    text = value.strip()
     if len(text) <= limit:
         return text
     if limit <= 0:
@@ -714,6 +736,15 @@ def _is_valid_web_url(url) -> bool:
     host = (parsed.hostname or "").lower().rstrip(".")
     if parsed.scheme not in ("http", "https") or not host or "." not in host:
         return False
+    # IP 字面量（loopback / 私网 / 云元数据地址等）不是可溯源的一手材料，
+    # 且会产出可点击的无效链接；只接受真实域名。IPv6 的 [::1] 由上面的
+    # "." not in host 已挡住，这里补齐 IPv4（含十进制/八进制写法的解析结果）。
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        return False
     return not (host == "zhihu.com" or host.endswith(".zhihu.com"))
 
 
@@ -751,28 +782,38 @@ def build_web_evidence(title: str, gap: str) -> dict:
         _WEB_SEARCH_TRIED[title] = dict(evidence)
         return evidence
 
-    for it in items:
-        if not isinstance(it, dict):
-            continue
-        url = str(it.get("Url") or "").strip()
-        item_title = str(it.get("Title") or "").strip()
-        if not item_title or not _is_valid_web_url(url):
-            continue  # 缺字段或链接未过独立校验：丢弃该条，不补选为虚假结果
-        evidence["status"] = "found"
-        evidence["title"] = item_title        # 接口原始标题，不改写
-        evidence["url"] = url                 # 接口原始链接（含溯源参数），原样保存
-        # 接口无「来源名」字段：取链接主机名作为 source，同为接口原始返回的一部分
-        evidence["source"] = urllib.parse.urlparse(url).hostname or ""
-        edit_time = it.get("EditTime")
-        if isinstance(edit_time, int) and not isinstance(edit_time, bool) and edit_time > 0:
-            evidence["published_at"] = datetime.datetime.fromtimestamp(
-                edit_time, CN_TZ).strftime("%Y-%m-%d")
-        break
-    else:
-        # 接口返回了条目但全部不可用（缺字段/链接非法）：结构异常记 error，
-        # 与「接口正常返回 0 条」的 no_result 区分，便于排查上游变化。
+    try:
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            url = str(it.get("Url") or "").strip()
+            item_title = str(it.get("Title") or "").strip()
+            if not item_title or not _is_valid_web_url(url):
+                continue  # 缺字段或链接未过独立校验：丢弃该条，不补选为虚假结果
+            evidence["status"] = "found"
+            evidence["title"] = item_title        # 接口原始标题，不改写
+            evidence["url"] = url                 # 接口原始链接（含溯源参数），原样保存
+            # 接口无「来源名」字段：取链接主机名作为 source，同为接口原始返回的一部分
+            evidence["source"] = urllib.parse.urlparse(url).hostname or ""
+            edit_time = it.get("EditTime")
+            # 上游 EditTime 口径可能漂移（毫秒级 13 位 / 超大值），换算失败只能
+            # 丢掉这个可选日期字段，绝不能击穿「核验绝不使该条降级」的契约。
+            if (isinstance(edit_time, int) and not isinstance(edit_time, bool)
+                    and 0 < edit_time < 2 ** 32):
+                try:
+                    evidence["published_at"] = datetime.datetime.fromtimestamp(
+                        edit_time, CN_TZ).strftime("%Y-%m-%d")
+                except (OSError, OverflowError, ValueError):
+                    pass
+            break
+        else:
+            # 接口返回了条目但全部不可用（缺字段/链接非法）：结构异常记 error，
+            # 与「接口正常返回 0 条」的 no_result 区分，便于排查上游变化。
+            evidence["status"] = "error"
+            _log(f"  全网核验返回 {len(items)} 条但均不可用（缺字段/链接非法）[error]：{title[:24]}")
+    except Exception as exc:  # 任何未预期的字段异常也只影响本字段，不冒泡使整条降级
         evidence["status"] = "error"
-        _log(f"  全网核验返回 {len(items)} 条但均不可用（缺字段/链接非法）[error]：{title[:24]}")
+        _log(f"  全网核验结果解析异常[error]：{title[:24]}（{exc}）")
 
     _WEB_SEARCH_TRIED[title] = dict(evidence)
     return evidence
@@ -927,8 +968,16 @@ def build_digest(items: list) -> dict:
     # （正常链路由 sanitize_type / sanitize_sides / sanitize_claim_type 保证，此为第二道防线）
     _cleaned = []
     for _it in items:
+        if not isinstance(_it, dict):
+            # 缓存直写/旧版残留的脏条目：按「待验证」占位，保持 total 与
+            # 三态之和自洽，绝不让 dict(None) 抛异常使整批生成被丢弃。
+            _cleaned.append({"type": TYPE_VERIFY, "claim_type": "", "gap": "", "rank": 0})
+            continue
         _it = dict(_it)
-        if _it.get("type") == TYPE_DISPUTE and len(_it.get("sides") or []) != 2:
+        if _it.get("type") not in VALID_TYPES:
+            _it["type"] = TYPE_VERIFY
+        sides = _it.get("sides")
+        if _it.get("type") == TYPE_DISPUTE and (not isinstance(sides, list) or len(sides) != 2):
             _it["type"] = TYPE_VERIFY
         if _it.get("type") != TYPE_DISPUTE:
             _it["claim_type"] = ""
@@ -1256,11 +1305,12 @@ def load_fallback() -> dict:
             raise UpstreamError("fallback.json 结构不合法")
     except Exception as exc:
         _log(f"静态兜底不可用，改用内存最小兜底：{exc}")
-        data = {"items": []}
-    data["source"] = "fallback"
+        # 前端封面/总览直接读 digest.total / headline / 三态 / insights，
+        # 最小兜底也必须带完整 digest，否则「有 JS、无字段」仍是白屏。
+        data = {"items": [], "digest": build_digest([])}
     data["date"] = data.get("date") or today_str()
     data["generated_at"] = data.get("generated_at") or now_str()
-    data["notice"] = NOTICE_FALLBACK
+    data["source"] = "fallback"
     return data
 
 
@@ -1312,12 +1362,26 @@ def _count_ok(data: dict) -> int:
     return sum(1 for it in (data or {}).get("items", []) if it.get("background") != NO_BACKGROUND)
 
 
+def _is_enriched(data: dict) -> bool:
+    """v2.8 富化缓存（含看山/判决卡/跨平台核验等人工增强字段）不可被管线覆盖：
+    管线生成器目前不产出这些字段，覆盖会让线上功能回退。"""
+    items = (data or {}).get("items") or []
+    return any(isinstance(it, dict) and (it.get("kanshan") or it.get("punch") or it.get("crosscheck"))
+               for it in items)
+
+
 def _background_refresh() -> None:
     try:
         with _GEN_LOCK:
             age = cache_age_seconds()
             if age is not None and age <= CACHE_TTL_SECONDS and load_today_cache() is not None:
                 return  # 等锁期间已被别的请求刷新过；仅有新鲜 mtime 的坏缓存不算
+            existing = load_today_cache()
+            if _is_enriched(existing):
+                _set_refresh_cooldown()
+                _log("现有缓存为 v2.8 富化快照（含看山/判决卡/跨平台核验），管线结果不覆盖，冷却 "
+                     f"{REFRESH_COOLDOWN_SECONDS} 秒")
+                return
             # 防劣化保护：只把 load_today_cache 认可的有效旧缓存作为基准。
             # 模拟缓存即使“成功条数”很多，也不能阻止真实新结果覆盖它。
             old_ok = _count_ok(load_today_cache() or {})
@@ -1356,11 +1420,7 @@ def _fallback_with_refresh_state(refreshing: bool = False) -> dict:
     data = load_fallback()
     data["refreshing"] = bool(refreshing or _refresh_active())
     data["retry_after"] = _refresh_retry_after()
-    if data["refreshing"]:
-        data["notice"] = "当前为演示兜底数据，今日简报正在后台生成；页面会在生成完成后自动更新。"
-    elif data["retry_after"] > 0:
-        minutes = max(1, (data["retry_after"] + 59) // 60)
-        data["notice"] = f"当前为演示兜底数据，今日简报暂未生成成功，约 {minutes} 分钟后重试；页面会自动恢复。"
+    # notice 保持快照原值，与静态演示站一致；refreshing/retry_after 仅驱动前端静默轮询
     return data
 
 
@@ -1412,6 +1472,13 @@ def index():
     return send_file(INDEX_PATH)
 
 
+@app.route("/assets/<path:filename>")
+def assets(filename):
+    """v2.8 吉祥物/动效静态资源：前端以 assets/xx.webp 相对路径引用，
+    容器必须显式提供，否则正式站吉祥物 404（静态托管的临时站不受影响）。"""
+    return send_from_directory(DEMO_DIR / "assets", filename)
+
+
 @app.route("/healthz")
 def healthz():
     """只读健康检查：不触发任何生成/刷新，仅汇报进程内状态与当日缓存年龄。
@@ -1458,7 +1525,13 @@ def _js_safe_json(payload: str) -> str:
 
 @app.route("/data.js")
 def data_js():
-    brief = get_brief()
+    try:
+        brief = get_brief()
+    except Exception as exc:
+        # 最后一道防线：任何未预期异常都输出可解析的兜底 JS，绝不返回 500。
+        # 保留 038 的 _js_safe_json 转义与 nosniff 头，不回退为裸 json.dumps。
+        _log(f"/data.js 生成异常，输出最小兜底：{exc}")
+        brief = load_fallback()
     payload = _js_safe_json(json.dumps(brief, ensure_ascii=False))
     return Response(
         f"window.BRIEF_DATA = {payload};",
@@ -1472,20 +1545,24 @@ def data_js():
 
 @app.route("/timeline.js")
 def timeline_js():
-    raw_payload = '{"generated_at":"","archive_files":0,"tracked_days":0,"missing_dates":[],"topics":[]}'
-    if TIMELINE_PATH.is_file():
-        try:
-            content = TIMELINE_PATH.read_text(encoding="utf-8").strip()
-            prefix = "window.TIMELINE_DATA = "
-            if content.startswith(prefix):
-                json_part = content[len(prefix):].rstrip().rstrip(";")
-                parsed = json.loads(json_part)
-                raw_payload = json.dumps(parsed, ensure_ascii=False)
-        except Exception as e:
-            _log(f"读取 timeline.js 异常，降级为空时间轴: {e}")
-    safe_payload = _js_safe_json(raw_payload)
+    """只读话题时间线：只读文件，不触发上游请求或后台刷新。"""
+    empty = {
+        "generated_at": "",
+        "archive_files": 0,
+        "tracked_days": 0,
+        "missing_dates": [],
+        "topics": [],
+    }
+    try:
+        data = json.loads((DATA_DIR / "topic_timeline.json").read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError("topic_timeline.json 顶层不是对象")
+    except Exception as exc:
+        _log(f"/timeline.js 文件不可用，安全回落空结构：{exc}")
+        data = empty
+    payload = _js_safe_json(json.dumps(data, ensure_ascii=False))
     return Response(
-        f"window.TIMELINE_DATA = {safe_payload};",
+        f"window.TIMELINE_DATA = {payload};",
         mimetype="application/javascript",
         headers={
             "Cache-Control": "no-store, max-age=0",
