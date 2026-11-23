@@ -41,6 +41,31 @@ def run_tests():
             assert archive["source"] == "live"
             assert archive["date"] == date and len(archive["items"]) == 5
 
+            # 闸门拦截负向测试：
+            # 1. 拒绝 source not in ("live", "cache")，且不覆盖既有健康归档
+            for bad_source in ("demo", "fallback"):
+                app.build_brief = lambda bs=bad_source: {"date": date, "source": bs, "items": items}
+                assert daily_archive.main(["--date", date]) != 0
+                persisted = json.loads((root / "archive" / f"{date}.json").read_text(encoding="utf-8"))
+                assert persisted["source"] == "live"
+                assert len(persisted["items"]) == 5
+
+            # 2. 校验简报日期与目标日期一致
+            app.build_brief = lambda: {"date": "2026-11-19", "source": "live", "items": items}
+            assert daily_archive.main(["--date", date]) != 0
+            persisted = json.loads((root / "archive" / f"{date}.json").read_text(encoding="utf-8"))
+            assert persisted["date"] == date
+
+            # 3. 有效解读条数 < 5 时返回非零退出码，且绝不覆盖已有健康归档
+            app.build_brief = lambda: {
+                "date": date,
+                "source": "live",
+                "items": [archive_item(str(i), f"热点 {i}") for i in range(4)],
+            }
+            assert daily_archive.main(["--date", date]) != 0
+            persisted = json.loads((root / "archive" / f"{date}.json").read_text(encoding="utf-8"))
+            assert len(persisted["items"]) == 5
+
             second_date = "2026-11-21"
             second_items = [archive_item(str(i), f"热点 {i}") for i in range(5)]
             (root / "archive" / f"{second_date}.json").write_text(
