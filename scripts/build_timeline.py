@@ -20,6 +20,7 @@ ARCHIVE_DIR = app.DATA_DIR / "archive"
 ALIASES_PATH = app.DATA_DIR / "topic_aliases.json"
 TIMELINE_PATH = app.DATA_DIR / "topic_timeline.json"
 DEMO_TIMELINE_PATH = app.DEMO_DIR / "timeline.js"
+SEED_PATH = app.DATA_DIR / "topic_seed.json"
 
 
 def atomic_write_text(path, text):
@@ -31,6 +32,210 @@ def atomic_write_text(path, text):
 
 def atomic_write_json(path, data):
     atomic_write_text(path, json.dumps(data, ensure_ascii=False, indent=2))
+
+
+BUILTIN_SEED_TOPICS = [
+    {
+        "title": "大模型对话上下文上限与工程推理成本博弈",
+        "nodes": [
+            {
+                "date": "2026-11-15",
+                "date_label": "11-15 首日",
+                "state": "dispute",
+                "state_label": "分歧爆发",
+                "hook": "DeepSeek 调整长文本对话上限引发争议，部分开发者怀疑服务降级，系统架构师则主张属于 KV Cache 显存成本与吞吐权衡。",
+                "question_url": "https://www.zhihu.com/question/2105339969564827779",
+                "key_answer": {
+                    "title": "从 Attention 算力成本角度谈为何必须截断",
+                    "url": "https://www.zhihu.com/question/2105339969564827779"
+                },
+                "ext_ref": [
+                    {
+                        "title": "官方公告：关于多轮对话长上下文并发调度的技术说明",
+                        "url": "https://developer.zhihu.com"
+                    }
+                ]
+            },
+            {
+                "date": "2026-11-18",
+                "date_label": "11-18 演化",
+                "state": "verify",
+                "state_label": "待补材料",
+                "hook": "社群实测不同提示词工程下召回率差异巨大，缺少标准化「大海捞针」（NIAH）基准复测，尚难定论有效长度损失。",
+                "question_url": "https://www.zhihu.com/question/2105339969564827779",
+                "key_answer": {
+                    "title": "万字长文：40组跨轮次召回实验报告",
+                    "url": "https://www.zhihu.com/question/2105339969564827779"
+                },
+                "ext_ref": []
+            },
+            {
+                "date": "2026-11-21",
+                "date_label": "11-21 破局",
+                "state": "consensus",
+                "state_label": "形成共识",
+                "hook": "官方技术白皮书披露动态分片机制与检索对齐，第三方复测证实 64k 关键信息检索零衰减，争议从质疑模型转向工程落地适配。",
+                "question_url": "https://www.zhihu.com/question/2105339969564827779",
+                "key_answer": {
+                    "title": "知乎技术专家：大模型从跑分狂欢走向工程精算",
+                    "url": "https://www.zhihu.com/question/2105339969564827779"
+                },
+                "ext_ref": [
+                    {
+                        "title": "长文本分片推理评测白皮书",
+                        "url": "https://developer.zhihu.com"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "title": "出海中企跨国用工与法律合规风险审查",
+        "nodes": [
+            {
+                "date": "2026-11-16",
+                "date_label": "11-16 首日",
+                "state": "verify",
+                "state_label": "待补材料",
+                "hook": "芬兰媒体报道中企工厂涉用工合规调查，舆论聚焦于跨境劳务派遣合法性，一手执法通报尚未公布。",
+                "question_url": "https://www.zhihu.com/question/2105092208948933353",
+                "key_answer": {
+                    "title": "涉外劳工法专业律师：调查阶段不等于违法定性",
+                    "url": "https://www.zhihu.com/question/2105092208948933353"
+                },
+                "ext_ref": [
+                    {
+                        "title": "芬兰劳动保护局官方通报（原文索引）",
+                        "url": "https://developer.zhihu.com"
+                    }
+                ]
+            },
+            {
+                "date": "2026-11-19",
+                "date_label": "11-19 演化",
+                "state": "dispute",
+                "state_label": "分歧爆发",
+                "hook": "分包商责任争议放大，评论区激辩「国内用工习惯向外输出」与「当地工会制度严苛阻滞建厂」两派观点激烈对撞。",
+                "question_url": "https://www.zhihu.com/question/2105092208948933353",
+                "key_answer": {
+                    "title": "驻欧制造业合规总监：三级分包链条的法律责任归属",
+                    "url": "https://www.zhihu.com/question/2105092208948933353"
+                },
+                "ext_ref": []
+            },
+            {
+                "date": "2026-11-22",
+                "date_label": "11-22 破局",
+                "state": "consensus",
+                "state_label": "形成共识",
+                "hook": "企业发布声明澄清已更换第三方外包服务商并完成用工补救，知乎出海专栏总结出中资高端制造进军北欧的合规清单。",
+                "question_url": "https://www.zhihu.com/question/2105092208948933353",
+                "key_answer": {
+                    "title": "中国制造出海的必修课：北欧劳工法律红线合集",
+                    "url": "https://www.zhihu.com/question/2105092208948933353"
+                },
+                "ext_ref": [
+                    {
+                        "title": "跨国经营合规指导公报",
+                        "url": "https://developer.zhihu.com"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "title": "中国平均家庭户规模缩减与独居社会变迁",
+        "nodes": [
+            {
+                "date": "2026-11-17",
+                "date_label": "11-17 首日",
+                "state": "verify",
+                "state_label": "待补材料",
+                "hook": "户均降至 2.52 人的数据引发全网讨论，多方猜测系单身率上升或居住分离所致，需结合省际流动与老龄化深度结构分析。",
+                "question_url": "https://www.zhihu.com/question/2105340483975304106",
+                "key_answer": {
+                    "title": "人口学者解答：2.52 人背后的一人户与空巢户结构",
+                    "url": "https://www.zhihu.com/question/2105340483975304106"
+                },
+                "ext_ref": [
+                    {
+                        "title": "国家统计局人口统计年鉴数据速览",
+                        "url": "https://developer.zhihu.com"
+                    }
+                ]
+            },
+            {
+                "date": "2026-11-20",
+                "date_label": "11-20 演化",
+                "state": "dispute",
+                "state_label": "分歧爆发",
+                "hook": "城市规划派认为微型住宅将迎繁荣，传统经济学派则担忧家庭抗风险能力剧降与养老兜底断裂，形成宏观与微观视角分歧。",
+                "question_url": "https://www.zhihu.com/question/2105340483975304106",
+                "key_answer": {
+                    "title": "城市经济学视角：单身经济与居住空间演变",
+                    "url": "https://www.zhihu.com/question/2105340483975304106"
+                },
+                "ext_ref": []
+            }
+        ]
+    }
+]
+
+
+def load_seeds(path=None):
+    items = []
+    seed_override = getattr(sys.modules.get(__name__), "SEED_PATH", None)
+    target = path or seed_override or (app.DATA_DIR / "topic_seed.json")
+    if target and target.exists():
+        try:
+            data = json.loads(target.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                items = data.get("topics") or []
+        except Exception:
+            items = []
+    elif path is None and (seed_override is None or seed_override == (app.DATA_DIR / "topic_seed.json")):
+        items = BUILTIN_SEED_TOPICS
+
+    seed_topics = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        nodes = item.get("nodes") or []
+        cleaned_nodes = []
+        for n in nodes:
+            if not isinstance(n, dict):
+                continue
+            node_copy = dict(n)
+            if "ext_ref" not in node_copy or not isinstance(node_copy["ext_ref"], list):
+                node_copy["ext_ref"] = []
+            cleaned_nodes.append(node_copy)
+        dates = sorted({n.get("date") for n in cleaned_nodes if n.get("date")})
+        state_changes = sum(
+            1 for i in range(1, len(cleaned_nodes))
+            if cleaned_nodes[i].get("state") != cleaned_nodes[i - 1].get("state")
+        )
+        latest = cleaned_nodes[-1] if cleaned_nodes else {}
+        title = str(item.get("title") or "").strip()
+        topic_id = str(item.get("topic_id") or ("seed:" + normalize_title(title)))
+        seed_topic = {
+            "topic_id": topic_id,
+            "origin": "curated_seed",
+            "title": title,
+            "question_id": str(item.get("question_id") or question_id(latest)),
+            "question_ids": sorted({question_id(n) for n in cleaned_nodes if question_id(n)}),
+            "days": len(dates),
+            "appearances": len(dates),
+            "dates": dates,
+            "state_changes": state_changes,
+            "has_state_change": state_changes > 0,
+            "state_label": latest.get("state_label") or latest.get("state") or "",
+            "latest_state_label": latest.get("state_label") or latest.get("state") or "",
+            "key_answer": latest.get("key_answer"),
+            "ext_ref": latest.get("ext_ref") or [],
+            "nodes": cleaned_nodes,
+        }
+        seed_topics.append(seed_topic)
+    return seed_topics
 
 
 def load_aliases():
@@ -190,7 +395,7 @@ def deduplicate_nodes(nodes):
     return [node for index, node in enumerate(nodes) if index in keep]
 
 
-def build_timeline(min_days=2):
+def build_timeline(min_days=2, include_seeds=True):
     aliases = load_aliases()
     alias_map = aliases.get("aliases") if isinstance(aliases.get("aliases"), dict) else {}
     splits = aliases.get("splits") if isinstance(aliases.get("splits"), list) else []
@@ -268,6 +473,7 @@ def build_timeline(min_days=2):
         latest = representative
         topic = {
             "topic_id": topic_id,
+            "origin": "auto_archive",
             "title": latest.get("title") or "",
             "question_id": topic_id,
             "question_ids": sorted({str(n["question_id"]) for n in nodes if n.get("question_id")}),
@@ -283,6 +489,12 @@ def build_timeline(min_days=2):
             "nodes": nodes,
         }
         topics.append(topic)
+
+    if include_seeds:
+        existing_titles = {t["title"] for t in topics}
+        for seed in load_seeds():
+            if seed["title"] not in existing_titles:
+                topics.append(seed)
 
     topics.sort(
         key=lambda topic: (
@@ -311,8 +523,10 @@ def build_timeline(min_days=2):
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--min-days", type=int, default=2)
+    parser.add_argument("--no-seeds", action="store_true", default=False,
+                        help="Do not inject curated seed topics")
     args = parser.parse_args(argv)
-    result = build_timeline(max(1, args.min_days))
+    result = build_timeline(max(1, args.min_days), include_seeds=(not args.no_seeds))
     atomic_write_json(TIMELINE_PATH, result)
     js_payload = app._js_safe_json(json.dumps(result, ensure_ascii=False))
     atomic_write_text(DEMO_TIMELINE_PATH, f"window.TIMELINE_DATA = {js_payload};")

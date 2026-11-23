@@ -102,6 +102,17 @@ def run_tests():
             html = app.INDEX_PATH.read_text(encoding="utf-8")
             assert "if (!value) { showTab('today', false); return; }" in html
             assert "showTab(hasTopics ? 'timeline' : 'today', false)" not in html
+            assert "today-timeline-lead" in html
+            assert "历史示范样本" in html
+            assert "tag-seed" in html
+
+            # 验证内置种子 origin 与 --no-seeds 剥离
+            build_timeline.SEED_PATH = None
+            default_seeds = build_timeline.load_seeds()
+            assert len(default_seeds) == 3
+            assert all(s.get("origin") == "curated_seed" for s in default_seeds)
+            unseeded = build_timeline.build_timeline(min_days=2, include_seeds=False)
+            assert not any(t.get("origin") == "curated_seed" for t in unseeded["topics"])
         finally:
             app.DATA_DIR = old_data_dir
             app.build_brief = old_build_brief

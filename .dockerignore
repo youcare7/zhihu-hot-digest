@@ -8,6 +8,8 @@
 !demo/index.html
 !demo/data.js
 !demo/timeline.js
+!demo/assets/
+!demo/assets/**
 !data/
 !data/fallback.json
 !data/topic_timeline.json
