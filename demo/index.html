@@ -1091,8 +1091,13 @@
   var SERIF = 'Georgia, "Songti SC", SimSun, serif';
   function renderMelonCard(item, stampCls, stampText) {
     var kanshan = new Image();
-    kanshan.src = 'assets/kanshan-front.png';
-    kanshan.onload = function () {
+    var melonDrawn = false;
+    // v2.8.2 健壮性：吉祥物 PNG 加载失败/超时不能让整个按钮无响应，
+    // 失败时退化为无吉祥物版本照样出图；canvas 异常时也要给出可见反馈。
+    function drawMelonCard(withMascot) {
+      if (melonDrawn) return;
+      melonDrawn = true;
+      try {
       var W = 900, pad = 60, cw = W - pad * 2;
       var canvas = document.createElement('canvas');
       var ctx = canvas.getContext('2d');
@@ -1177,22 +1182,39 @@
       bubble(qa, item.sides[0].label, '#056de8', 'rgba(5,109,232,.08)', 'rgba(5,109,232,.3)', '#0a4fa8');
       bubble(qb, item.sides[1].label, '#b76018', 'rgba(183,96,24,.08)', 'rgba(183,96,24,.34)', '#8a4a12');
       // 看山 + 落款
-      ctx.drawImage(kanshan, W - pad - kw, H - 30 - kh, kw, kh);
+      if (withMascot && kw > 0) { ctx.drawImage(kanshan, W - pad - kw, H - 30 - kh, kw, kh); }
       ctx.fillStyle = '#6b7480';
       ctx.font = '600 20px ' + SANS;
       ctx.fillText('热榜深潜简报 · ' + (data.date || '今日'), pad, H - 88);
       ctx.fillStyle = '#9aa2aa';
       ctx.font = '400 16px ' + SANS;
       ctx.fillText('不是热榜摘要，是深读判断 · AI 内容仅供参考', pad, H - 58);
-      // 弹层展示
+      // 弹层展示（toDataURL 在个别手机浏览器可能返回空串，逐级降级）
       var url = canvas.toDataURL('image/png');
+      if (!url || url.length < 100) url = canvas.toDataURL('image/jpeg', 0.92);
+      if (!url || url.length < 100) throw new Error('canvas export failed');
       melonImg.src = url;
       melonDl.href = url;
       melonDl.setAttribute('download', '吃瓜判决卡-' + (item.rank || '') + '.png');
       melonModal.classList.add('open');
       melonModal.setAttribute('aria-hidden', 'false');
       document.body.style.overflow = 'hidden';
-    };
+      } catch (err) {
+        // 生成失败也给可见反馈，而不是让按钮看起来「点不开」
+        melonImg.removeAttribute('src');
+        melonImg.alt = '判决卡生成失败：' + err.message + '，请重试';
+        melonDl.removeAttribute('href');
+        melonModal.classList.add('open');
+        melonModal.setAttribute('aria-hidden', 'false');
+        document.body.style.overflow = 'hidden';
+      }
+    }
+    kanshan.onload = function () { drawMelonCard(true); };
+    kanshan.onerror = function () { drawMelonCard(false); };
+    kanshan.src = 'assets/kanshan-front.png';
+    if (kanshan.complete && kanshan.naturalWidth > 0) drawMelonCard(true);
+    // 极端网络环境 3 秒无回调：不等吉祥物，先出图
+    setTimeout(function () { if (!melonDrawn) drawMelonCard(kanshan.naturalWidth > 0); }, 3000);
   }
   function makeMelonBtn(item, stampCls, stampText) {
     var btn = el('button', 'melon-btn', '🍉 生成吃瓜判决卡');
