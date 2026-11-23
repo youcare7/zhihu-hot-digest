@@ -1542,6 +1542,34 @@ def data_js():
     )
 
 
+@app.route("/timeline.js")
+def timeline_js():
+    """只读话题时间线：只读文件，不触发上游请求或后台刷新。"""
+    empty = {
+        "generated_at": "",
+        "archive_files": 0,
+        "tracked_days": 0,
+        "missing_dates": [],
+        "topics": [],
+    }
+    try:
+        data = json.loads((DATA_DIR / "topic_timeline.json").read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError("topic_timeline.json 顶层不是对象")
+    except Exception as exc:
+        _log(f"/timeline.js 文件不可用，安全回落空结构：{exc}")
+        data = empty
+    payload = _js_safe_json(json.dumps(data, ensure_ascii=False))
+    return Response(
+        f"window.TIMELINE_DATA = {payload};",
+        mimetype="application/javascript",
+        headers={
+            "Cache-Control": "no-store, max-age=0",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 # ---------------------------------------------------------------------------
 # 启动检查
 # ---------------------------------------------------------------------------

@@ -9,6 +9,9 @@
 !demo/data.js
 !data/
 !data/fallback.json
+!data/topic_timeline.json
+!data/archive/
+!demo/timeline.js
 
 # 当日缓存与线上快照是运行时产物，默认不打进镜像；
 # 例外：v2.8 人工富化快照（含看山/判决卡/跨平台核验）必须预置进镜像，
