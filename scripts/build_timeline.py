@@ -47,14 +47,9 @@ BUILTIN_SEED_TOPICS = [
                 "question_url": "https://www.zhihu.com/question/2105339969564827779",
                 "key_answer": {
                     "title": "从 Attention 算力成本角度谈为何必须截断",
-                    "url": "https://www.zhihu.com/question/2105339969564827779"
+                    "url": ""
                 },
-                "ext_ref": [
-                    {
-                        "title": "官方公告：关于多轮对话长上下文并发调度的技术说明",
-                        "url": "https://developer.zhihu.com"
-                    }
-                ]
+                "ext_ref": []
             },
             {
                 "date": "2026-11-18",
@@ -65,7 +60,7 @@ BUILTIN_SEED_TOPICS = [
                 "question_url": "https://www.zhihu.com/question/2105339969564827779",
                 "key_answer": {
                     "title": "万字长文：40组跨轮次召回实验报告",
-                    "url": "https://www.zhihu.com/question/2105339969564827779"
+                    "url": ""
                 },
                 "ext_ref": []
             },
@@ -78,14 +73,9 @@ BUILTIN_SEED_TOPICS = [
                 "question_url": "https://www.zhihu.com/question/2105339969564827779",
                 "key_answer": {
                     "title": "知乎技术专家：大模型从跑分狂欢走向工程精算",
-                    "url": "https://www.zhihu.com/question/2105339969564827779"
+                    "url": ""
                 },
-                "ext_ref": [
-                    {
-                        "title": "长文本分片推理评测白皮书",
-                        "url": "https://developer.zhihu.com"
-                    }
-                ]
+                "ext_ref": []
             }
         ]
     },
@@ -101,14 +91,9 @@ BUILTIN_SEED_TOPICS = [
                 "question_url": "https://www.zhihu.com/question/2105092208948933353",
                 "key_answer": {
                     "title": "涉外劳工法专业律师：调查阶段不等于违法定性",
-                    "url": "https://www.zhihu.com/question/2105092208948933353"
+                    "url": ""
                 },
-                "ext_ref": [
-                    {
-                        "title": "芬兰劳动保护局官方通报（原文索引）",
-                        "url": "https://developer.zhihu.com"
-                    }
-                ]
+                "ext_ref": []
             },
             {
                 "date": "2026-11-19",
@@ -119,7 +104,7 @@ BUILTIN_SEED_TOPICS = [
                 "question_url": "https://www.zhihu.com/question/2105092208948933353",
                 "key_answer": {
                     "title": "驻欧制造业合规总监：三级分包链条的法律责任归属",
-                    "url": "https://www.zhihu.com/question/2105092208948933353"
+                    "url": ""
                 },
                 "ext_ref": []
             },
@@ -132,14 +117,9 @@ BUILTIN_SEED_TOPICS = [
                 "question_url": "https://www.zhihu.com/question/2105092208948933353",
                 "key_answer": {
                     "title": "中国制造出海的必修课：北欧劳工法律红线合集",
-                    "url": "https://www.zhihu.com/question/2105092208948933353"
+                    "url": ""
                 },
-                "ext_ref": [
-                    {
-                        "title": "跨国经营合规指导公报",
-                        "url": "https://developer.zhihu.com"
-                    }
-                ]
+                "ext_ref": []
             }
         ]
     },
@@ -155,14 +135,9 @@ BUILTIN_SEED_TOPICS = [
                 "question_url": "https://www.zhihu.com/question/2105340483975304106",
                 "key_answer": {
                     "title": "人口学者解答：2.52 人背后的一人户与空巢户结构",
-                    "url": "https://www.zhihu.com/question/2105340483975304106"
+                    "url": ""
                 },
-                "ext_ref": [
-                    {
-                        "title": "国家统计局人口统计年鉴数据速览",
-                        "url": "https://developer.zhihu.com"
-                    }
-                ]
+                "ext_ref": []
             },
             {
                 "date": "2026-11-20",
@@ -173,7 +148,7 @@ BUILTIN_SEED_TOPICS = [
                 "question_url": "https://www.zhihu.com/question/2105340483975304106",
                 "key_answer": {
                     "title": "城市经济学视角：单身经济与居住空间演变",
-                    "url": "https://www.zhihu.com/question/2105340483975304106"
+                    "url": ""
                 },
                 "ext_ref": []
             }
@@ -206,8 +181,11 @@ def load_seeds(path=None):
             if not isinstance(n, dict):
                 continue
             node_copy = dict(n)
-            if "ext_ref" not in node_copy or not isinstance(node_copy["ext_ref"], list):
-                node_copy["ext_ref"] = []
+            # Curated samples carry no verified external references.
+            node_copy["ext_ref"] = []
+            answer = node_copy.get("key_answer")
+            if isinstance(answer, dict) and answer.get("url") == node_copy.get("question_url"):
+                node_copy["key_answer"] = {**answer, "url": ""}
             cleaned_nodes.append(node_copy)
         dates = sorted({n.get("date") for n in cleaned_nodes if n.get("date")})
         state_changes = sum(

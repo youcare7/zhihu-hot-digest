@@ -12,7 +12,7 @@
 > **落地口径说明**：当前已上线：0 额外大模型消耗的每日缓存归档 + 分级实体归并；V2 演进规划：Watchlist 证据跃迁触发重算。
 1. **零数据库静态持久化哲学 (Zero-DB Static Philosophy)**：
    - 彻底摒弃 PostgreSQL / MySQL / MongoDB / Redis 等重型有状态服务。
-   - 所有历史归档、观察列表、时间轴聚合完全依托 Git-backed 纯静态 JSON 文件（`data/archive/`, `data/watchlist.json`, `data/topic_timeline.json`）。
+   - 当前历史归档与时间轴聚合依托 Git-backed 静态 JSON（`data/archive/`, `data/topic_timeline.json`）；`data/watchlist.json` 仅属 V2 规划，尚未接入。
    - 前端通过静态直连加载（`timeline.js` / `window.TIMELINE_DATA`），与现有静态产物保持极致统一的部署韧性（GitHub Pages / CDN）。
 2. **配额不对称套利与“狙击枪”LLM 触发机制 (Quota Arbitrage: 50:1 Ratio)**：
    - 面通知乎官方 API 的非对称限制：知乎搜索接口（Search API）拥有 5,000 次/天的充裕配额，而热榜接口与大模型直答生成接口（LLM API）仅有 100 次/天的稀缺配额。
@@ -44,42 +44,40 @@
 - **Schema 可行性**：
   - 完全兼容。在归档 Schema 中扩展独立的 `light_scan: [{ rank, title, question_url, heat_score, domain }]`，绝不污染 `items` 数组。
 
-### 1.2 路径 2: 观察列表 (Watchlist) + 外部佐证跃迁触发 (Event-Driven Watchlist Sensor)
-> **实现状态说明**：当前已上线：0 额外大模型消耗的每日缓存归档 + 分级实体归并；V2 演进规划：Watchlist 证据跃迁触发重算。
+### 1.2 路径 2: 观察列表 (Watchlist) + 外部佐证跃迁触发 (V2 演进规划)
+> **实现状态说明**：当前已上线：0 额外大模型消耗的每日缓存归档 + 分级实体归并；V2 演进规划：Watchlist 证据跃迁触发重算。以下仅为设计草案，当前未部署 Watchlist 传感器或自动重算链路。
 - **工程架构与机制**：
-  - 维护一个轻量级的动态观察列表 `data/watchlist.json`，持久化处于“待验证” (`verify`) 或高争议 (`dispute`) 状态的潜伏话题。
-  - **事件驱动传感器 (`scripts/watchlist_sensor.py`)**：
-    - 每日定时执行。利用充裕的知乎搜索接口（Search API）针对观察列表中的话题关键词执行定向检索（例如每条检索 3–5 篇最新回答）。
-    - 结合既有全网佐证逻辑（`api_web_search` 或知乎外链参考），比对回答时间戳、新高赞回答点赞增量、以及关键事实反转信号。
-    - **跃迁决策 (Transition Decision)**：纯规则算法评估（无 LLM 调用）。若检测到事实反转或共识形成（例如官方通报发布、权威当事人回应），将该话题标记为 `transition_ready=True`。
-    - **狙击触发 (Sniper Trigger)**：仅对标记为跃迁的话题调用一次 LLM，生成演化节点卡片，追加至对应连续剧节点中。
+  - 规划维护轻量级观察列表 `data/watchlist.json`，记录“待验证” (`verify`) 或高争议 (`dispute`) 话题；该文件当前未接入每日归档流程。
+  - **拟议事件驱动传感器 (`scripts/watchlist_sensor.py`)**：
+    - 若未来实现，传感器可按计划频率对关键词执行定向检索，并检查公开证据是否有实质变化。
+    - 计划比较证据状态、时间戳和事实反转信号；目前没有自动监测或跃迁判断。
+    - 计划由规则判断是否将话题标记为 `transition_ready=True`；目前不会因新证据自动唤醒 LLM。
+    - V2 目标是只对经确认的跃迁生成节点并重算时间轴；当前该触发与重算链路未实现。
 - **5000 vs 100 配额消耗分析**：
-  - **搜索接口**：假设观察列表维持 10 个活跃话题，每日各执行 2 次搜索，消耗约 20 次搜索/天（占 5000 配额的 0.4%）。
-  - **LLM 接口**：只有在发生关键跃迁的偶发日子（约 2~3 天触发 1 次）才消耗 1 次 LLM 调用，平均每日消耗 0.3~0.5 次。
-  - **套利比率**：搜索与 LLM 消耗比达 40:1 至 60:1，极佳地发挥了搜索配额的杠杆效应。
-- **失效模式与降级兜底**：
-  - *失效场景*：外部搜索限流（429）或未检索到实质增量信息。
-  - *降级机制*：传感器维持旧状态，跳过本次检测，节点保持静默，绝不盲目调用 LLM。
-- **Schema 可行性**：
-  - 需引入独立的 `data/watchlist.json` 规范，记录 `topic_id`, `question_id`, `state`, `search_keyword`, `last_checked`, `poll_count`，结构清晰无重叠。
+- 配额、触发频率与效果尚无线上实测数据，需在 V2 设计与配额审查后再评估。
+- **失效模式与降级设想**：
+  - 若未来传感器遇到限流（429）或未发现增量，拟跳过检查并保留旧状态；当前没有传感器运行。
+- **Schema 规划**：
+  - 若实施，再引入 `data/watchlist.json` 记录 `topic_id`, `question_id`, `state`, `search_keyword`, `last_checked`, `poll_count`。
 
-### 1.3 路径 3: 续集型标题智能检索前传与自动关联 (Prequel Auto-Sourcing)
+### 1.3 路径 3: 续集型标题智能检索前传与自动关联 (Prequel Auto-Sourcing, V2 演进规划)
+> **实现状态说明**：当前版本未实现前传自动检索或关联；以下均为 V2 设计方案。
 - **工程架构与机制**：
-  - 针对每日 Top 10 热点中的“续集型”标题（如“警方通报...后续”、“...反转了”、“...最新进展”、“如何看待...回应”等明显指示词），自动挖掘前传。
-  - **前传检索雷达**：
-    - 提取核心实体词与基础事件名，去除后缀词。
-    - 调用 `api_search` 在知乎全站检索发布时间早于当前问题（`created_time < current_created_time`）的相关高赞问题。
-    - 采用 2-gram 字符级 Jaccard 相似度算法结合实体对齐（阈值 >= 0.38），锁定历史原始事件节点。
-  - **冷启动杀手锏 (Day 1 Cold-Start Breaker)**：
-    - 本路径彻底解决了系统上线第 1 天“无历史归档即无连续剧”的冷启动痛点。第 1 天即使没有任何历史累积，也能通过向前检索知乎历史真实问题，自动生成由 2~3 个节点构成的完整合订本。
-- **5000 vs 100 配额消耗分析**：
-  - **搜索接口**：每日仅对 Top 10 中的 1~2 个续集型标题发起检索，消耗约 5~10 次/天（占 5000 额度的 0.2%）。
-  - **LLM 接口**：前传节点元数据可直接重用知乎问题的高赞结论，或在当日预算充裕（>=20 剩余）时调用 1 次轻量整合。
+  - V2 方案拟针对每日 Top 10 中的“续集型”标题（如“警方通报...后续”、“...反转了”、“...最新进展”、“如何看待...回应”）检索可能的前传。
+  - **拟议前传检索流程**：
+    - 若实现，将提取核心实体词与基础事件名，并去除后缀词。
+    - 拟调用 `api_search` 检索发布时间早于当前问题（`created_time < current_created_time`）的相关高赞问题。
+    - 拟结合实体对齐与 2-gram 字符级 Jaccard 相似度（阈值 >= 0.38）筛选历史事件节点。
+  - **冷启动目标 (Day 1 Cold-Start Goal)**：
+    - V2 目标是缓解第 1 天缺少历史归档的问题；该方案尚未实现，不会在当前版本自动生成前传节点。
+- **配额影响估算（V2 规划，未经线上验证）**：
+  - **搜索接口**：规划估算为每日检索 1~2 个续集型标题，约 5~10 次/天。
+  - **LLM 接口**：未来可考虑重用候选问题信息，或在预算允许时调用 1 次轻量整合；当前不执行。
 - **失效模式与降级兜底**：
-  - *失效场景*：知乎搜索结果匹配度不足或同名异事误匹配。
-  - *降级机制*：2-gram 相似度低于 0.38 或发布时间冲突时自动放弃回溯，仅作为单日独立热点展示；同时支持人工在 `data/topic_aliases.json` 中配置负反馈黑名单。
+  - *拟议失效场景*：知乎搜索结果匹配度不足或同名异事误匹配。
+  - *拟议降级机制*：若 2-gram 相似度低于 0.38 或发布时间冲突，则放弃回溯并将热点独立展示；人工负反馈黑名单可配置在 `data/topic_aliases.json`。
 - **Schema 可行性**：
-  - 生成的前传节点可完全复用标准 `TimelineNode` Schema，仅需将 `date` 标记为前传真实发生日期，前端自动按时间由远及近线性排序。
+  - 若实施，前传节点可复用标准 `TimelineNode` Schema，以真实发生日期排序。
 
 ### 1.4 路径 4: 48 小时早晚双切片微演化捕获 (Morning/Evening Dual-Slice Micro-Evolution)
 - **工程架构与机制**：
@@ -124,8 +122,9 @@
   - **交付底线**：完全零额外 LLM 配额消耗，100% 维持现有 10 张卡片和 13/13 自动化测试通过。
 
 - **P1 阶段（杀手级亮点 / Killer Highlights）**：
-  - **包含路径**：路径 3（续集标题前传自动回溯）+ 路径 2（观察列表与外部佐证跃迁触发）。
-  - **核心目标**：
+  > **实现状态说明**：当前已上线：0 额外大模型消耗的每日缓存归档 + 分级实体归并；V2 演进规划：Watchlist 证据跃迁触发重算。
+  - **V2 规划路径**：路径 3（续集标题前传自动回溯）+ 路径 2（观察列表与外部佐证跃迁触发）。
+  - **V2 目标**：
     1. 彻底解决评委在评审日“冷启动看不到连续剧”的硬伤（依靠路径 3，第一天即呈现 3 个以上多节点反转连续剧）。
     2. 实现“狙击枪”式事件驱动触发，在知乎热点发生反转或官方定性时，自动产生跃迁节点并标记红/绿色彩标签。
   - **交付底线**：在 5000:100 配额不对称下安全运行，展现极其惊艳的 AI 场景化深潜能力。
@@ -151,7 +150,7 @@
 
 ### 2.3 一体化流水线端到端执行流与时序架构 (Integrated End-to-End Pipeline)
 
-整个连续剧/合订本系统与现有的每日简报 Pipeline 有序交织，形成闭环流水线：
+当前已上线：0 额外大模型消耗的每日缓存归档 + 分级实体归并；V2 演进规划：Watchlist 证据跃迁触发重算。以下 Watchlist 阶段仅为规划，不是当前流水线。
 
 ```
 [每日/早晚定时触发 Crontab / GitHub Actions]
@@ -167,16 +166,16 @@
    └── 写入 data/archive/archive_YYYY-MM-DD.json (及 _AM.json, _PM.json)
                     │
                     ▼
-   [Phase 3: 观察列表传感器探测 (Path 2)]
-   ├── 读取 data/watchlist.json
-   ├── 使用 api_search 扫描潜伏话题的最新回答与外部佐证 [消耗 10-20 次 search]
-   └── 规则判定是否发生状态跃迁 (如 verify -> consensus/dispute)
+   [V2 plan only: future Watchlist evidence checks (not implemented)]
+   ├── Proposed: read data/watchlist.json
+   ├── Proposed: scan evidence for tracked topics
+   └── Proposed: detect a state transition
                     │
                     ▼
-   [Phase 4: 续集标题前传自动挖掘 (Path 3, 冷启动与增量)]
-   ├── 检测当日 Top 10 中含有“续集/进展/反转/后续”的标题
-   ├── 使用 api_search 检索历史早发高赞问题 (created_time < current)
-   └── 实体对齐与 2-gram Jaccard (>=0.38) 匹配成功即生成前传节点
+   [V2 plan only: Path 3 prequel sourcing (not implemented)]
+   ├── Proposed: detect sequel/progress/reversal markers in Top 10 titles
+   ├── Proposed: search earlier high-rated questions (created_time < current)
+   └── Proposed: add a prequel node after entity and Jaccard matching
                     │
                     ▼
    [Phase 5: 时间轴构建器流水线 (Timeline Builder)]
@@ -378,8 +377,8 @@ The archive files serve as the immutable single source of truth for all historic
 
 ---
 
-### 3.2 Watchlist Schema (`data/watchlist.json`)
-The Watchlist enables Path 2 (event-driven incremental tracking) and Path 3 (sequel/prequel discovery). Instead of wasting LLM quota on routine checks, unresolved topics register in the watchlist and are passively probed via the 5,000/day Search API.
+### 3.2 Watchlist Schema (`data/watchlist.json`, V2 演进规划)
+> **实现状态说明**：当前已上线：0 额外大模型消耗的每日缓存归档 + 分级实体归并；V2 演进规划：Watchlist 证据跃迁触发重算。以下 schema 与样例仅供未来设计，不代表当前存在 Watchlist、被动探测或自动重算能力。
 
 **Formal JSON Schema**:
 ```json
@@ -455,7 +454,7 @@ The Watchlist enables Path 2 (event-driven incremental tracking) and Path 3 (seq
 }
 ```
 
-**Concrete Example Payload (`data/watchlist.json`)**:
+**Illustrative future schema only (not current production data):**
 ```json
 {
   "version": "1.0.0",
@@ -849,9 +848,7 @@ The daily archive script runs on a deterministic cron (e.g. UTC 01:00 for mornin
              │ Write data/archive/archive_YYYY-MM-DD_{slice}.tmp
              │ os.replace() -> data/archive/archive_YYYY-MM-DD_{slice}.json
              ▼
-   [Step 7: Watchlist Feeder Feed]
-             │ Scan items where type == 'verify' or gap is valid
-             │ Register into data/watchlist.json
+   [V2 plan only: future Watchlist feeder; not in current daily_archive.py]
              ▼
    [Exit Code 0]
 ```
@@ -870,8 +867,7 @@ The daily archive script runs on a deterministic cron (e.g. UTC 01:00 for mornin
    - If successful deep items < 5, abort write to prevent corrupting the archive with upstream failures.
 5. **Atomic Write**:
    - Serialize to `.tmp` file and rename to `data/archive/archive_YYYY-MM-DD.json` (or `_AM.json`, `_PM.json`).
-6. **Trigger Watchlist Feeder**:
-   - Feed all `verify` items into `data/watchlist.json` for subsequent sensor tracking.
+6. **V2 plan only**: A future Watchlist feeder may register `verify` items in `data/watchlist.json`; the current archive script does not do this.
 
 ---
 
@@ -894,7 +890,7 @@ Aggregates static archive files into the continuous topic timeline.
              │            ├── Step 3a: Zhihu Template & Boilerplate Stripping
              │            ├── Step 3b: Named Entity Co-occurrence Anchor Gate (>= 3 chars)
              │            └── Step 3c: Core Title 2-gram Jaccard Similarity (>= 0.38)
-             └── Cross-Day Drift: Level 1 Aliases & Path 2/3 Watchlist Prequel Sourcing
+             └── Cross-Day Drift: Level 1 Aliases & Path 2/3 Watchlist Prequel Sourcing (V2 plan only)
                           │
                           ▼
    [Step 3: Micro-Evolution Node Deduplication (Path 4)]
@@ -976,15 +972,15 @@ Entity Resolution aggregates related questions across multiple days into coheren
       Jaccard similarity: J(T'_cand, T'_topic) = |G(T'_cand) ∩ G(T'_topic)| / |G(T'_cand) ∪ G(T'_topic)|
       ├─ If J >= 0.38 AND Anchor Gate Passed ────────► [Merge into existing topic]
       ├─ If 0.20 <= J < 0.38 AND Partial Entity Overlap:
-      │   Route to Path 2 Watchlist Sensor for external evidence confirmation
+      │   V2 plan only: a future Watchlist Sensor may check external evidence
       └─ If J < 0.20: Keep as independent new topic
                      │
                      ▼
   [Level 4: Cross-Day Semantic Drift Bridging]
   For evolving multi-day stories where vocabulary mutates completely (Jaccard < 0.05):
-  ├─ Path 3 Prequel Auto-Discovery: Search API queries via core anchor tokens
-  │   Monotonic time filter: create_time < current_question_time
-  │   Auto-register discovered prequel into data/topic_aliases.json
+  ├─ V2 plan only: proposed Path 3 Prequel Auto-Discovery (not implemented)
+  │   Proposed: search via core anchor tokens with create_time < current_question_time
+  │   Proposed: register a verified prequel in data/topic_aliases.json
   └─ Manual Override Table: Real-time configuration in data/topic_aliases.json
 ```
 
@@ -1022,7 +1018,7 @@ For candidate title $T'_1$ and topic title $T'_2$ that pass the Anchor Gate:
   $$J(T'_1, T'_2) = \frac{|G(T'_1) \cap G(T'_2)|}{|G(T'_1) \cup G(T'_2)|}$$
 - **Decision Boundaries**:
   - $J(T'_1, T'_2) \ge 0.38 \implies$ Merge into existing topic.
-  - $0.20 \le J(T'_1, T'_2) < 0.38 \implies$ Ambiguous band: do not merge automatically; route candidate into `data/watchlist.json` to monitor external web evidence transitions via Path 2.
+  - $0.20 \le J(T'_1, T'_2) < 0.38 \implies$ Ambiguous band: do not merge automatically; V2 plan only: a future Watchlist could monitor external evidence transitions.
   - $J(T'_1, T'_2) < 0.20 \implies$ Distinct topic; initiate new timeline candidate.
 
 ##### 4.2.3 Cross-Day Semantic Drift Bridging
@@ -1032,10 +1028,10 @@ In real-world multi-day developing stories, lexical vocabulary undergoes extreme
 Here, character 2-gram Jaccard between stripped titles is $0.0377$, well below the 0.38 threshold, which would cause an unassisted lexical algorithm to fracture the timeline (100% false negative rate).
 
 To solve semantic drift without expensive LLM clustering:
-1. **Path 3 Prequel Auto-Discovery Sensor (`scripts/watchlist_sensor.py`)**:
-   - When a new hot item contains sequel marker patterns (`后续|最新进展|调查结论|通报|二审|反转|始末`), the sensor extracts core entity anchors ("科特卡", "当升科技").
-   - Executes a targeted Zhihu Search API call (Search quota: 1 call, $0$ LLM tokens) with time monotonicity constraint $\text{create\_time} < \text{current\_question\_time}$.
-   - Upon identifying the origin question, the sensor automatically synthesizes the historical prequel node and records the mapping into `data/topic_aliases.json["prequel_mappings"]`.
+1. **Proposed Path 3 Prequel Auto-Discovery Sensor (`scripts/watchlist_sensor.py`, not deployed)**:
+   - If implemented, the sensor would extract core entity anchors ("科特卡", "当升科技") from sequel markers (`后续|最新进展|调查结论|通报|二审|反转|始末`).
+   - The proposed flow would search Zhihu with the time constraint $\text{create\_time} < \text{current\_question\_time}$.
+   - If a prequel were verified, the proposed flow could add a historical node and mapping in `data/topic_aliases.json["prequel_mappings"]`.
 2. **Level 1 Operational Aliasing (`data/topic_aliases.json`)**:
    - Provides instant manual and automated override capability:
      ```json
@@ -1050,8 +1046,8 @@ To solve semantic drift without expensive LLM clustering:
 
 ---
 
-### 4.3 Watchlist Sensor & Prequel Retrieval Flow (`scripts/watchlist_sensor.py`)
-Implements Path 2 (event-driven incremental tracking) and Path 3 (prequel auto-sourcing).
+### 4.3 Watchlist Sensor & Prequel Retrieval Flow (`scripts/watchlist_sensor.py`, V2 演进规划)
+> **实现状态说明**：当前已上线：0 额外大模型消耗的每日缓存归档 + 分级实体归并；V2 演进规划：Watchlist 证据跃迁触发重算。以下流程为提案，`scripts/watchlist_sensor.py` 当前未部署。
 
 ```
    [data/watchlist.json Active Items]
@@ -1083,12 +1079,14 @@ Implements Path 2 (event-driven incremental tracking) and Path 3 (prequel auto-s
                        [State Transition Recorded: verify -> consensus / dispute]
                                     │ Update watchlist item -> status: "resolved"
                                     ▼
-                       [Trigger Immediate Timeline Rebuild]
+                       [V2 plan only: rebuild after a verified transition]
 ```
 
 ---
 
-### 4.4 Topic State Transition Machine
+### 4.4 Topic State Transition Machine (classification design; not Watchlist automation)
+
+> **实现状态说明**：当前已上线：0 额外大模型消耗的每日缓存归档 + 分级实体归并；V2 演进规划：Watchlist 证据跃迁触发重算。以下状态图仅描述设想，不代表证据变化会自动唤醒模型或重建时间轴。
 
 ```
               ┌────────────────────────────────────────────────────────┐
@@ -1122,6 +1120,7 @@ Implements Path 2 (event-driven incremental tracking) and Path 3 (prequel auto-s
 ## 5. 防雪崩容灾架构与四阶段熔断机制 (Anti-Failure Architecture & 4-Stage Circuit Breaker)
 
 ### 5.1 The Quota Asymmetry Reality & Inverted Pyramid Strategy
+> **实现状态说明**：当前已上线：0 额外大模型消耗的每日缓存归档 + 分级实体归并；V2 演进规划：Watchlist 证据跃迁触发重算。Watchlist 搜索传感器与跃迁后触发 LLM 均为规划，不是当前能力。
 The fundamental engineering bottleneck of the project is the profound asymmetry between the Zhihu OpenAPI tiers:
 - **Search API**: 2,000–5,000 requests/day per user. Highly available, inexpensive.
 - **Hot List API**: 100 requests/day per user.
@@ -1135,19 +1134,18 @@ Polling the LLM to ask "Has this topic changed today?" for 50 items twice a day 
    [Level 1: Hot List Scanning]
    ├── 1 API call fetches 50 items (0 LLM calls)
    │
-   [Level 2: Search Sensor Probing]
-   ├── 20–50 Search API calls passively check for new answers/keywords (0 LLM calls)
-   │   (Consumes < 1% of the 5,000/day Search quota)
+   [V2 plan only: future Watchlist evidence probing]
+   ├── Proposed: search for new answers/keywords (no current sensor)
    │
    [Level 3: Deterministic Rule Engine Arbitration]
    ├── Regex, Jaccard similarity, and hash-differencing filter out 90% of stagnant items (0 LLM calls)
    │
-   [Level 4: Event-Driven LLM Invocation]
-   └── LLM is invoked ONLY when a concrete state transition trigger fires (< 5–10 calls/day!)
+   [V2 plan only: event-driven LLM invocation]
+   └── Future proposal: trigger after a verified state transition; not implemented
 ```
 
-### 5.2 Circuit Breaker State Machine
-The Quota Guard implements a four-stage circuit breaker to ensure the system never degrades into an unserviceable state.
+### 5.2 Circuit Breaker State Machine (design proposal)
+> **实现状态说明**：当前运行的是按接口、按日计数并在达到配置上限时拒绝请求的 `QuotaGuard`；每日归档与分级实体归并已上线。下方四阶段阈值与切换行为是设计模型，不代表当前运行模式；Watchlist 与 Prequel 均为 V2 规划，尚未实现。
 
 ```
                   ┌──────────────────────────────┐
@@ -1178,14 +1176,14 @@ The Quota Guard implements a four-stage circuit breaker to ensure the system nev
 ```
 
 1. **State 1: NORMAL (`zhida_used < 70%` / `< 56 calls`)**:
-   - All 4 paths fully operational.
-   - Dual-slice AM/PM archiving enabled.
-   - Watchlist sensor executes every slice.
-   - Prequel auto-sourcing enabled with optional LLM summary polish.
+   - Current runtime: daily cache archiving, tiered entity resolution/merging, and `QuotaGuard`.
+   - Daily AM/PM dual-slice archiving is not claimed as a current capability.
+   - V2 plan only: a future Watchlist sensor could execute every slice; no sensor currently runs.
+   - V2 plan only: Prequel auto-sourcing and optional LLM summary polish are not implemented.
 2. **State 2: CONSERVATIVE (`70% <= zhida_used < 90%` / `56–72 calls`)**:
-   - Dual-slice AM/PM paused; system reverts to single daily archive.
-   - Watchlist sensor throttled to once daily.
-   - Prequel auto-sourcing switches to **Zero-LLM deterministic mode** (uses candidate question title and top Zhihu answer without calling Zhida).
+   - Proposed behavior: pause dual-slice AM/PM and use a single daily archive.
+   - V2 plan only: a future Watchlist sensor could be throttled to once daily.
+   - V2 plan only: a future Prequel path could use **Zero-LLM deterministic mode**; it is not implemented.
    - Reserve remaining quota exclusively for live user visits to `/data.js`.
 3. **State 3: CIRCUIT-TRIPPED (`zhida_used >= 90%` / `>= 72 calls` or `DAILY_ZHIDA_LIMIT` reached)**:
    - All background LLM generation is completely suspended.
@@ -1200,7 +1198,7 @@ The Quota Guard implements a four-stage circuit breaker to ensure the system nev
 ### 5.3 Failure Modes & Fallback Matrix
 | Failure Scenario | Immediate Consequence | Fallback Mechanism | Impact on User / Tests |
 |---|---|---|---|
-| Search API 429 Rate Limit | Watchlist sensor cannot fetch new evidence | Sensor logs warning, skips current check, retains previous state; retries on next slice | Zero impact on UI; 0 DOM changes; tests pass |
+| Search API 429 Rate Limit (V2 plan only) | A future Watchlist sensor cannot fetch evidence | Proposed behavior: skip the check and retain prior state; no Watchlist sensor currently runs |
 | Zhida LLM 429 Rate Limit | Deep triage item LLM generation fails | Bounded exponential backoff ($2^n \times 2s$, max 30s) up to `RETRY_TIMES=6`; subject to `GEN_BUDGET_SECONDS=180s` | Preserves already generated items; avoids gateway 504 |
 | Severe Upstream LLM Outage | All 10 deep items fail to generate | Anti-degradation ratchet: successful items < 5 triggers abort; rejects bad archive overwrite; retains existing healthy archive | Existing timeline remains 100% healthy; zero corrupted data |
 | Disk Full / Read-Only Filesystem | `.tmp` file write fails | `QuotaGuard` and archive scripts catch `IOError`/`OSError`, keep memory counters active, log error | Prevents crash; serves existing static files |
@@ -1334,13 +1332,10 @@ routeFromHash();
 >    - **Step 3a（知乎模板修剪）**：正则剥离修辞性前后缀与填充词（如“如何看待/评价”、“这意味着什么”、“最新进展”等），还原出高纯度事件核心标题 $T'$；
 >    - **Step 3b（命名实体共现锚点门控，NER Anchor Gate）**：要求两标题必须包含至少 1 个 $\ge 3$ 字符的共享核心实体（专有名词、机构、地点、型号）或 2 个关键要素，无实体交集直接一票否决，从根本上杜绝模板导致的误合并；
 >    - **Step 3c（核心标题 2-gram Jaccard 计算）**：在通过实体门控的基础上计算 2-gram 字符 Jaccard，以 `0.38` 为黄金判定阈值。
-> 4. **第四级（跨天语义漂移回溯与监测，Level 4 / Path 2 & 3 · 演进规划）**：针对词汇剧烈突变的长周期热点（当前已上线：0 额外大模型消耗的每日缓存归档 + 分级实体归并；V2 演进规划：Watchlist 证据跃迁触发重算），路径 3（Prequel Discovery）通过题干中的续集信号（“后续/进展/通报”）自动触发知乎搜索 API（消耗廉价 Search 配额，0 消耗 LLM），结合时间单调递增约束（前传创建时间严格早于当前问题）回溯前传并自动注册入别名表；模糊区间（$0.20 \le J < 0.38$）则转入 Watchlist 传感器持续追踪，彻底保证了跨标题长篇连续剧的严密性与 100% 配额安全。
+> 4. **第四级（跨天语义漂移回溯与监测，Level 4 / Path 2 & 3 · 演进规划）**：当前已上线：0 额外大模型消耗的每日缓存归档 + 分级实体归并；V2 演进规划：Watchlist 证据跃迁触发重算。前传检索与 Watchlist 传感器均属规划，不会在当前版本自动触发搜索、唤醒 LLM 或重算时间轴。
 
 #### Q2: 既然你们使用了大模型生成深入洞察，知乎官方 API 每天只给 100 次配额，遇到突发多事件连轴转，配额用尽怎么办？
-> **答**：这正是我们架构最值得自豪的**“配额不对称套利”与“四阶段熔断防雪崩”体系**：
-> 1. 知乎给开发者的配额天然具有不对称性：Search API 每天多达 5000 次，而 LLM 只有 100 次，二者相差 50 倍。我们将 95% 的监测工作交给廉价的 Search API 充当雷达传感器，纯规则比对，0 消耗 LLM。
-> 2. 我们设计了 **NORMAL -> CONSERVATIVE -> TRIPPED -> RECOVERY** 四阶段配额守卫。当 LLM 余量低于 20 次时，系统自动切入保守模式，完全停止生成新的续集分析，只执行轻量归档；当配额触顶时，触发硬熔断，系统直接复用上一个有效版本，绝不向外部发出任何多余请求。
-> 3. 这种机制保证了即使在极端压力下，核心的 10 张卡片和历史时间轴依然 100% 可用，绝不雪崩。
+> **答**：当前已上线：0 额外大模型消耗的每日缓存归档 + 分级实体归并；V2 演进规划：Watchlist 证据跃迁触发重算。当前版本不会通过 Watchlist 轮询证据，也不会因证据变化自动唤醒模型或重建时间轴；配额保护由实际代码中的 `QuotaGuard` 与直答硬上限负责。
 
 #### Q3: 为什么选择纯静态 JSON，而不直接使用 PostgreSQL 或 SQLite？静态文件跨几周后不会变得越来越庞大吗？
 > **答**：在黑客松及高并发内容分发场景中，**“免运维”与“抗宕机”是最高优先级**：

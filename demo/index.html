@@ -1007,7 +1007,11 @@
       if (node.hook) li.appendChild(el('p', 'node-hook', node.hook));
 
       if (node.key_answer && node.key_answer.title) {
-        li.appendChild(linkNode('node-answer', '原回答：' + node.key_answer.title, node.key_answer.url));
+        if (topic.origin === 'curated_seed') {
+          li.appendChild(el('span', 'node-answer dead', '示范标题（未核实）：' + node.key_answer.title));
+        } else {
+          li.appendChild(linkNode('node-answer', '原回答：' + node.key_answer.title, node.key_answer.url));
+        }
       }
       if (Array.isArray(node.ext_ref) && node.ext_ref.length) {
         node.ext_ref.forEach(function (ref) {
@@ -1053,7 +1057,7 @@
       head.appendChild(el('span', 'topic-title', topic.title || '未命名话题'));
       var trace = el('span', 'topic-trace', topicTrace(topic));
       if (topic.origin === 'curated_seed') {
-        var seedTag = el('span', 'tag-seed', '历史示范样本');
+        var seedTag = el('span', 'tag-seed', '示范样本 · 无已核实外链');
         trace.appendChild(seedTag);
       }
       head.appendChild(trace);
