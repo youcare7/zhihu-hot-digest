@@ -166,8 +166,31 @@
   .card:last-of-type { border-bottom: 0; }
   .card[hidden] { display: none !important; }
   .eyebrow {
-    color: var(--mute); font-size: 11px; letter-spacing: .12em;
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    color: var(--mute); font-size: 11px; letter-spacing: .08em;
     font-variant-numeric: tabular-nums;
+  }
+  .type-pill {
+    display: inline-flex; align-items: center; padding: 1.5px 6.5px;
+    font-size: 11px; font-weight: 600; letter-spacing: .02em;
+    border-radius: 3px; line-height: 1.4;
+  }
+  .type-pill[data-type="dispute"] {
+    color: #932c1c; background: rgba(180, 60, 40, .08);
+    border: 1px solid rgba(180, 60, 40, .2);
+  }
+  .type-pill[data-type="consensus"] {
+    color: #21593c; background: rgba(47, 111, 78, .08);
+    border: 1px solid rgba(47, 111, 78, .2);
+  }
+  .type-pill[data-type="verify"] {
+    color: #0b3d68; background: rgba(15, 76, 129, .08);
+    border: 1px solid rgba(15, 76, 129, .2);
+  }
+  .claim-pill {
+    display: inline-flex; align-items: center; padding: 1.5px 5.5px;
+    color: var(--mute); background: rgba(22, 22, 20, .04);
+    border: 1px solid var(--hair); font-size: 11px; border-radius: 3px;
   }
   .card-title {
     margin-top: 12px; font-family: var(--serif); font-weight: 600;
@@ -187,6 +210,45 @@
   .verdict[data-type="dispute"] { border-left-color: var(--red); }
   .verdict[data-type="consensus"] { border-left-color: var(--green); }
   .verdict[data-type="verify"] { border-left-color: var(--blue); }
+
+  .gap-hero {
+    margin-top: 22px; padding: 16px 18px;
+    background: #fdfcf9; border-radius: 4px;
+    border: 1px solid var(--hair);
+    border-left: 3.5px solid var(--mute);
+    box-shadow: 0 1px 2px rgba(22, 22, 20, .03);
+  }
+  .gap-hero[data-type="dispute"] {
+    border-left-color: var(--red);
+    background: linear-gradient(90deg, rgba(180, 60, 40, .035) 0%, #fdfcf9 100%);
+  }
+  .gap-hero[data-type="consensus"] {
+    border-left-color: var(--green);
+    background: linear-gradient(90deg, rgba(47, 111, 78, .035) 0%, #fdfcf9 100%);
+  }
+  .gap-hero[data-type="verify"] {
+    border-left-color: var(--blue);
+    background: linear-gradient(90deg, rgba(15, 76, 129, .035) 0%, #fdfcf9 100%);
+  }
+  .gap-hero-header {
+    display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap;
+    margin-bottom: 7px;
+  }
+  .gap-hero-icon { font-size: 13.5px; line-height: 1; }
+  .gap-hero-title {
+    font-family: var(--serif); font-size: 13.5px; font-weight: 700;
+    color: var(--ink); letter-spacing: .02em;
+  }
+  .gap-hero[data-type="dispute"] .gap-hero-title { color: var(--red); }
+  .gap-hero[data-type="consensus"] .gap-hero-title { color: var(--green); }
+  .gap-hero[data-type="verify"] .gap-hero-title { color: var(--blue); }
+  .gap-hero-sub {
+    font-size: 11px; color: var(--mute); letter-spacing: .02em;
+  }
+  .gap-hero-text {
+    font-size: 15px; line-height: 1.8; color: var(--ink);
+    font-weight: 400; overflow-wrap: anywhere;
+  }
 
   .sides {
     display: grid; grid-template-columns: 1fr 1fr; gap: 0 30px;
@@ -787,6 +849,26 @@
     return wrap;
   }
 
+  function renderGapHero(item) {
+    var hasGap = isRealText(item.gap, SENTINEL_GAP);
+    var hasFocus = isRealText(item.focus, SENTINEL_FOCUS);
+    if (!hasGap && !hasFocus) return null;
+
+    var box = el('section', 'gap-hero verdict');
+    box.setAttribute('data-type', item.type || '');
+    box.setAttribute('aria-label', hasGap ? '缺的那块拼图' : '值得追问');
+
+    var header = el('div', 'gap-hero-header');
+    header.appendChild(el('span', 'gap-hero-icon', hasGap ? '🧩' : '🔍'));
+    header.appendChild(el('strong', 'gap-hero-title', hasGap ? '缺的那块拼图' : '值得追问'));
+    header.appendChild(el('span', 'gap-hero-sub', hasGap ? '· 终结争论的核心缺口' : '· 核心切入点'));
+    box.appendChild(header);
+
+    var text = hasGap ? String(item.gap).trim() : String(item.focus).trim();
+    box.appendChild(el('p', 'gap-hero-text', text));
+    return box;
+  }
+
   function renderCard(item, index, total) {
     var card = el('article', 'card page-panel');
     card.id = 'page-card-' + (index + 1);
@@ -794,8 +876,16 @@
     card.setAttribute('data-title', '热点 #' + item.rank);
     card.setAttribute('aria-label', '第 ' + item.rank + ' 条：' + item.title);
 
-    var eyebrow = el('p', 'eyebrow',
-      pad2(index + 1) + ' / ' + pad2(total) + ' · ' + (TYPE_LABEL[item.type] || '热点解读'));
+    var eyebrow = el('div', 'eyebrow');
+    eyebrow.appendChild(el('span', 'eyebrow-seq', pad2(index + 1) + ' / ' + pad2(total)));
+    if (item.type && TYPE_LABEL[item.type]) {
+      var pill = el('span', 'type-pill', TYPE_LABEL[item.type]);
+      pill.setAttribute('data-type', item.type);
+      eyebrow.appendChild(pill);
+    }
+    if (item.claim_type && CLAIM_LABEL[item.claim_type]) {
+      eyebrow.appendChild(el('span', 'claim-pill', CLAIM_LABEL[item.claim_type]));
+    }
     if (isDemo) eyebrow.appendChild(el('span', 'tag-demo', '示例'));
     card.appendChild(eyebrow);
 
@@ -812,16 +902,12 @@
     }
     card.appendChild(heading);
 
-    var verdict = verdictOf(item);
-    if (verdict) {
-      var verdictEl = el('p', 'verdict', verdict);
-      verdictEl.setAttribute('data-type', item.type || '');
-      card.appendChild(verdictEl);
-    }
-
     var sides = renderSides(item);
     if (sides) card.appendChild(sides);
     else if (!item.type) card.appendChild(renderLegacyViewpoints(item));
+
+    var gapHero = renderGapHero(item);
+    if (gapHero) card.appendChild(gapHero);
 
     card.appendChild(renderMore(item));
 
