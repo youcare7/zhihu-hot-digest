@@ -46,7 +46,7 @@
    - **严禁引入玻璃态（Glassmorphism）、毛玻璃高光等赛博风格 CSS**，保持报纸手风琴折叠质感。
 4. **前端路由硬锁（防劫持契约）**：
    - 访问根路径 `/` 必须 100% 默认渲染 `#today` 今日首张卡片；
-   - 时间轴连续剧仅在带有 `#timeline` 路由或用户显式点击「连续剧」Tab 时渲染，绝不可在缺省状态下劫持首页。
+   - 时间轴合订本仅在带有 `#timeline` 路由或用户显式点击「合订本」Tab 时渲染，绝不可在缺省状态下劫持首页。
 5. **DOM XSS 硬防护**：
    - `/data.js` 与 `/timeline.js` 输出必须通过 `_js_safe_json()` 转义 `<, >, \u2028, \u2029`，响应头必带 `nosniff`；
    - 前端 JavaScript 渲染必须使用 `textContent` 与 `document.createTextNode`，**严禁使用 `innerHTML` 拼接不可信输入**。

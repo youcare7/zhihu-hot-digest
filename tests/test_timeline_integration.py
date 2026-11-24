@@ -99,7 +99,7 @@ def run_tests():
             payload = json.loads(body[len("window.TIMELINE_DATA = "):-1])
             assert payload["topics"][0]["title"] == "</script><script>alert(1)</script>"
 
-            # 前端契约（v2.8 卡片风连续剧页，2026-11-24 合并版）：
+            # 前端契约（v2.8 卡片风合订本页，2026-11-24 合并版）：
             # 独立分区 + 顶栏导航入口 + timeline.js 数据脚本 + hash 路由分支。
             html = app.INDEX_PATH.read_text(encoding="utf-8")
             assert 'id="timeline"' in html

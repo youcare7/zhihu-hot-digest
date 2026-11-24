@@ -20,6 +20,6 @@
 - **配额守卫**：Search 上限 2000，直答上限 90（硬限 80），web_search 默认 0；杜绝超额消耗与虚构的“5000:100”指标。
 - **纯静态 Jamstack**：零外部数据库（无 MySQL/Redis/SQLite），数据归档于 `data/archive/YYYY-MM-DD.json`，原子安全替换落盘。
 - **极简报刊风**：780px 居中单栏、Noto Serif 字体、纸质色板（`--bg: #faf9f5`）；严禁赛博玻璃态/浮动卡片。
-- **根路由硬锁**：根路径 `/` 100% 默认展示 `#today` 今日首张卡片；时间轴仅在带有 `#timeline` 或点击「连续剧」Tab 时展示，禁止缺省劫持。
+- **根路由硬锁**：根路径 `/` 100% 默认展示 `#today` 今日首张卡片；时间轴仅在带有 `#timeline` 或点击「合订本」Tab 时展示，禁止缺省劫持。
 - **XSS 安全防线**：`/data.js` 与 `/timeline.js` 必须经 `_js_safe_json()` 转义且带 `nosniff`；前端 DOM 渲染必须使用 `textContent`，严禁 `innerHTML` 拼接不可信输入。
 - **全绿门禁**：改动后必须保持 `tests/*.py`（全部 16 个测试脚本）与 `scripts/verify_live.py`（13/13 项指标）全部 ExitCode 0。
