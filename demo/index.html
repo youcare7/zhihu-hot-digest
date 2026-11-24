@@ -1411,12 +1411,15 @@
       var again = el('button', 'again', '重选');
       again.type = 'button';
       again.addEventListener('click', function () {
-        wrap.innerHTML = '';
+        clearVoteWrap();
         wrap.appendChild(buildOpts());
       });
       box.appendChild(again);
-      wrap.innerHTML = '';
+      clearVoteWrap();
       wrap.appendChild(box);
+    }
+    function clearVoteWrap() {
+      while (wrap.firstChild) { wrap.removeChild(wrap.firstChild); }
     }
     function buildOpts() {
       var opts = el('div', 'vote-opts');
@@ -1435,7 +1438,7 @@
       var b = el('button', 'vote-btn', '站个队 →');
       b.type = 'button';
       b.addEventListener('click', function () {
-        wrap.innerHTML = '';
+        clearVoteWrap();
         wrap.appendChild(buildOpts());
       });
       return b;

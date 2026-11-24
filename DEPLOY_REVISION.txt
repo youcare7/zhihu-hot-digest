@@ -1,4 +1,10 @@
-zhihu-hot-digest v2.8.2 melon card robustness 2026-11-23 20:52:58
 zhihu-hot-digest v2.8.2 daily brief 2026-11-24 21:35:00
 2026-11-24 21:48:02 merge-v2.8-timeline
 2026-11-24 22:03:52 v2.9 merge: seed-free timeline + 合订本 rename + real archives
+2026-11-24 22:25:00 daily brief refresh: 10 topics, cui-li-li verdict confirmed
+2026-11-24 23:06:00 mobile fix: dialog fallback + webp per-image fallback (4ea2f02)
+2026-11-24T23:25:00+0800 timeline-v3-entity-matching
+2026-11-24T23:30:27+0800 timeline-v3-retry-abs-path
+2026-11-24 23:40:00 mobile fix v2: webp MIME + cache bust + timeline spacing/animation (416e3c6)
+2026-11-24T23:32:38+0800 timeline-v3-retry2
+2026-11-24T23:38:38+0800 timeline-v3-no-innerhtml

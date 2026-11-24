@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
-"""跨天归并话题并生成只读时间线数据。"""
+"""跨天归并话题并生成只读时间线数据。
+
+v3（合订本升级）：去噪 → 双轨特征（硬实体 / 事件词）→ 跨天复合打分与硬闸门
+→ 并查集聚类 → 话题 + 往期真实归档双层输出。
+
+防幻觉红线：topics 与 archives 100% 来自 data/archive/*.json 的真实字段，
+话题标题直接采用归档内原始标题，不引入任何种子话题或编造外链。
+"""
 from __future__ import annotations
 
 import argparse
@@ -10,7 +17,6 @@ import pathlib
 import re
 import sys
 import time
-from collections import defaultdict
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -22,11 +28,17 @@ ALIASES_PATH = app.DATA_DIR / "topic_aliases.json"
 TIMELINE_PATH = app.DATA_DIR / "topic_timeline.json"
 DEMO_TIMELINE_PATH = app.DEMO_DIR / "timeline.js"
 
+MATCH_WINDOW_DAYS = 14
+SCORE_THRESHOLD = 0.62
+SCORE_THRESHOLD_MULTI_ENTITY = 0.52
+VALID_STATES = ("dispute", "consensus", "verify")
 
+# ---------------------------------------------------------------------------
+# 原子写入（Windows 瞬时文件锁重试）
+# ---------------------------------------------------------------------------
 def atomic_write_text(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
-    # Windows 下杀软/索引器可能在新文件落盘后瞬间持有句柄，重试而非直接失败。
     for attempt in range(5):
         try:
             tmp.write_text(text, encoding="utf-8")
@@ -59,11 +71,7 @@ def question_id(item):
 
 
 def safe_http_url(value):
-    """只放行 http/https 绝对链接。
-
-    归档里的外链来自上游，前端会把它们写进 href。javascript:/data: 等协议
-    或相对路径一律丢弃，既防 XSS，也守住「不展示不可核验链接」的防幻觉红线。
-    """
+    """只放行 http/https 绝对链接，杜绝 javascript:/data: 等伪协议。"""
     text = str(value or "").strip()
     return text if re.match(r"^https?://\S+$", text, re.IGNORECASE) else ""
 
@@ -77,6 +85,159 @@ def date_label(value):
         return str(value or "")
 
 
+# ---------------------------------------------------------------------------
+# 3.1 去噪 → 双轨特征 → 复合打分 + 硬闸门
+# ---------------------------------------------------------------------------
+TEMPLATE_PREFIX = re.compile(
+    r"^(如何看待|怎样评价|怎么看|为什么|为何|如何|请问|网传|传闻|曝|传|怎样)"
+)
+TEMPLATE_SUFFIX = re.compile(
+    r"(有哪些值得关注.*|是什么体验.*|是真的吗.*|具体是怎么回事.*|实际有哪些调整.*"
+    r"|怎样解读.*|如何理解.*|哪些信息值得关注.*|带给投资者哪些反思.*|该如何看待.*"
+    r"|问题出在哪.*|该如何合理界定.*|有哪些好处.*|能持续多久.*|有哪些信息值得关注.*"
+    r"|怎样看.*|怎么看.*|如何看待.*)$"
+)
+PUNCT = re.compile(r"[^\w\u4e00-\u9fff]+", re.UNICODE)
+
+# 热榜泛词 / 停用词：事件词轨过滤，硬闸门也据此判断「非泛化事件词」。
+GENERIC_WORDS = frozenset({
+    "回应", "通报", "曝光", "热议", "网友", "最新", "官方", "事件", "争议",
+    "如何看待", "怎样评价", "是什么", "有哪些", "为什么", "真的吗", "具体",
+    "实际", "问题", "信息", "值得关注", "如何", "怎么", "怎样", "目前",
+    "相关", "发生", "消息", "新闻", "公司", "企业", "裁员", "哪些", "觉得",
+    "解读", "理解", "持续", "多久", "背后", "一下", "真的", "带来", "影响",
+    "情况", "表示", "落地", "调整", "内容", "此事", "这一", "是否", "能否",
+})
+
+_ENTITY_LATIN = re.compile(r"[A-Za-z][A-Za-z0-9._-]{1,}")
+_ENTITY_BOOK = re.compile(r"《([^》]{1,40})》")
+_ENTITY_CORNER = re.compile(r"「([^」]{1,40})」")
+_ENTITY_QUOTE = re.compile(r"[“\"]([^”\"\s]{1,40})[”\"]")
+_ENTITY_CODE = re.compile(r"(?:[A-Za-z]+|[\u4e00-\u9fff]{1,4})\d+[A-Za-z0-9_-]*")
+
+try:  # jieba 为可选增强，未安装时完全走本地规则
+    import jieba.posseg as _pseg
+except Exception:
+    _pseg = None
+
+
+def denoise_title(title):
+    """剥离问句模板与标点，提取事件主干（纯本地，零外部 API）。"""
+    text = str(title or "").strip()
+    text = TEMPLATE_PREFIX.sub("", text)
+    text = TEMPLATE_SUFFIX.sub("", text)
+    return PUNCT.sub("", text, ).lower()
+
+
+def hard_entities(title):
+    """硬实体轨：英文专名/型号、书名号/引号内专名、带数字专有代号。"""
+    text = str(title or "")
+    found = set()
+    for match in _ENTITY_LATIN.findall(text):
+        found.add(match.lower())
+    for pattern in (_ENTITY_BOOK, _ENTITY_CORNER, _ENTITY_QUOTE):
+        for match in pattern.findall(text):
+            value = str(match).strip().lower()
+            if value:
+                found.add(value)
+    for match in _ENTITY_CODE.findall(text):
+        found.add(match.lower())
+    if _pseg is not None:
+        try:
+            for word, flag in _pseg.cut(text):
+                if flag in ("nr", "ns", "nt", "nz") and len(word) >= 2:
+                    found.add(word.lower())
+        except Exception:
+            pass
+    return found
+
+
+def event_keywords(stem):
+    """事件词轨：主干 2–4 字切词，过滤停用词与热榜泛词。"""
+    words = set()
+    if _pseg is not None:
+        try:
+            for word, flag in _pseg.cut(stem):
+                value = word.strip().lower()
+                if 2 <= len(value) <= 4 and flag.startswith("n") and value not in GENERIC_WORDS:
+                    words.add(value)
+        except Exception:
+            words = set()
+    if not words:
+        for size in (2, 3, 4):
+            for index in range(len(stem) - size + 1):
+                value = stem[index:index + size]
+                if value in GENERIC_WORDS or any(g in value for g in GENERIC_WORDS):
+                    continue
+                words.add(value)
+    return words
+
+
+def _bigrams(text):
+    return {text[i:i + 2] for i in range(len(text) - 1)} if len(text) >= 2 else set()
+
+
+def _jaccard(left, right):
+    union = left | right
+    return len(left & right) / len(union) if union else 0.0
+
+
+def _overlap(left, right):
+    """重叠系数：同事件不同问法时比 Jaccard 更稳健。"""
+    if not left or not right:
+        return 0.0
+    return len(left & right) / max(1, min(len(left), len(right)))
+
+
+def cross_day_match(rec_a, rec_b):
+    """仅跨天且间隔 <= 14 天时计算复合打分，并通过防误合并硬闸门。"""
+    if rec_a["date"] == rec_b["date"]:
+        return False
+    try:
+        gap = abs(
+            (datetime.date.fromisoformat(rec_a["date"])
+             - datetime.date.fromisoformat(rec_b["date"])).days
+        )
+    except (ValueError, TypeError):
+        return False
+    if gap > MATCH_WINDOW_DAYS:
+        return False
+
+    shared_entities = rec_a["entities"] & rec_b["entities"]
+    shared_keywords = rec_a["keywords"] & rec_b["keywords"]
+    non_generic_shared = {w for w in shared_keywords if w not in GENERIC_WORDS}
+    # 硬闸门：至少 1 个硬实体，或 2 个非泛化事件词。
+    if not shared_entities and len(non_generic_shared) < 2:
+        return False
+
+    score = (
+        0.50 * _jaccard(rec_a["entities"], rec_b["entities"])
+        + 0.30 * _overlap(rec_a["keywords"], rec_b["keywords"])
+        + 0.20 * _jaccard(_bigrams(rec_a["stem"]), _bigrams(rec_b["stem"]))
+    )
+    threshold = SCORE_THRESHOLD_MULTI_ENTITY if len(shared_entities) >= 2 else SCORE_THRESHOLD
+    return score >= threshold
+
+
+class UnionFind:
+    def __init__(self, size):
+        self.parent = list(range(size))
+
+    def find(self, node):
+        while self.parent[node] != node:
+            self.parent[node] = self.parent[self.parent[node]]
+            node = self.parent[node]
+        return node
+
+    def union(self, left, right):
+        a, b = self.find(left), self.find(right)
+        if a != b:
+            self.parent[b] = a
+
+
+# ---------------------------------------------------------------------------
+# 兼容保留的展示工具（旧测试与主流程仍依赖）
+# ---------------------------------------------------------------------------
 def normalize_title(title):
     return re.sub(r"[^\w\u4e00-\u9fff]+", "", str(title or ""), flags=re.UNICODE).lower()
 
@@ -109,9 +270,7 @@ def shares_long_substring(a, b, minimum=3):
                 break
         if longest:
             break
-    if not longest or longest in generic:
-        return False
-    return True
+    return bool(longest) and longest not in generic
 
 
 def is_semantic_match(a, b):
@@ -123,7 +282,6 @@ def sentinel_filter(value):
     if hasattr(app, "EMPTY_CONSENSUS"):
         sentinels += (app.EMPTY_CONSENSUS,)
     text = str(value or "").strip()
-    # 空值不是「有效内容」，旧写法会让空 focus/gap 通过过滤。
     return bool(text) and text not in sentinels
 
 
@@ -168,6 +326,9 @@ def ext_ref(item):
     return [{"title": title or "站外公开信源", "url": url}]
 
 
+# ---------------------------------------------------------------------------
+# 归档读取与辅助
+# ---------------------------------------------------------------------------
 def load_archives():
     archives = []
     if not ARCHIVE_DIR.exists():
@@ -207,7 +368,7 @@ def missing_dates(dates):
 def deduplicate_nodes(nodes):
     if len(nodes) <= 2:
         return nodes
-    keep = set([0, len(nodes) - 1])
+    keep = {0, len(nodes) - 1}
     previous_state = nodes[0].get("state")
     previous_hook = nodes[0].get("hook")
     for index in range(1, len(nodes)):
@@ -220,11 +381,46 @@ def deduplicate_nodes(nodes):
     return [node for index, node in enumerate(nodes) if index in keep]
 
 
+def item_state(item):
+    state = str(item.get("status") or item.get("type") or "verify")
+    return state if state in VALID_STATES else "verify"
+
+
+def build_archives_view(archives):
+    """按日期倒序输出往期真实归档，每期只含归档里的真实字段。"""
+    view = []
+    for archive in sorted(archives, key=lambda a: a["_path_date"], reverse=True):
+        date = archive["_path_date"]
+        counts = {state: 0 for state in VALID_STATES}
+        items = []
+        for item in archive["items"]:
+            if not isinstance(item, dict):
+                continue
+            state = item_state(item)
+            counts[state] += 1
+            entry = {"title": str(item.get("title") or ""), "status": state}
+            url = safe_http_url(item.get("question_url"))
+            if url:
+                entry["url"] = url
+            items.append(entry)
+        view.append({
+            "date": date,
+            "date_label": date_label(date),
+            "item_count": len(items),
+            "status_counts": counts,
+            "items": items,
+        })
+    return view
+
+
+# ---------------------------------------------------------------------------
+# 主构建
+# ---------------------------------------------------------------------------
 def build_timeline(min_days=2):
     aliases = load_aliases()
     alias_map = aliases.get("aliases") if isinstance(aliases.get("aliases"), dict) else {}
     splits = aliases.get("splits") if isinstance(aliases.get("splits"), list) else []
-    hidden = set(aliases.get("hidden_topics") or [])
+    hidden = set(str(v) for v in (aliases.get("hidden_topics") or []))
     split_pairs = set()
     for pair in splits:
         if isinstance(pair, list) and len(pair) == 2:
@@ -232,80 +428,118 @@ def build_timeline(min_days=2):
 
     archives = load_archives()
     present_dates = sorted({str(a["_path_date"]) for a in archives})
-    clusters = {}
-    titles = {}
 
+    records = []
     for archive in sorted(archives, key=lambda a: a["_path_date"]):
         date = archive["_path_date"]
         for item in archive["items"]:
             if not isinstance(item, dict):
                 continue
-            qid = question_id(item)
             title = str(item.get("title") or "").strip()
-            split = qid and any(topic_q == qid for topic_q, question_q in split_pairs)
+            if not title:
+                continue
+            qid = question_id(item)
+            stem = denoise_title(title)
             if qid and str(qid) in alias_map:
-                topic_id = str(alias_map[str(qid)])
-            elif split:
-                topic_id = qid
+                forced = "alias:" + str(alias_map[str(qid)])
             elif qid:
-                topic_id = qid
+                forced = "qid:" + str(qid)
             else:
-                topic_id = "title:" + normalize_title(title)
-
-            canonical = topic_id
-            if not split:
-                if topic_id in clusters or qid:
-                    # 真实知乎问题号是比标题相似度更强的身份标识：不同 qid 的
-                    # 条目不得仅凭标题相似被并进别的簇，否则会凭空造出「同一
-                    # 话题跨天反转」的假关联。显式 aliases 已在上面改变 topic_id，
-                    # 仍可按人工配置合并。无 qid 的站外条目才走标题相似匹配。
-                    canonical = topic_id
-                else:
-                    for existing_id, existing_title in titles.items():
-                        if existing_id in hidden:
-                            continue
-                        if is_semantic_match(title, existing_title):
-                            canonical = existing_id
-                            break
-            if canonical not in clusters:
-                clusters[canonical] = []
-                titles[canonical] = title
-
-            state = str(item.get("type") or "verify")
-            hook = build_hook(item)
-            clusters[canonical].append({
+                # 无 qid 的站外条目：主干完全一致视为同一事件的强身份证据，
+                # 纯中文标题也能跨天聚合，且不引入任何人工种子。
+                forced = "stem:" + stem if stem else ""
+            split = bool(qid and any(topic_q == qid for topic_q, _question_q in split_pairs))
+            records.append({
                 "date": date,
-                "date_label": date_label(date),
-                "rank": item.get("rank"),
                 "title": title,
-                "question_id": qid,
+                "stem": stem,
+                "qid": qid,
+                "forced": forced,
+                "split": split,
+                "state": item_state(item),
+                "entities": hard_entities(title),
+                "keywords": event_keywords(stem),
+                "item": item,
+            })
+
+    uf = UnionFind(len(records))
+    # 1) 强身份合并：相同 qid / 显式 alias / 完全相同的无 qid 主干。
+    by_forced = {}
+    for index, record in enumerate(records):
+        key = record["forced"]
+        if not key:
+            continue
+        if key in by_forced:
+            uf.union(by_forced[key], index)
+        else:
+            by_forced[key] = index
+    # 2) 跨天复合打分合并（仅不同日期、<= 14 天、过硬闸门）；split 条目保持独立。
+    for left in range(len(records)):
+        for right in range(left + 1, len(records)):
+            if records[left]["split"] or records[right]["split"]:
+                continue
+            if uf.find(left) == uf.find(right):
+                continue
+            if cross_day_match(records[left], records[right]):
+                uf.union(left, right)
+
+    groups = {}
+    for index, record in enumerate(records):
+        groups.setdefault(uf.find(index), []).append(record)
+
+    topics = []
+    for members in groups.values():
+        unique_dates = sorted({r["date"] for r in members})
+        if len(unique_dates) < min_days:
+            continue
+        if any(str(r["qid"]) in hidden for r in members):
+            continue
+
+        forced_keys = {r["forced"] for r in members if r["forced"]}
+        if len(forced_keys) == 1:
+            key = next(iter(forced_keys))
+            topic_id = key.split(":", 1)[1] if ":" in key else key
+        else:
+            shared = set.intersection(*[r["entities"] for r in members])
+            anchor = sorted(shared)[0] if shared else (members[0]["stem"][:16] or "topic")
+            topic_id = "entity:" + anchor
+        if topic_id in hidden:
+            continue
+
+        nodes = []
+        for record in members:
+            item = record["item"]
+            state = record["state"]
+            nodes.append({
+                "date": record["date"],
+                "date_label": date_label(record["date"]),
+                "rank": item.get("rank"),
+                "title": record["title"],
+                "question_id": record["qid"],
                 "state": state,
+                "status": state,
                 "state_label": app.TYPE_NAMES.get(state, state),
-                "hook": hook,
+                "hook": build_hook(item),
                 "key_answer": key_answer(item),
                 "ext_ref": ext_ref(item),
             })
-
-    topics = []
-    for topic_id, nodes in clusters.items():
-        if topic_id in hidden:
-            continue
-        unique_dates = sorted({node["date"] for node in nodes})
-        if len(unique_dates) < min_days:
-            continue
         nodes.sort(key=lambda n: n["date"])
         nodes = deduplicate_nodes(nodes)
+        status_flow = [n["status"] for n in nodes]
         state_changes = sum(
             1 for i in range(1, len(nodes))
             if nodes[i].get("state") != nodes[i - 1].get("state")
         )
-        representative = next((node for node in reversed(nodes) if node.get("title")), {})
-        latest = representative
-        # topic_id 是内部聚类键（无真实 qid 时形如 "title:xxx"），不能直接
-        # 暴露成 question_id。只有节点里抓到的纯数字知乎问题号才是可核验链接。
+        latest = next((node for node in reversed(nodes) if node.get("title")), {})
         real_qids = sorted({str(n["question_id"]) for n in nodes
                             if str(n.get("question_id") or "").isdigit()})
         primary_qid = real_qids[0] if real_qids else ""
+
+        shared_entities = set.intersection(*[r["entities"] for r in members])
+        if not shared_entities:
+            all_entities = set().union(*[r["entities"] for r in members])
+            shared_entities = set(sorted(all_entities)[:3])
+
         topic = {
             "topic_id": topic_id,
             "origin": "auto_archive",
@@ -319,11 +553,12 @@ def build_timeline(min_days=2):
             "has_state_change": state_changes > 0,
             "state_label": latest.get("state_label") or latest.get("state") or "",
             "latest_state_label": latest.get("state_label") or latest.get("state") or "",
+            "status_flow": status_flow,
+            "entities": sorted(shared_entities)[:6],
             "key_answer": latest.get("key_answer"),
             "ext_ref": latest.get("ext_ref") or [],
             "nodes": nodes,
         }
-        # 只由真实抓到的问题号构造知乎链接；无 qid 的话题不给链接，绝不编造。
         if primary_qid:
             topic["question_url"] = f"https://www.zhihu.com/question/{primary_qid}"
         topics.append(topic)
@@ -339,17 +574,18 @@ def build_timeline(min_days=2):
     topics = topics[:8]
     missing = missing_dates(present_dates)
     tracked_days = (
-        (datetime.date.fromisoformat(max(present_dates)) - datetime.date.fromisoformat(min(present_dates))).days + 1
+        (datetime.date.fromisoformat(max(present_dates))
+         - datetime.date.fromisoformat(min(present_dates))).days + 1
         if present_dates else 0
     )
-    result = {
+    return {
         "generated_at": app.now_str(),
         "archive_files": len(archives),
         "tracked_days": tracked_days,
         "missing_dates": missing,
         "topics": topics,
+        "archives": build_archives_view(archives),
     }
-    return result
 
 
 def main(argv=None):
@@ -362,7 +598,8 @@ def main(argv=None):
     atomic_write_text(DEMO_TIMELINE_PATH, f"window.TIMELINE_DATA = {js_payload};")
     print(
         f"时间线构建完成：归档 {result['archive_files']} 个，"
-        f"跨度 {result['tracked_days']} 天，话题 {len(result['topics'])} 个"
+        f"跨度 {result['tracked_days']} 天，话题 {len(result['topics'])} 个，"
+        f"往期归档 {len(result['archives'])} 期"
     )
     return 0
 
