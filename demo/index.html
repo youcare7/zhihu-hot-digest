@@ -317,8 +317,13 @@
   footer { margin-top: 28px; padding: 22px 4px 82px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.9; }
 
   /* 目录：全部标题 + 三态筛选 + 直达，补足分页的比较成本。 */
-  .directory { width: min(720px, calc(100% - 28px)); max-height: min(82vh, 760px); padding: 0; border: 1px solid rgba(255,255,255,.85); border-radius: 24px; background: rgba(250,249,245,.94); color: var(--ink); box-shadow: 0 30px 100px rgba(20,28,36,.22); -webkit-backdrop-filter: blur(26px) saturate(140%); backdrop-filter: blur(26px) saturate(140%); }
+  /* 默认隐藏 + [open] 固定居中：无原生 <dialog> 的旧浏览器（iOS<15.4 微信/Safari）里，
+     dialog 是未知元素会一直渲染在页底，目录按钮看似「不动」；显式声明后与原生弹层表现一致 */
+  .directory { display: none; width: min(720px, calc(100% - 28px)); max-height: min(82vh, 760px); padding: 0; border: 1px solid rgba(255,255,255,.85); border-radius: 24px; background: rgba(250,249,245,.94); color: var(--ink); box-shadow: 0 30px 100px rgba(20,28,36,.22); -webkit-backdrop-filter: blur(26px) saturate(140%); backdrop-filter: blur(26px) saturate(140%); }
+  .directory[open] { display: block; position: fixed; inset: 0; margin: auto; z-index: 60; }
   .directory::backdrop { background: rgba(25,32,40,.24); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
+  /* 无原生 dialog 时的兜底遮罩（配合 body.directory-open，由 JS 切换） */
+  body.directory-open::after { content: ""; position: fixed; inset: 0; z-index: 59; background: rgba(25,32,40,.24); }
   .directory-inner { padding: 22px; }
   .directory-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .directory-head h2 { font-family: var(--serif); font-size: 23px; font-weight: 600; }
@@ -680,6 +685,10 @@
   .node-hook { color: var(--secondary); font-size: 14px; line-height: 1.85; }
   .node-answer { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
   .node-answer b { color: var(--blue); font-weight: 600; }
+  .node-refs { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+  .node-refs b { color: var(--blue); font-weight: 600; }
+  .node-answer a, .node-refs a { color: var(--blue); text-decoration: none; }
+  .node-answer a:hover, .node-refs a:hover { text-decoration: underline; }
   .timeline-empty { max-width: 860px; margin: 26px auto; padding: 34px; text-align: center; color: var(--muted); }
   @media (max-width: 560px) {
     .topbar { flex-wrap: wrap; }
@@ -687,10 +696,13 @@
   }
 </style>
 <script>
-/* v2.8.1 移动端兼容：部分手机浏览器（如 iOS 微信内置浏览器、旧版 Safari）不支持动态 WebP，
-   动图只显示静态首帧。特性检测不支持时，把页面里所有看山动图自动回退为同名 GIF。 */
+/* v2.8.1 移动端兼容：部分手机浏览器（如 iOS 微信内置浏览器、旧版 Safari）不支持（动画）WebP，
+   动图只显示静态首帧或不显示。特性检测不支持时把页面里所有看山动图自动回退为同名 GIF。
+   v2.8.3 修复：检测图 base64 此前被截断（RIFF 声明 82 字节实际 67），所有浏览器都被误判为
+   不支持 WebP 而整体回退 GIF；另增单图 error 兜底，任何浏览器加载失败都自动换回同名 GIF，
+   保证手机端照片一定可见。 */
 (function () {
-  var ANIM_WEBP = 'data:image/webp;base64,UklGRlIAAABXRUJQVlA4WAoAAAAAAAAAQUxQSAwAAAABAAAAAAAAAAAAAFZQOCAYAAAAMAEAnQEqAQABAAEALAAAAA==';
+  var ANIM_WEBP = 'data:image/webp;base64,UklGRiIAAABXRUJQVlA4TBYAAAAvAUAAAA/wN/8b/N9df/7jASsQ0f8I';
   function toGif(u) { return u.replace(/\.webp($|\?)/, '.gif$1'); }
   window.__ksAnimFallback = false;
   window.__ksAnimUrl = function (u) { return window.__ksAnimFallback ? toGif(u) : u; };
@@ -702,6 +714,15 @@
       }
     }
   };
+  // 单图兜底：资源错误在捕获阶段冒泡到 document，动态插入的 img 同样生效
+  document.addEventListener('error', function (event) {
+    var t = event.target;
+    if (!t || t.tagName !== 'IMG' || t.__ksFbTried) return;
+    if (t.src.indexOf('assets/ks-') !== -1 && /\.webp($|\?)/.test(t.src)) {
+      t.__ksFbTried = true;
+      t.src = toGif(t.src);
+    }
+  }, true);
   try {
     var t = new Image();
     t.onload = function () {
@@ -1859,6 +1880,28 @@
   // ---------- 合订本：跨天话题时间线 ----------
   var timelineBuilt = false;
 
+  // 合订本渲染只接受 http/https 绝对链接，杜绝 javascript: 之类的伪协议；
+  // 状态类也做白名单，避免归档数据污染 className。
+  function safeTimelineUrl(value) {
+    var text = String(value == null ? '' : value).trim();
+    return /^https?:\/\/[^\s]+$/i.test(text) ? text : null;
+  }
+
+  function timelineState(value) {
+    var text = String(value == null ? '' : value);
+    return /^(dispute|consensus|verify)$/.test(text) ? text : '';
+  }
+
+  function timelineLink(url, className, text) {
+    var href = safeTimelineUrl(url);
+    if (!href) return el('span', className, text);
+    var link = el('a', className, text);
+    link.href = href;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    return link;
+  }
+
   function buildTimeline() {
     var listEl = document.getElementById('topic-list');
     var emptyEl = document.getElementById('timeline-empty');
@@ -1877,9 +1920,10 @@
       var card = el('article', 'card topic-card');
       var head = el('div', 'topic-head');
       var title = el('h3', 'topic-title');
-      if (topic.question_url) {
+      var topicHref = safeTimelineUrl(topic.question_url);
+      if (topicHref) {
         var link = el('a', null, topic.title || '未命名话题');
-        link.href = topic.question_url;
+        link.href = topicHref;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
         title.appendChild(link);
@@ -1903,17 +1947,31 @@
       if (nodes.length) {
         var list = el('ol', 'node-list');
         nodes.forEach(function (node) {
-          var item = el('li', 'node-item ' + (node.state || ''));
+          var state = timelineState(node.state);
+          var item = el('li', 'node-item ' + state);
           var top = el('div', 'node-top');
           top.appendChild(el('span', 'node-date', node.date_label || node.date || ''));
-          if (node.state_label) top.appendChild(el('span', 'tag ' + (node.state || ''), node.state_label));
+          if (node.state_label) top.appendChild(el('span', 'tag ' + state, node.state_label));
           item.appendChild(top);
           if (node.hook) item.appendChild(el('p', 'node-hook', node.hook));
           if (node.key_answer && node.key_answer.title) {
             var ans = el('p', 'node-answer');
             ans.appendChild(el('b', null, '高赞视角 '));
-            ans.appendChild(document.createTextNode(node.key_answer.title));
+            ans.appendChild(timelineLink(node.key_answer.url, null, node.key_answer.title));
             item.appendChild(ans);
+          }
+          var refs = Array.isArray(node.ext_ref) ? node.ext_ref : [];
+          var validRefs = refs.filter(function (ref) {
+            return ref && ref.title && safeTimelineUrl(ref.url);
+          });
+          if (validRefs.length) {
+            var refBox = el('p', 'node-refs');
+            refBox.appendChild(el('b', null, '站外信源 '));
+            validRefs.forEach(function (ref, idx) {
+              if (idx) refBox.appendChild(document.createTextNode(' · '));
+              refBox.appendChild(timelineLink(ref.url, null, ref.title));
+            });
+            item.appendChild(refBox);
           }
           list.appendChild(item);
         });
@@ -1964,17 +2022,28 @@
   });
 
   var directory = document.getElementById('directory');
+  // 无原生 dialog 的浏览器走 [open] 属性兜底：弹层定位由 .directory[open] CSS 保证，
+  // 遮罩与 Esc 关闭手动补齐，行为对齐原生 showModal/close。
   function openDirectory() {
     if (typeof directory.showModal === 'function') {
       if (!directory.open) directory.showModal();
     } else {
       directory.setAttribute('open', '');
+      document.body.classList.add('directory-open');
     }
   }
   function closeDirectory() {
     if (typeof directory.close === 'function' && directory.open) directory.close();
     else directory.removeAttribute('open');
+    document.body.classList.remove('directory-open');
   }
+  directory.addEventListener('close', function () { document.body.classList.remove('directory-open'); });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && directory.getAttribute('open') !== null
+        && typeof directory.close !== 'function') {
+      closeDirectory();
+    }
+  });
   document.querySelectorAll('[data-open-directory]').forEach(function (button) { button.addEventListener('click', openDirectory); });
   document.getElementById('close-directory').addEventListener('click', closeDirectory);
   directory.addEventListener('click', function (event) { if (event.target === directory) closeDirectory(); });
@@ -2016,7 +2085,7 @@
   window.addEventListener('hashchange', routeFromHash);
 
   document.addEventListener('keydown', function (event) {
-    if (mode !== 'page' || directory.open || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (mode !== 'page' || directory.open || directory.getAttribute('open') !== null || event.altKey || event.ctrlKey || event.metaKey) return;
     var tagName = event.target && event.target.tagName;
     if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return;
     if (event.key === 'ArrowLeft') { event.preventDefault(); showPage(currentPage - 1, true); }
