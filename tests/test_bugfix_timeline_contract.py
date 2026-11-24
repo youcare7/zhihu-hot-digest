@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import sys
 import tempfile
@@ -51,8 +52,13 @@ def run_archive(items, target="2026-11-24", preexisting=None):
     with tempfile.TemporaryDirectory(prefix="bugfix-archive-") as temp:
         root = pathlib.Path(temp)
         old_dir, old_build = app.DATA_DIR, app.build_brief
+        old_secret = os.environ.get("ZHIHU_ACCESS_SECRET")
         app.DATA_DIR = root
         app.build_brief = lambda: {"date": target, "source": "live", "items": items}
+        # build_brief 已被 mock 为固定返回值，不会真正请求知乎；
+        # 但 daily_archive 的密钥预检要求 ZHIHU_ACCESS_SECRET 非空才会进入生成路径，
+        # 这里给一个占位值，让 source / 日期 / 条数闸门继续被真实覆盖。
+        os.environ["ZHIHU_ACCESS_SECRET"] = "test-secret-for-archive-only"
         try:
             if preexisting is not None:
                 dest = root / "archive" / f"{target}.json"
@@ -63,6 +69,10 @@ def run_archive(items, target="2026-11-24", preexisting=None):
             return rc, path.exists(), path.read_text(encoding="utf-8") if path.exists() else ""
         finally:
             app.DATA_DIR, app.build_brief = old_dir, old_build
+            if old_secret is None:
+                os.environ.pop("ZHIHU_ACCESS_SECRET", None)
+            else:
+                os.environ["ZHIHU_ACCESS_SECRET"] = old_secret
 
 
 # ---------------------------------------------------------------------------
