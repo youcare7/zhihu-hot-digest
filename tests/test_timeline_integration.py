@@ -103,24 +103,9 @@ def run_tests():
             assert "if (!value) { showTab('today', false); return; }" in html
             assert "showTab(hasTopics ? 'timeline' : 'today', false)" not in html
             assert "today-timeline-lead" in html
-            assert "示范样本 · 无已核实外链" in html
-            assert "示范标题（未核实）" in html
-            assert "li.appendChild(el('span', 'node-answer dead', '示范标题（未核实）：" in html
-            assert "tag-seed" in html
-
-            # 验证内置种子 origin 与 --no-seeds 剥离
-            build_timeline.SEED_PATH = None
-            default_seeds = build_timeline.load_seeds()
-            assert len(default_seeds) == 3
-            assert all(s.get("origin") == "curated_seed" for s in default_seeds)
-            assert all(
-                not node.get("ext_ref")
-                and not (node.get("key_answer") or {}).get("url")
-                for seed in default_seeds
-                for node in seed["nodes"]
-            )
-            unseeded = build_timeline.build_timeline(min_days=2, include_seeds=False)
-            assert not any(t.get("origin") == "curated_seed" for t in unseeded["topics"])
+            assert "tag-seed" not in html
+            assert "示范样本 · 无已核实外链" not in html
+            assert not any(t.get("origin") == "curated_seed" for t in timeline["topics"])
         finally:
             app.DATA_DIR = old_data_dir
             app.build_brief = old_build_brief
