@@ -426,6 +426,7 @@
     #reader.mode-deep .page-panel.outgoing { display: none !important; }
     #reader.continuous.cascade .page-panel { animation: none !important; }
     #cover.leaving, #cover.entering, #reader.entering, #reader.leaving { animation: none !important; }
+    #timeline.entering, #timeline.entering .topic-card { animation: none !important; }
     #reader.mode-deep.rise .page-panel.active > * { animation: none !important; }
     .primary-button, .secondary-button, .reading-progress span { transition: none; }
   }
@@ -660,8 +661,13 @@
     .card { box-shadow: none; }
   }
   /* ---------- 合订本：跨天话题时间线 ---------- */
-  #timeline { padding-top: 6px; }
-  .timeline-head { max-width: 860px; margin: 0 auto 20px; }
+  #timeline { padding-top: 22px; }
+  /* 合订本入场动画：与阅读器转场同款淡入上浮；终点 transform:none，话题卡错峰浮现 */
+  @keyframes timeline-in { from { opacity: 0; transform: translateY(22px); } to { opacity: 1; transform: none; } }
+  #timeline.entering { animation: timeline-in 300ms ease-out both; }
+  @keyframes topic-in { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+  #timeline.entering .topic-card { animation: topic-in 340ms ease-out both; }
+  .timeline-head { max-width: 860px; margin: 26px auto 20px; }
   .timeline-head h2 { margin-top: 12px; font-family: var(--serif); font-size: clamp(24px, 3.2vw, 34px); letter-spacing: -.02em; }
   .timeline-sub { margin-top: 8px; color: var(--secondary); font-size: 14px; }
   .timeline-meta { margin-top: 10px; color: var(--muted); font-size: 12px; }
@@ -689,7 +695,37 @@
   .node-refs b { color: var(--blue); font-weight: 600; }
   .node-answer a, .node-refs a { color: var(--blue); text-decoration: none; }
   .node-answer a:hover, .node-refs a:hover { text-decoration: underline; }
-  .timeline-empty { max-width: 860px; margin: 26px auto; padding: 34px; text-align: center; color: var(--muted); }
+  .timeline-status { max-width: 860px; margin: 0 auto 18px; padding: 14px 18px; font-size: 13.5px; color: var(--secondary); line-height: 1.8; }
+  .timeline-empty-lite { max-width: 860px; margin: 0 auto 20px; padding: 14px 18px; text-align: left; color: var(--muted); font-size: 13px; line-height: 1.8; }
+  .flow-badge { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+  .flow-step { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+  .flow-step.dispute { color: var(--orange); border-color: var(--orange); }
+  .flow-step.consensus { color: var(--green); border-color: var(--green); }
+  .flow-step.verify { color: var(--violet); border-color: var(--violet); }
+  .flow-arrow { color: var(--muted); font-size: 11.5px; }
+  .entity-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .entity-tag { font-size: 11.5px; color: var(--secondary); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; }
+  .archive-section { max-width: 860px; margin: 38px auto 64px; }
+  .archive-heading { margin: 0 0 6px; font-family: var(--serif); font-size: clamp(20px, 2.6vw, 26px); }
+  .archive-sub { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.8; }
+  .archive-list { display: flex; flex-direction: column; gap: 16px; }
+  .archive-card { padding: 20px clamp(18px, 3vw, 28px); }
+  .archive-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .archive-date { font-family: var(--serif); font-size: 17px; font-weight: 600; }
+  .archive-count { color: var(--muted); font-size: 12.5px; }
+  .archive-dots { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-left: auto; font-size: 12px; color: var(--muted); }
+  .archive-dots .dot, .archive-item .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .archive-dots .dot { display: inline-block; }
+  .archive-dots .dot.dispute, .archive-item .dot.dispute { background: var(--orange); }
+  .archive-dots .dot.consensus, .archive-item .dot.consensus { background: var(--green); }
+  .archive-dots .dot.verify, .archive-item .dot.verify { background: var(--violet); }
+  .archive-items { list-style: none; margin: 14px 0 0; padding: 0; }
+  .archive-item { display: flex; align-items: flex-start; gap: 9px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13.5px; line-height: 1.7; }
+  .archive-item .dot { flex: 0 0 8px; margin-top: 7px; }
+  .archive-item a { color: inherit; text-decoration: none; }
+  .archive-item a:hover { color: var(--blue); }
+  .archive-expand { margin-top: 12px; padding: 6px 14px; font: inherit; font-size: 12.5px; color: var(--blue); background: transparent; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; }
+  .archive-expand:hover { border-color: var(--blue); }
   @media (max-width: 560px) {
     .topbar { flex-wrap: wrap; }
     .top-actions { flex-wrap: wrap; justify-content: flex-end; }
@@ -705,7 +741,10 @@
   var ANIM_WEBP = 'data:image/webp;base64,UklGRiIAAABXRUJQVlA4TBYAAAAvAUAAAA/wN/8b/N9df/7jASsQ0f8I';
   function toGif(u) { return u.replace(/\.webp($|\?)/, '.gif$1'); }
   window.__ksAnimFallback = false;
-  window.__ksAnimUrl = function (u) { return window.__ksAnimFallback ? toGif(u) : u; };
+  window.__ksAnimUrl = function (u) {
+    u = window.__ksAnimFallback ? toGif(u) : u;
+    return u.indexOf('?') >= 0 ? u : u + '?v=2';
+  };
   window.__ksAnimSwapAll = function () {
     var imgs = document.querySelectorAll('img');
     for (var i = 0; i < imgs.length; i++) {
@@ -740,7 +779,7 @@
 <div id="app" class="wrap" hidden>
   <section id="cover" aria-labelledby="cover-title">
     <nav class="topbar glass" aria-label="首页导航">
-      <button class="brand" type="button" data-go="cover" aria-label="热榜深潜简报首页"><span class="brand-mark">深</span><img class="brand-kanshan" src="assets/kanshan-front.png" alt="" aria-hidden="true">热榜深潜简报</button>
+      <button class="brand" type="button" data-go="cover" aria-label="热榜深潜简报首页"><span class="brand-mark">深</span><img class="brand-kanshan" src="assets/kanshan-front.png?v=2" alt="" aria-hidden="true">热榜深潜简报</button>
       <div class="top-actions">
         <button class="nav-button" type="button" data-open-directory>目录</button>
         <button class="nav-button" type="button" data-go="all">速览全部</button>
@@ -758,7 +797,7 @@
           </div>
           <div class="ks-unit">
             <div class="ks-bubble"><b>看山说</b><span aria-live="polite">大家好，我是知乎吉祥物刘看山～我帮你盯热榜：筛出值得深读的争议，讲清背景、双方观点，还有缺哪块证据。</span></div>
-            <img class="cover-kanshan-big" src="assets/ks-idle.webp" alt="知乎官方吉祥物刘看山" title="点我，换一句看山说">
+            <img class="cover-kanshan-big" src="assets/ks-idle.webp?v=2" alt="知乎官方吉祥物刘看山" title="点我，换一句看山说">
             <span class="ks-hint">点我，换一句看山说 ↑</span>
           </div>
         </div>
@@ -785,7 +824,7 @@
   <section id="reader" hidden>
     <div class="reader-shell">
       <nav class="topbar reader-toolbar glass" aria-label="阅读导航">
-        <button id="back-cover" class="brand" type="button"><span class="brand-mark">深</span><img class="brand-kanshan" src="assets/kanshan-front.png" alt="" aria-hidden="true">热榜深潜</button>
+        <button id="back-cover" class="brand" type="button"><span class="brand-mark">深</span><img class="brand-kanshan" src="assets/kanshan-front.png?v=2" alt="" aria-hidden="true">热榜深潜</button>
         <div class="top-actions">
           <button class="nav-button" type="button" data-open-directory>目录</button>
           <button class="nav-button" type="button" data-go="timeline">合订本</button>
@@ -824,7 +863,7 @@
 
   <section id="timeline" hidden>
     <nav class="topbar glass" aria-label="合订本导航">
-      <button class="brand" type="button" data-go="cover" aria-label="返回热榜深潜简报首页"><span class="brand-mark">深</span><img class="brand-kanshan" src="assets/kanshan-front.png" alt="" aria-hidden="true">热榜深潜</button>
+      <button class="brand" type="button" data-go="cover" aria-label="返回热榜深潜简报首页"><span class="brand-mark">深</span><img class="brand-kanshan" src="assets/kanshan-front.png?v=2" alt="" aria-hidden="true">热榜深潜</button>
       <div class="top-actions">
         <button class="nav-button" type="button" data-open-directory>目录</button>
         <button class="nav-button" type="button" data-go="all">速览全部</button>
@@ -836,8 +875,14 @@
       <p class="timeline-sub">把跨天上榜的争议串成时间线：从待补材料、分歧爆发到形成共识，看一件事几天之内怎么反转。</p>
       <p id="timeline-meta" class="timeline-meta" hidden></p>
     </div>
-    <p id="timeline-empty" class="card timeline-empty" hidden>今天还没有跨天追踪的话题。每天更新后，连续上榜的争议会自动收进这里。</p>
+    <p id="timeline-status" class="card timeline-status" hidden></p>
+    <p id="timeline-empty" class="card timeline-empty-lite" hidden>仅由真实归档自动聚合，不填充人工种子；出现连续事件后会自动点亮跨天话题。</p>
     <div id="topic-list" class="topic-list"></div>
+    <section class="archive-section" aria-labelledby="archive-heading">
+      <h3 id="archive-heading" class="archive-heading">往期真实归档</h3>
+      <p class="archive-sub">每天的真实热榜简报归档，按日期倒序；标题与状态均取自当日归档原文。</p>
+      <div id="archive-list" class="archive-list"></div>
+    </section>
   </section>
 
   <nav id="pager" class="pager glass" aria-label="分页控制" hidden>
@@ -1902,20 +1947,85 @@
     return link;
   }
 
+  var TIMELINE_STATE_LABEL = { dispute: '有真分歧', consensus: '已形成共识', verify: '待验证' };
+
+  // 主区 B：往期真实归档，始终可见。全部字段来自 window.TIMELINE_DATA.archives。
+  function buildArchiveList() {
+    var listEl = document.getElementById('archive-list');
+    var tdata = window.TIMELINE_DATA;
+    var archives = (tdata && Array.isArray(tdata.archives)) ? tdata.archives : [];
+    if (!archives.length) {
+      listEl.appendChild(el('p', 'archive-sub', '暂无真实归档，等待每日归档任务生成。'));
+      return;
+    }
+    archives.forEach(function (archive) {
+      var card = el('article', 'card archive-card');
+      var head = el('div', 'archive-head');
+      head.appendChild(el('span', 'archive-date', archive.date_label || archive.date || ''));
+      head.appendChild(el('span', 'archive-count', '共 ' + (archive.item_count || 0) + ' 条'));
+      var counts = (archive && archive.status_counts) || {};
+      var dots = el('div', 'archive-dots');
+      [['dispute', '有分歧'], ['consensus', '有共识'], ['verify', '待验证']].forEach(function (pair) {
+        var wrap = el('span', 'dot-label');
+        wrap.appendChild(el('i', 'dot ' + pair[0]));
+        wrap.appendChild(document.createTextNode(' ' + pair[1] + ' ' + (counts[pair[0]] || 0)));
+        dots.appendChild(wrap);
+      });
+      head.appendChild(dots);
+      card.appendChild(head);
+
+      var items = Array.isArray(archive.items) ? archive.items : [];
+      var ul = el('ul', 'archive-items');
+      items.forEach(function (entry, idx) {
+        var li = el('li', 'archive-item');
+        li.appendChild(el('span', 'dot ' + timelineState(entry && entry.status)));
+        var text = String((entry && entry.title) || '未命名条目');
+        li.appendChild(timelineLink(entry && entry.url, null, text));
+        if (idx >= 3) li.hidden = true;
+        ul.appendChild(li);
+      });
+      card.appendChild(ul);
+      if (items.length > 3) {
+        var btn = el('button', 'archive-expand', '展开全部 ' + items.length + ' 条');
+        btn.type = 'button';
+        var expanded = false;
+        btn.addEventListener('click', function () {
+          expanded = !expanded;
+          for (var i = 0; i < ul.children.length; i++) {
+            ul.children[i].hidden = !expanded && i >= 3;
+          }
+          btn.textContent = expanded ? '收起' : '展开全部 ' + items.length + ' 条';
+        });
+        card.appendChild(btn);
+      }
+      listEl.appendChild(card);
+    });
+  }
+
   function buildTimeline() {
     var listEl = document.getElementById('topic-list');
     var emptyEl = document.getElementById('timeline-empty');
     var metaEl = document.getElementById('timeline-meta');
+    var statusEl = document.getElementById('timeline-status');
     var tdata = window.TIMELINE_DATA;
     var topics = (tdata && Array.isArray(tdata.topics)) ? tdata.topics : [];
+    var archives = (tdata && Array.isArray(tdata.archives)) ? tdata.archives : [];
     if (metaEl && tdata && tdata.generated_at) {
       metaEl.textContent = '合订本更新于 ' + tdata.generated_at;
       metaEl.hidden = false;
     }
-    if (!topics.length) {
-      emptyEl.hidden = false;
-      return;
+    // 顶部档案状态条：真实统计，M = 0 时如实说明尚未出现跨天延续话题。
+    if (statusEl && tdata) {
+      var dates = archives.map(function (a) { return a && a.date ? a.date : ''; })
+        .filter(Boolean).sort();
+      var total = archives.length || (tdata.archive_files || 0);
+      var span = dates.length ? (dates[0] + ' – ' + dates[dates.length - 1]) : '暂无归档';
+      statusEl.textContent = '已归档 ' + total + ' 期（' + span + '）· '
+        + (topics.length ? ('追踪到 ' + topics.length + ' 个跨天话题') : '暂未出现跨天延续话题');
+      statusEl.hidden = false;
     }
+    // 主区 A 空态收拢为轻量提示卡，归档区仍继续渲染。
+    if (!topics.length) emptyEl.hidden = false;
     topics.forEach(function (topic) {
       var card = el('article', 'card topic-card');
       var head = el('div', 'topic-head');
@@ -1941,6 +2051,26 @@
       if (topic.state_changes) stats.push(topic.state_changes + ' 次反转');
       if (stats.length) row.appendChild(el('span', 'topic-stats', stats.join(' · ')));
       head.appendChild(row);
+      // 状态跃迁徽章：复用 dispute / consensus / verify 三态色板。
+      var flow = Array.isArray(topic.status_flow) ? topic.status_flow : [];
+      if (flow.length) {
+        var flowBox = el('div', 'flow-badge');
+        flow.forEach(function (value, idx) {
+          if (idx) flowBox.appendChild(el('span', 'flow-arrow', '→'));
+          var state = timelineState(value);
+          flowBox.appendChild(el('span', 'flow-step ' + state, TIMELINE_STATE_LABEL[state] || String(value)));
+        });
+        head.appendChild(flowBox);
+      }
+      // 命中实体标签：驱动本次聚合的硬实体，全部来自真实归档标题。
+      var entities = Array.isArray(topic.entities) ? topic.entities : [];
+      if (entities.length) {
+        var tagBox = el('div', 'entity-tags');
+        entities.forEach(function (value) {
+          tagBox.appendChild(el('span', 'entity-tag', String(value)));
+        });
+        head.appendChild(tagBox);
+      }
       card.appendChild(head);
 
       var nodes = Array.isArray(topic.nodes) ? topic.nodes : [];
@@ -1979,6 +2109,7 @@
       }
       listEl.appendChild(card);
     });
+    buildArchiveList();
   }
 
   function renderTimeline(shouldUpdateHash) {
@@ -1989,6 +2120,13 @@
     pagerEl.hidden = true;
     timelineEl.hidden = false;
     setContinuousState(false);
+    // 入场动画：整页淡入上浮，话题卡按序错峰浮现；终点 transform:none 不影响布局
+    var tcards = timelineEl.querySelectorAll('.topic-card');
+    for (var ti = 0; ti < tcards.length; ti++) tcards[ti].style.animationDelay = (80 + ti * 70) + 'ms';
+    timelineEl.classList.remove('entering');
+    void timelineEl.offsetWidth;
+    timelineEl.classList.add('entering');
+    setTimeout(function () { timelineEl.classList.remove('entering'); }, 420 + tcards.length * 70);
     if (shouldUpdateHash !== false) updateHash('timeline');
     window.scrollTo(0, 0);
   }

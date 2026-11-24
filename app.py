@@ -1491,7 +1491,17 @@ def index():
 def assets(filename):
     """v2.8 吉祥物/动效静态资源：前端以 assets/xx.webp 相对路径引用，
     容器必须显式提供，否则正式站吉祥物 404（静态托管的临时站不受影响）。"""
-    return send_from_directory(DEMO_DIR / "assets", filename)
+    resp = send_from_directory(DEMO_DIR / "assets", filename)
+    # 容器内 mimetypes 缺少 .webp 映射（回退 application/octet-stream），
+    # 与 nosniff 叠加会被 iOS Safari / 微信等严格浏览器拒绝渲染——显式补齐图片 MIME。
+    lower = filename.lower()
+    for ext, mime in ((".webp", "image/webp"), (".png", "image/png"),
+                      (".gif", "image/gif"), (".jpg", "image/jpeg"),
+                      (".jpeg", "image/jpeg")):
+        if lower.endswith(ext):
+            resp.headers["Content-Type"] = mime
+            break
+    return resp
 
 
 @app.route("/healthz")
