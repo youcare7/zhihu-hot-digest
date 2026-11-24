@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-11-24 23:22",
-  "archive_files": 2,
-  "tracked_days": 4,
+  "generated_at": "2026-11-25 07:27",
+  "archive_files": 3,
+  "tracked_days": 5,
   "missing_dates": [
     "2026-11-22",
     "2026-11-23"
@@ -9,13 +9,75 @@
   "topics": [],
   "archives": [
     {
+      "date": "2026-11-25",
+      "date_label": "11月25日",
+      "item_count": 10,
+      "status_counts": {
+        "dispute": 4,
+        "consensus": 3,
+        "verify": 3
+      },
+      "items": [
+        {
+          "title": "中韩自贸协定谈判里，中方首次同意给予韩国电影、游戏等领域最惠国待遇，将给两国影视行业带来哪些机遇？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2106818758044030504?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "特朗普称黄仁勋是「国家瑰宝」，若在美遇不公可去中国，黄仁勋未来若来华可能有哪些选择？",
+          "status": "dispute",
+          "url": "https://www.zhihu.com/question/2108601916930225865?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "AI 短剧《丑狐》爆火后引发大量讨论，它能戳中观众的核心原因是什么？",
+          "status": "consensus",
+          "url": "https://www.zhihu.com/question/2108451365806776772?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "小米集团 2026 Q3 财报发布，经调整净利润 48.84 亿元，同比下降56.8%，怎样解读？",
+          "status": "dispute",
+          "url": "https://www.zhihu.com/question/2108615793676137848?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "高志凯称欧洲在人工智能发展中的作用几乎是零，这一观点是否站得住脚？",
+          "status": "dispute",
+          "url": "https://www.zhihu.com/question/2104246988380418941?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "有没有感觉查酒驾这场闹剧正在慢慢退场呢？",
+          "status": "dispute",
+          "url": "https://www.zhihu.com/question/2106748863524741946?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "为什么大便之前体重和大便之后的体重一样？难道排泄物没有重量吗？",
+          "status": "consensus",
+          "url": "https://www.zhihu.com/question/2105195950671245354?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "专家称年轻人持续出现变懒、变沉默等状态，可能并非「社恐」而是精神分裂症阴性症状，是真的吗？该怎样区分？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2101452936345826488?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "为什么老板多数是销售出身，而不是市场出身？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/21648437?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "《西游记》中，真的是大海里是水，但龙宫内是干的吗？如果是的话，各个人物进龙宫时怎么晾干衣服？",
+          "status": "consensus",
+          "url": "https://www.zhihu.com/question/1924912454988731256?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        }
+      ]
+    },
+    {
       "date": "2026-11-24",
       "date_label": "11月24日",
       "item_count": 10,
       "status_counts": {
         "dispute": 7,
-        "consensus": 3,
-        "verify": 0
+        "consensus": 2,
+        "verify": 1
       },
       "items": [
         {
@@ -26,32 +88,32 @@
         {
           "title": "懂车帝回应「测试内容大调整」，称不再开放对比类内容等信息失实，具体是怎么回事？实际有哪些调整？",
           "status": "dispute",
-          "url": "https://www.guancha.cn/qiche/2026_11_23_909645.shtml"
+          "url": "https://www.sohu.com/a/1105656962_161795"
         },
         {
           "title": "幼儿园要招两岁孩子了，新政策支持幼儿园改造扩建，举办两至三岁幼儿的托班，该举措对家长和孩子有哪些好处？",
           "status": "dispute",
-          "url": "https://news.eol.cn/yaowen/202611/t20261123_2797593.shtml"
+          "url": "https://m.sohu.com/a/1105854616_120046696"
         },
         {
           "title": "淘股吧两届冠军仅 5 个月就从 1541 万亏到 74 万，最后宣告破产，一代炒股冠军的陨落带给投资者哪些反思？",
           "status": "dispute",
-          "url": "https://www.7hcn.com/article/486664-1.html"
+          "url": "https://www.7hcn.com/article/486662-1.html"
         },
         {
           "title": "某部委员工与间谍签署「保密与忠诚」条款、窃取百余份情报被判死刑，哪些信息值得关注？",
           "status": "consensus",
-          "url": "https://www.thepaper.cn/newsDetail_forward_34537715"
+          "url": "https://news.ifeng.com/c/8yHm4I2k9iN"
         },
         {
           "title": "魏建军自曝这几年焦虑，称「长城汽车曾经是中国自主品牌的销冠，如今已滑到了第九」，你觉得问题出在哪？",
           "status": "dispute",
-          "url": "https://view.inews.qq.com/a/20261123A0CGEJ00"
+          "url": "https://finance.eastmoney.com/a/202611243938352898.html"
         },
         {
           "title": "神舟二十四号载人飞船瞄准 11 月 25 日 8 时 18 分发射，「天宫」将迎来首位外籍航天员，有哪些信息值得关注？",
           "status": "consensus",
-          "url": "https://app.xinhuanet.com/news/article.html?articleId=2026112418101736be3f4ef098c062ec82fb2a2a"
+          "url": "https://feng.ifeng.com/c/8yJJyKUoUrd"
         },
         {
           "title": "30 岁教师晚自习时倒地猝死，生前多次向家人表示「好累」，暴露出背后哪些问题？工作负荷该如何合理界定？",
@@ -65,8 +127,8 @@
         },
         {
           "title": "全国首例「性侵认定工伤」案劳动争议案一审判决，当事人崔丽丽获赔 137 万余元，如何看待这一判决？",
-          "status": "consensus",
-          "url": "https://news.cnjiwang.com/gn/202611/4100847.html"
+          "status": "verify",
+          "url": "https://www.bjnews.com.cn/detail/1795003546169246.html"
         }
       ]
     },
