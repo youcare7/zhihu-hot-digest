@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Timeline pipeline independent acceptance script."""
 import json
+import os
 import pathlib
 import shutil
 import sys
@@ -199,6 +200,33 @@ with app.app.test_client() as client:
     except Exception as exc:
         check("timeline fallback valid JSON", False, str(exc))
 app.DATA_DIR = old_data_dir
+
+# 7. daily_archive 密钥预检：无本地缓存且 ZHIHU_ACCESS_SECRET 为空时必须拒绝
+old_env_secret = os.environ.get("ZHIHU_ACCESS_SECRET")
+old_build_brief = daily_archive.app.build_brief
+old_data_dir_secret = app.DATA_DIR
+secret_dir = pathlib.Path(tempfile.mkdtemp(prefix="archive-secret-"))
+try:
+    os.environ["ZHIHU_ACCESS_SECRET"] = ""
+    app.DATA_DIR = secret_dir
+    called = {"n": 0}
+
+    def _must_not_run(*args, **kwargs):
+        called["n"] += 1
+        raise AssertionError("build_brief 不应在无密钥时被调用")
+
+    app.build_brief = _must_not_run
+    rc = daily_archive.main(["--date", "2026-12-31"])
+    check("无密钥无缓存时返回 1", rc == 1, f"rc={rc}")
+    check("未触发 build_brief", called["n"] == 0, f"called={called['n']}")
+finally:
+    app.build_brief = old_build_brief
+    app.DATA_DIR = old_data_dir_secret
+    if old_env_secret is None:
+        os.environ.pop("ZHIHU_ACCESS_SECRET", None)
+    else:
+        os.environ["ZHIHU_ACCESS_SECRET"] = old_env_secret
+    shutil.rmtree(secret_dir, ignore_errors=True)
 
 if failures:
     print("\nFAILURES:", len(failures))

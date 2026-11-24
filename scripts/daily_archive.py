@@ -76,6 +76,12 @@ def main(argv=None):
 
     brief = load_existing_brief(target_date)
     if brief is None:
+        if not (os.environ.get("ZHIHU_ACCESS_SECRET") or "").strip():
+            print(
+                "拒绝归档：未检测到 ZHIHU_ACCESS_SECRET 且本地无当日可用 brief 缓存，"
+                "请在 GitHub Actions Secrets 中配置密钥"
+            )
+            return 1
         brief = app.build_brief()
 
     if brief.get("source") not in ("live", "cache"):

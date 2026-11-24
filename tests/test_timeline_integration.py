@@ -31,8 +31,13 @@ def run_tests():
         old_build_brief = app.build_brief
         old_archive_dir = build_timeline.ARCHIVE_DIR
         old_aliases_path = build_timeline.ALIASES_PATH
+        old_env_secret = os.environ.get("ZHIHU_ACCESS_SECRET")
         try:
             app.DATA_DIR = root
+            # build_brief 已被 mock 为固定返回值，不会真正请求知乎；
+            # 但 daily_archive 的密钥预检要求 ZHIHU_ACCESS_SECRET 非空才会进入生成路径，
+            # 因此这里给一个占位值，让后续断言继续覆盖 source / 日期 / 条数闸门。
+            os.environ["ZHIHU_ACCESS_SECRET"] = "test-secret-for-archive-only"
             date = "2026-11-20"
             items = [archive_item(str(i), f"热点 {i}") for i in range(5)]
             app.build_brief = lambda: {"date": date, "source": "live", "items": items}
@@ -122,6 +127,10 @@ def run_tests():
             app.build_brief = old_build_brief
             build_timeline.ARCHIVE_DIR = old_archive_dir
             build_timeline.ALIASES_PATH = old_aliases_path
+            if old_env_secret is None:
+                os.environ.pop("ZHIHU_ACCESS_SECRET", None)
+            else:
+                os.environ["ZHIHU_ACCESS_SECRET"] = old_env_secret
 
     print("Timeline integration checks passed")
 
