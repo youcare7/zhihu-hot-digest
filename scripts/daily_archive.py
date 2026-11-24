@@ -8,6 +8,7 @@ import os
 import pathlib
 import re
 import sys
+import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -51,8 +52,17 @@ def load_existing_brief(target_date):
 def atomic_write(path, data):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(str(tmp), str(path))
+    payload = json.dumps(data, ensure_ascii=False, indent=2)
+    # Windows 下杀软/索引器可能在新文件落盘后瞬间持有句柄，重试而非直接失败。
+    for attempt in range(5):
+        try:
+            tmp.write_text(payload, encoding="utf-8")
+            os.replace(str(tmp), str(path))
+            return
+        except PermissionError:
+            if attempt == 4:
+                raise
+            time.sleep(0.4 * (attempt + 1))
 
 
 def main(argv=None):

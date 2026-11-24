@@ -1,1 +1,1 @@
-window.TIMELINE_DATA = {"generated_at": "2026-11-24 21:25", "archive_files": 0, "tracked_days": 0, "missing_dates": [], "topics": []};
+window.TIMELINE_DATA = {"generated_at": "2026-11-24 22:02", "archive_files": 2, "tracked_days": 4, "missing_dates": ["2026-11-22", "2026-11-23"], "topics": []};

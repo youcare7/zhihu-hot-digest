@@ -68,7 +68,7 @@ probe = (
     "'ttl': app.CACHE_TTL_SECONDS, 'cooldown': app.REFRESH_COOLDOWN_SECONDS}))"
 )
 res = subprocess.run([sys.executable, "-c", probe], cwd=str(ROOT), env=env,
-                     capture_output=True, text=True)
+                     capture_output=True, text=True, encoding="utf-8", errors="replace")
 assert res.returncode == 0, f"模块导入不应崩溃：{res.stderr}"
 vals = json.loads(res.stdout.strip().splitlines()[-1])
 assert vals["web"] == 0, f"空值应回退默认 0，实际 {vals['web']}"

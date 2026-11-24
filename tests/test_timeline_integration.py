@@ -99,10 +99,21 @@ def run_tests():
             payload = json.loads(body[len("window.TIMELINE_DATA = "):-1])
             assert payload["topics"][0]["title"] == "</script><script>alert(1)</script>"
 
+            # 前端契约（v2.8 卡片风连续剧页，2026-11-24 合并版）：
+            # 独立分区 + 顶栏导航入口 + timeline.js 数据脚本 + hash 路由分支。
             html = app.INDEX_PATH.read_text(encoding="utf-8")
-            assert "if (!value) { showTab('today', false); return; }" in html
-            assert "showTab(hasTopics ? 'timeline' : 'today', false)" not in html
-            assert "today-timeline-lead" in html
+            assert 'id="timeline"' in html
+            assert 'data-go="timeline"' in html
+            assert 'src="timeline.js' in html
+            assert 'window.TIMELINE_DATA' in html
+            assert 'function buildTimeline()' in html
+            assert 'function renderTimeline(' in html
+            assert "if (value === 'timeline') { renderTimeline(false); return; }" in html
+            # XSS 防线：时间轴渲染只经 el() 的 textContent，禁止 innerHTML 拼接。
+            timeline_block = html.split('// ---------- 合订本', 1)[1]
+            assert 'innerHTML' not in timeline_block
+            assert 'textContent' in timeline_block
+            # 防幻觉红线：前端不得保留种子话题专属标记，数据里不得有 curated_seed。
             assert "tag-seed" not in html
             assert "示范样本 · 无已核实外链" not in html
             assert not any(t.get("origin") == "curated_seed" for t in timeline["topics"])

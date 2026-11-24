@@ -9,6 +9,7 @@ import os
 import pathlib
 import re
 import sys
+import time
 from collections import defaultdict
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -25,8 +26,16 @@ DEMO_TIMELINE_PATH = app.DEMO_DIR / "timeline.js"
 def atomic_write_text(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    os.replace(str(tmp), str(path))
+    # Windows 下杀软/索引器可能在新文件落盘后瞬间持有句柄，重试而非直接失败。
+    for attempt in range(5):
+        try:
+            tmp.write_text(text, encoding="utf-8")
+            os.replace(str(tmp), str(path))
+            return
+        except PermissionError:
+            if attempt == 4:
+                raise
+            time.sleep(0.4 * (attempt + 1))
 
 
 def atomic_write_json(path, data):

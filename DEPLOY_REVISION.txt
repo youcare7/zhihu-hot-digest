@@ -1,1 +1,4 @@
 zhihu-hot-digest v2.8.2 melon card robustness 2026-11-23 20:52:58
+zhihu-hot-digest v2.8.2 daily brief 2026-11-24 21:35:00
+2026-11-24 21:48:02 merge-v2.8-timeline
+2026-11-24 22:03:52 v2.9 merge: seed-free timeline + 合订本 rename + real archives
