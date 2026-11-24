@@ -1211,6 +1211,27 @@ def generate(title: str, candidates_text: str) -> dict:
 _GEN_LOCK = threading.Lock()   # 防止并发请求同时触发双倍生成（额度保护）
 
 
+def atomic_write_json(path: pathlib.Path, data: dict) -> None:
+    """原子写入 JSON 缓存，并对 Windows 瞬时文件锁做重试。
+
+    Windows 杀软/索引器会在新文件落盘后短暂持有句柄，daily_archive 与
+    build_timeline 早已加固；主服务的首访生成与后台刷新此前仍是裸写，
+    一遇 PermissionError 整批结果就丢失，只能继续服务兜底。此处补齐。
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    payload = json.dumps(data, ensure_ascii=False, indent=2)
+    for attempt in range(5):
+        try:
+            tmp.write_text(payload, encoding="utf-8")
+            os.replace(str(tmp), str(path))
+            return
+        except PermissionError:
+            if attempt == 4:
+                raise
+            time.sleep(0.4 * (attempt + 1))
+
+
 def cache_path() -> pathlib.Path:
     return DATA_DIR / f"brief_{today_str()}.json"
 
@@ -1285,10 +1306,7 @@ def load_today_cache() -> dict | None:
 
 def generate_and_cache() -> dict:
     data = build_brief()
-    DATA_DIR.mkdir(exist_ok=True)
-    tmp = cache_path().with_suffix(".tmp")
-    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp.replace(cache_path())  # 原子写入，避免并发读到半截文件
+    atomic_write_json(cache_path(), data)
     _log(f"实时生成完成，共 {len(data['items'])} 条，已写入 {cache_path().name}")
     return data
 
@@ -1400,10 +1418,7 @@ def _background_refresh() -> None:
                     f"丢弃本次结果并冷却 {REFRESH_COOLDOWN_SECONDS} 秒，沿用旧缓存"
                 )
                 return
-            DATA_DIR.mkdir(exist_ok=True)
-            tmp = cache_path().with_suffix(".tmp")
-            tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-            tmp.replace(cache_path())
+            atomic_write_json(cache_path(), data)
             _log(f"后台自动刷新完成：{new_ok} 条成功，已写入 {cache_path().name}")
     except Exception as exc:
         _set_refresh_cooldown()

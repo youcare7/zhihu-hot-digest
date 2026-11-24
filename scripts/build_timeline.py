@@ -58,6 +58,25 @@ def question_id(item):
     return match.group(1) if match else ""
 
 
+def safe_http_url(value):
+    """只放行 http/https 绝对链接。
+
+    归档里的外链来自上游，前端会把它们写进 href。javascript:/data: 等协议
+    或相对路径一律丢弃，既防 XSS，也守住「不展示不可核验链接」的防幻觉红线。
+    """
+    text = str(value or "").strip()
+    return text if re.match(r"^https?://\S+$", text, re.IGNORECASE) else ""
+
+
+def date_label(value):
+    """把 ISO 日期转成前端可读的「11月21日」；非法值原样回落。"""
+    try:
+        parsed = datetime.date.fromisoformat(str(value))
+        return f"{parsed.month}月{parsed.day}日"
+    except (ValueError, TypeError):
+        return str(value or "")
+
+
 def normalize_title(title):
     return re.sub(r"[^\w\u4e00-\u9fff]+", "", str(title or ""), flags=re.UNICODE).lower()
 
@@ -103,7 +122,9 @@ def sentinel_filter(value):
     sentinels = (app.NO_BACKGROUND, app.EMPTY_FOCUS, app.EMPTY_GAP)
     if hasattr(app, "EMPTY_CONSENSUS"):
         sentinels += (app.EMPTY_CONSENSUS,)
-    return str(value or "").strip() not in sentinels
+    text = str(value or "").strip()
+    # 空值不是「有效内容」，旧写法会让空 focus/gap 通过过滤。
+    return bool(text) and text not in sentinels
 
 
 def clamp_hook(text, limit=24):
@@ -130,7 +151,7 @@ def key_answer(item):
     if not isinstance(first, dict):
         return None
     title = str(first.get("title") or "").strip()
-    url = str(first.get("url") or "").strip()
+    url = safe_http_url(first.get("url"))
     if not title or not url:
         return None
     return {"title": title, "url": url}
@@ -140,7 +161,7 @@ def ext_ref(item):
     evidence = item.get("web_evidence")
     if not isinstance(evidence, dict) or evidence.get("status") != "found":
         return []
-    url = str(evidence.get("url") or "").strip()
+    url = safe_http_url(evidence.get("url"))
     if not url:
         return []
     title = str(evidence.get("title") or evidence.get("source") or "站外公开信源").strip()
@@ -233,7 +254,11 @@ def build_timeline(min_days=2):
 
             canonical = topic_id
             if not split:
-                if topic_id in clusters:
+                if topic_id in clusters or qid:
+                    # 真实知乎问题号是比标题相似度更强的身份标识：不同 qid 的
+                    # 条目不得仅凭标题相似被并进别的簇，否则会凭空造出「同一
+                    # 话题跨天反转」的假关联。显式 aliases 已在上面改变 topic_id，
+                    # 仍可按人工配置合并。无 qid 的站外条目才走标题相似匹配。
                     canonical = topic_id
                 else:
                     for existing_id, existing_title in titles.items():
@@ -250,6 +275,7 @@ def build_timeline(min_days=2):
             hook = build_hook(item)
             clusters[canonical].append({
                 "date": date,
+                "date_label": date_label(date),
                 "rank": item.get("rank"),
                 "title": title,
                 "question_id": qid,
@@ -275,12 +301,17 @@ def build_timeline(min_days=2):
         )
         representative = next((node for node in reversed(nodes) if node.get("title")), {})
         latest = representative
+        # topic_id 是内部聚类键（无真实 qid 时形如 "title:xxx"），不能直接
+        # 暴露成 question_id。只有节点里抓到的纯数字知乎问题号才是可核验链接。
+        real_qids = sorted({str(n["question_id"]) for n in nodes
+                            if str(n.get("question_id") or "").isdigit()})
+        primary_qid = real_qids[0] if real_qids else ""
         topic = {
             "topic_id": topic_id,
             "origin": "auto_archive",
             "title": latest.get("title") or "",
-            "question_id": topic_id,
-            "question_ids": sorted({str(n["question_id"]) for n in nodes if n.get("question_id")}),
+            "question_id": primary_qid,
+            "question_ids": real_qids,
             "days": len(unique_dates),
             "appearances": len(unique_dates),
             "dates": unique_dates,
@@ -292,6 +323,9 @@ def build_timeline(min_days=2):
             "ext_ref": latest.get("ext_ref") or [],
             "nodes": nodes,
         }
+        # 只由真实抓到的问题号构造知乎链接；无 qid 的话题不给链接，绝不编造。
+        if primary_qid:
+            topic["question_url"] = f"https://www.zhihu.com/question/{primary_qid}"
         topics.append(topic)
 
     topics.sort(

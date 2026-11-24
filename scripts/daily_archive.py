@@ -22,6 +22,25 @@ FIELDS = (
 )
 
 
+def has_healthy_background(item) -> bool:
+    """判定一条条目是否带有真实可用的背景解读。
+
+    防幻觉红线：字段缺失、None、纯空白、非字符串，或哨兵文案「暂无解读。」
+    都必须算作降级。旧写法 `item.get("background") != app.NO_BACKGROUND` 在
+    字段缺失/None 时恒为真，会把 5 条完全无解读的条目误计为「健康解读 5 条」
+    并写进真实归档，进而让合订本凭空长出跨天话题。
+    """
+    if not isinstance(item, dict):
+        return False
+    if not str(item.get("title") or "").strip():
+        return False
+    background = item.get("background")
+    if not isinstance(background, str):
+        return False
+    text = background.strip()
+    return bool(text) and text != app.NO_BACKGROUND
+
+
 def valid_archive_brief(data, target_date):
     if not isinstance(data, dict):
         return False
@@ -31,10 +50,7 @@ def valid_archive_brief(data, target_date):
         return False
     items = data.get("items")
     return isinstance(items, list) and sum(
-        1 for item in items
-        if isinstance(item, dict)
-        and str(item.get("title") or "").strip()
-        and item.get("background") != app.NO_BACKGROUND
+        1 for item in items if has_healthy_background(item)
     ) >= 5
 
 
@@ -97,10 +113,7 @@ def main(argv=None):
         return 1
 
     items = brief.get("items") if isinstance(brief.get("items"), list) else []
-    healthy = sum(
-        1 for item in items
-        if isinstance(item, dict) and item.get("background") != app.NO_BACKGROUND
-    )
+    healthy = sum(1 for item in items if has_healthy_background(item))
     if healthy < 5:
         print(f"拒绝归档：有效解读仅 {healthy} 条，少于 5 条，绝不覆盖已有健康归档")
         return 1
