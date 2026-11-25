@@ -1,13 +1,75 @@
 {
-  "generated_at": "2026-11-25 07:27",
-  "archive_files": 3,
-  "tracked_days": 5,
+  "generated_at": "2026-11-26 07:01",
+  "archive_files": 4,
+  "tracked_days": 6,
   "missing_dates": [
     "2026-11-22",
     "2026-11-23"
   ],
   "topics": [],
   "archives": [
+    {
+      "date": "2026-11-26",
+      "date_label": "11月26日",
+      "item_count": 10,
+      "status_counts": {
+        "dispute": 4,
+        "consensus": 1,
+        "verify": 5
+      },
+      "items": [
+        {
+          "title": "为什么神舟二十四号外籍航天员名额给了巴基斯坦而不是其他国家？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2108916871718073510?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "OpenAI证明矩阵乘法指数下界为9/4，如何看待？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2108865707819771232?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "央视曝光3.8万余份孕妇血走私案，国安部警示孕妇血样走私或泄露我国遗传弱点，科学依据和风险具体是什么？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2109003777294295114?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "如何评价黄仁勋回归英伟达首日说「没电脑用，想要台 RTX Spark」？你觉得最好用的办公电脑是啥？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2108890432125888397?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "突然脑洞一下，如果王勃参加高考，语文作文写出了滕王阁序，会因为只有773个字，不到800而扣分吗？",
+          "status": "consensus",
+          "url": "https://www.zhihu.com/question/2055249552723202702?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "商品房楼板国标普遍仅10-12cm，为什么不统一再加厚15cm？加厚楼板能否彻底解决楼层噪音困扰？",
+          "status": "dispute",
+          "url": "https://www.zhihu.com/question/2066353729507422598?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "「结婚八年三孩非亲生案」一审认定女方存在重大过错，判决赔偿男方共计二十二万，大家如何看待这个结果？",
+          "status": "dispute",
+          "url": "https://www.zhihu.com/question/2108927460083495268?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "重庆一男孩吃面被坠楼男子砸中，男孩无生命危险，警方已介入，此类事件责任该如何界定？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2108734679998320771?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "如何看待黄仁勋辟谣特朗普施压复职说法，称是董事会自主作出决定？二人口径为何不一致？",
+          "status": "dispute",
+          "url": "https://www.zhihu.com/question/2108869758925923750?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "T1 官宣 Zeus 回归队伍并签约至 2029 年，ZOFPK 组合的 T1 还会继续称霸吗？",
+          "status": "dispute",
+          "url": "https://www.zhihu.com/question/2108988267815073586?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        }
+      ]
+    },
     {
       "date": "2026-11-25",
       "date_label": "11月25日",

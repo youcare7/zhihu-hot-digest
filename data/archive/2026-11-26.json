@@ -1,0 +1,282 @@
+{
+  "date": "2026-11-26",
+  "source": "live",
+  "archived_at": "2026-11-26 07:01",
+  "items": [
+    {
+      "rank": 1,
+      "title": "为什么神舟二十四号外籍航天员名额给了巴基斯坦而不是其他国家？",
+      "question_url": "https://www.zhihu.com/question/2108916871718073510?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "verify",
+      "claim_type": "",
+      "background": "2026年11月25日，神舟二十四号发射成功，巴基斯坦空军中校穆罕默德·齐尚·阿里以载荷专家身份成为中国空间站首位外籍航天员，中巴互致贺电、外交部称其为国际合作里程碑。",
+      "focus": "不少讨论追问为何跳过欧洲等国选中巴基斯坦，但这一前提本身需核实：名额是否曾面向多国公开竞争。",
+      "consensus": "中巴2025年2月已签署载人航天合作协议，阿里经选拔训练入选，属既定双边框架下的合作成果，不是临近发射的临时挑选。",
+      "sides": [],
+      "gap": "中国载人航天工程办公室2025年2月与巴基斯坦太空与高层大气研究委员会签署的合作协议原文及外籍航天员选拔公告，可查该办官网与巴方机构发布；另可核欧空局2016年后对华航天合作状态声明。",
+      "reading": [
+        {
+          "title": "为什么神舟二十四号外籍航天员名额给了巴基斯坦而不是其他国家? - 知乎",
+          "url": "https://www.zhihu.com/question/2108916871718073510/answer/2109037102981763719?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "完整梳理协议签署、选拔流程与中巴合作时间线"
+        }
+      ],
+      "web_evidence": {
+        "query": "为什么神舟二十四号外籍航天员名额给了巴基斯坦而不是其他国家？ 中国载人航天工程办公室2025年2月与巴基斯坦太空与高层大气研究委员会签署的合作协议原文及外籍航…",
+        "checked_at": "2026-11-26 06:58",
+        "status": "skipped"
+      }
+    },
+    {
+      "rank": 2,
+      "title": "OpenAI证明矩阵乘法指数下界为9/4，如何看待？",
+      "question_url": "https://www.zhihu.com/question/2108865707819771232?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "verify",
+      "claim_type": "",
+      "background": "10月2日OpenAI预印本给出矩阵乘法指数上界ω≤9/4；11月24日其数学仓库新增111页手稿《矩阵乘法指数是四分之九》，宣称在形式算术电路模型下补上匹配下界，上下界重合为9/4。这批手稿由未公开内部模型生成，未经同行评审。",
+      "focus": "9/4下界究竟能否成立，还是只是又一份尚未经人类核验的AI手稿？",
+      "consensus": "站内普遍承认：上界9/4此前已存在，本次内容仅是宣称补齐下界；结论限于理论计算模型，不提升实际硬件速度；手稿未署名、未经同行评审。",
+      "sides": [],
+      "gap": "OpenAI仓库openai/math中《The matrix multiplication exponent is nine fourths》全文、MatrixExponent.lean及379…",
+      "reading": [
+        {
+          "title": "OpenAI证明矩阵乘法指数下界为9/4,如何看待? - 知乎",
+          "url": "https://www.zhihu.com/question/2108865707819771232/answer/2108919271900309217?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "给出Lean文件与形式化边界，最具体可核验"
+        },
+        {
+          "title": "OpenAI证明矩阵乘法指数下界为9/4,如何看待? - 知乎",
+          "url": "https://www.zhihu.com/question/2108865707819771232/answer/2108906872455615058?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "梳理上下界时间线与反证法骨架"
+        }
+      ],
+      "web_evidence": null
+    },
+    {
+      "rank": 3,
+      "title": "央视曝光3.8万余份孕妇血走私案，国安部警示孕妇血样走私或泄露我国遗传弱点，科学依据和风险具体是什么？",
+      "question_url": "https://www.zhihu.com/question/2109003777294295114?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "verify",
+      "claim_type": "",
+      "background": "2026年11月25日央视披露深圳海关缉私局破获特大走私人类遗传资源材料案：团伙招揽孕妇上门抽血，经快递柜转运、水客夹藏出境做胎儿性别鉴定。收网抓获37人、打掉4个团伙，查证走私出境孕妇血样3.8万余份，案件已移送审查起诉。此前国安部与广州海关也通报过超10万人份同类案件。",
+      "focus": "「遗传弱点」能否被境外用汇集的孕妇血样分析出来、危害多大？国安部表述目前只有定性判断，缺可裁决的公开标准。",
+      "consensus": "走私事实、规模与非法胎儿性别鉴定链条无异议；孕妇血样含两代遗传信息、属国家人类遗传资源，未经审批出境违法，学界与官方均认风险真实存在。",
+      "sides": [],
+      "gap": "国家安全部2026年10月4日「医疗检测非法采血」通报原文（国安部官网或公众号）；《人类遗传资源管理条例实施细则》中对外提供审批与安全评估条款（科技部官网）。",
+      "reading": [
+        {
+          "title": "央视曝光3.8万余份孕妇血走私案,国安部警示孕妇血样走私或泄露我国遗传弱点,科学依据和风险具体是什么? - 知乎",
+          "url": "https://www.zhihu.com/question/2109003777294295114/answer/2109027954453919660?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "两重隐患交织：性别鉴定灰色需求与基因外流，厘清动机层面"
+        },
+        {
+          "title": "国安部通报境外组织借医疗检测非法采血样,曾有超10万份孕妇血样被偷运出境,会对生物安全产生哪些影响? - 知乎",
+          "url": "https://www.zhihu.com/question/2090049001483661702/answer/2090409305765950973?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "以23andMe破产拍卖为例，说明基因数据出境后被转手的现…"
+        }
+      ],
+      "web_evidence": null
+    },
+    {
+      "rank": 4,
+      "title": "如何评价黄仁勋回归英伟达首日说「没电脑用，想要台 RTX Spark」？你觉得最好用的办公电脑是啥？",
+      "question_url": "https://www.zhihu.com/question/2108890432125888397?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "verify",
+      "claim_type": "",
+      "background": "2026年6月1日GTC台北大会，英伟达联合微软发布Arm架构Windows超级芯片RTX Spark（N1X），集成20核Grace CPU与6144核Blackwell GPU，最高128GB统一内存、1 Petaflop FP4算力。",
+      "focus": "这句话该被当作发布会营销话术，还是产品力的真实背书？关键分歧落在实测性能、软件生态与售价是否撑得起「重新定义PC」。",
+      "consensus": "RTX Spark是英伟达与微软联合推出、联发科参与CPU设计的Arm版Windows超级芯片，最高128GB统一内存，可本地跑百亿参数级大模型，首批机型10…",
+      "sides": [],
+      "gap": "极客湾《RTX Spark性能实测》完整版及后续「性能与续航」大横评（B站极客湾频道）；Thurrott《RTX Spark深度测试报告》原文（Thurrott.com）。",
+      "reading": [
+        {
+          "title": "把超算塞进个人电脑:RTX Spark凭什么重新定义Windows电脑? - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2094726454546383736?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "把CPU、AI、游戏、价格四本账拆开，独家梳理实测与官方口…"
+        },
+        {
+          "title": "如何评价黄仁勋回归英伟达首日说「没电脑用,想要台 RTX Spark」?你觉得最好用的办公电脑是啥? - 知乎",
+          "url": "https://www.zhihu.com/question/2108890432125888397/answer/2108988877730063398?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "实机测试过多款Spark机型，指出WDDM显存分配等真实使…"
+        }
+      ],
+      "web_evidence": null
+    },
+    {
+      "rank": 5,
+      "title": "突然脑洞一下，如果王勃参加高考，语文作文写出了滕王阁序，会因为只有773个字，不到800而扣分吗？",
+      "question_url": "https://www.zhihu.com/question/2055249552723202702?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "consensus",
+      "claim_type": "",
+      "background": "2026年11月知乎热榜脑洞题：若王勃把773字的《滕王阁序》写进高考作文，会因不足800字被扣分吗。讨论焦点从字数转向抄袭认定、身份信息泄露、文言骈文是否适配高考文体等硬规则。",
+      "focus": "字数到底会不会扣分，以及真正让这篇千古名篇在高考评分中失分的规则是哪一条。",
+      "consensus": "站内普遍认为字数不是问题：加标点已超800字符，仅算汉字也只差27字，按每少50字扣1分计，至多扣1分。",
+      "sides": [],
+      "gap": "2026年各省高考语文作文评分细则（含字数计算口径、文言文体态度、身份信息违规处理条款），出处为各省教育考试院或教育部教育考试院当年发布的评卷标准文件。",
+      "reading": [
+        {
+          "title": "突然脑洞一下,如果王勃参加高考,语文作文写出了滕王阁序,会因为只有773个字,不到800而扣分吗? - 知乎",
+          "url": "https://www.zhihu.com/question/2055249552723202702/answer/2109176920566978535?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "点出真正失分点：署名泄露身份与通篇骈文的官方导向"
+        },
+        {
+          "title": "高考作文写的字数多,就能加分吗? - 知乎",
+          "url": "https://www.zhihu.com/question/294792931/answer/492263375?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "给出字数、正文字数与扣分规则的逐项测算"
+        }
+      ],
+      "web_evidence": null
+    },
+    {
+      "rank": 6,
+      "title": "商品房楼板国标普遍仅10-12cm，为什么不统一再加厚15cm？加厚楼板能否彻底解决楼层噪音困扰？",
+      "question_url": "https://www.zhihu.com/question/2066353729507422598?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "dispute",
+      "claim_type": "inference",
+      "background": "知乎热榜讨论商品房楼板普遍10-12cm是否应加厚到15cm以上。争议从结构施工延伸到隔声原理：加厚是否有效、成本由谁承担，各方均无一手实测数据。",
+      "focus": "加厚楼板对脚步声这类撞击声究竟能降多少分贝，以及达标靠加厚混凝土还是浮筑弹性层，谁的成本代价更低。",
+      "consensus": "双方都不否认：现行《住宅项目规范》GB 55038-2025自2025年5月1日施行，楼板撞击声限值从75分贝收紧至65分贝，实心楼板厚度不应小于100mm。",
+      "sides": [
+        {
+          "label": "加厚混凝土派",
+          "claim": "楼板越厚隔声越好，应从10-12cm统一加到15-20cm，日本韩国分户楼板已达20cm以上，国标应向国际看齐并强制验收。"
+        },
+        {
+          "label": "浮筑隔声派",
+          "claim": "加厚是性价比最低的做法，撞击声是固体传声，应做弹性隔音垫、浮筑楼板，十几厘米浮筑层效果优于加厚到1米，加厚只增自重和成本。"
+        }
+      ],
+      "gap": "GB 55038-2025中65分贝撞击声限值的条文说明与配套检测方法（住房和城乡建设部标准定额司发布）。",
+      "reading": [
+        {
+          "title": "国家是否应当升级国标:楼板加厚至20cm、室内净高提升至3.1~3.2米,并将隔音防水纳入强制验收? - 知乎",
+          "url": "https://www.zhihu.com/question/2085847017901896131/answer/2109052557821845796?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "用EN 12354-2公式算出加厚只降约3分贝，量化对比最…"
+        }
+      ],
+      "web_evidence": null
+    },
+    {
+      "rank": 7,
+      "title": "「结婚八年三孩非亲生案」一审认定女方存在重大过错，判决赔偿男方共计二十二万，大家如何看待这个结果？",
+      "question_url": "https://www.zhihu.com/question/2108927460083495268?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "dispute",
+      "claim_type": "value",
+      "background": "陕西汉中魏先生与侯某2017年结婚，育有三女。2026年4月亲子鉴定显示三女均非亲生，魏起诉离婚并索赔31万余元。11月23日南郑区法院一审认定女方存在重大过错，判赔抚养费12万加精神抚慰金10万共22万元。",
+      "focus": "22万元够不够：争议不在事实，而在欺诈性抚养的精神赔偿该按现行酌定标准结账，还是应显著提高甚至入刑。",
+      "consensus": "双方均认可：三女非亲生、女方婚内出轨违反忠实义务、法院定性重大过错、判离且孩子由女方抚养。",
+      "sides": [
+        {
+          "label": "法律算账派",
+          "claim": "22万是现行法框架内的公正结果：12万抚养费按举证与当地水平酌定，10万精神抚慰金属同类案件中上水平，法律只能算账，不服可上诉。"
+        },
+        {
+          "label": "惩戒不足派",
+          "claim": "八年欺骗三个孩子只有22万，成本过低；且民事不入刑、无案底，女方若无力支付难以执行，应提高赔偿并推动欺诈性抚养入刑。"
+        }
+      ],
+      "gap": "女方是否上诉的决定及二审立案信息，可查汉中市南郑区人民法院或汉中市中级人民法院公告；判决书全文及12万抚养费酌定依据，可在中国裁判文书网检索该案。",
+      "reading": [
+        {
+          "title": "「结婚八年三孩非亲生案」一审认定女方存在重大过错,判决赔偿男方共计二十二万,大家如何看待这个结果? - 知乎",
+          "url": "https://www.zhihu.com/question/2108927460083495268/answer/2108982378525881313?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "逐条拆解22万的构成与不构成诈骗罪的理由"
+        },
+        {
+          "title": "男子离婚后发现三个子女全都没有血缘关系,将女方告上法院,一审判决赔偿 55 万余元,该判决依据是什么? - 知乎",
+          "url": "https://www.zhihu.com/question/2106424431568491376/answer/2107019020885030446?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "呈现女方回应与债务争议，补足另一侧说法"
+        }
+      ],
+      "web_evidence": null
+    },
+    {
+      "rank": 8,
+      "title": "重庆一男孩吃面被坠楼男子砸中，男孩无生命危险，警方已介入，此类事件责任该如何界定？",
+      "question_url": "https://www.zhihu.com/question/2108734679998320771?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "verify",
+      "claim_type": "",
+      "background": "2026年11月23日，重庆璧山一73岁男子因难忍病痛从高层住宅坠落，碰撞三楼平台致外墙瓷砖脱落，砸中楼下9岁、14岁堂兄弟，两人伤情稳定无生命危险，男子身亡。11月25日官方通报排除刑事案件。",
+      "focus": "责任该由谁承担不是分歧所在；真问题是最初流传的“坠楼男子直接砸中男孩”与官方通报“坠楼撞落瓷砖伤人”哪一个成立，责任链…",
+      "consensus": "警方已排除刑事案件，两名男孩系被脱落的瓷砖砸伤、无生命危险；无论坠楼者是否身亡，民事侵权责任并不因此消灭。",
+      "sides": [],
+      "gap": "璧山区璧泉街道11月25日通报全文，及公安机关现场勘查结论、三楼平台外墙瓷砖脱落原因认定，见“璧山发布”公众号与璧山区公安分局。",
+      "reading": [
+        {
+          "title": "重庆一男孩吃面被坠楼男子砸中,男孩无生命危险,警方已介入,此类事件责任该如何界定? - 知乎",
+          "url": "https://www.zhihu.com/question/2108734679998320771/answer/2108885912981722250?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "说明坠楼者死亡后刑事责任与民事赔偿的分野，是责任界定的关键…"
+        }
+      ],
+      "web_evidence": null
+    },
+    {
+      "rank": 9,
+      "title": "如何看待黄仁勋辟谣特朗普施压复职说法，称是董事会自主作出决定？二人口径为何不一致？",
+      "question_url": "https://www.zhihu.com/question/2108869758925923750?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "dispute",
+      "claim_type": "inference",
+      "background": "11月12日黄仁勋辞去英伟达CEO职务，11月23日董事会全票通过恢复其职务并承认听取美国政府高层意见；特朗普称自己说服董事会，11月25日黄仁勋在全员大会上称该说法\"完全不实\"。",
+      "focus": "复职究竟是董事会独立评估的结果，还是白宫施压促成——双方各执一词却都无公开证据。",
+      "consensus": "双方均不否认：特朗普政府与英伟达董事会确有接触，且就国家安全风险提供了保证；复职由董事会投票作出。",
+      "sides": [
+        {
+          "label": "总统促成派",
+          "claim": "特朗普公开称自己直接或间接与董事会沟通并说服其恢复黄仁勋职务，副总统万斯周末介入协调，复职是白宫推动的政绩。"
+        },
+        {
+          "label": "董事会自主派",
+          "claim": "黄仁勋称\"政府最高层希望我回来\"\"特朗普促成\"完全不实，董事会是收集事实、独立评估后自主决定，政府仅提供国安保证。"
+        }
+      ],
+      "gap": "英伟达董事会11月23日公告全文及会议纪要（英伟达官网投资者关系页）；12月3日参议院银行委员会听证会黄仁勋证词记录（参议院官网）。",
+      "reading": [
+        {
+          "title": "美时事评论员:黄仁勋离职源于诚信,复职亦是诚信? - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2108474267847476880?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "复职首会一手细节，含黄仁勋否认原话与致歉背景"
+        },
+        {
+          "title": "英伟达董事会恢复黄仁勋总裁兼CEO职务,为何突然戏剧性反转? - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2108339615404929931?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "逐条区分特朗普表述与公告措辞，厘清证据边界"
+        }
+      ],
+      "web_evidence": null
+    },
+    {
+      "rank": 10,
+      "title": "T1 官宣 Zeus 回归队伍并签约至 2029 年，ZOFPK 组合的 T1 还会继续称霸吗？",
+      "question_url": "https://www.zhihu.com/question/2108988267815073586?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "dispute",
+      "claim_type": "inference",
+      "background": "Zeus 于2024年底离开T1转投HLE，2026年S16半决赛T1被BLG淘汰后，韩网爆料其拒绝HLE续约并与T1谈成三年长约，11月25日T1在2027阵容发布会上正式官宣，签约至2029年。",
+      "focus": "抛开官宣的纸面阵容，Zeus回归究竟能否让T1重获冠军竞争力，还是只是一次高价的情怀回收？",
+      "consensus": "双方都不否认的事实：Zeus是公认的顶级上单，T1的上单位置确实是他离队后长期短板，Doran在S16关键战中表现不佳。",
+      "sides": [
+        {
+          "label": "冠军拼图派",
+          "claim": "上路补强后ZOFPK五路无短板，Zeus能提供弱侧抗压与强侧爆线两种战术解法，是当前对线期唯一能与Bin抗衡的上单，T1理应重回夺冠热门。"
+        },
+        {
+          "label": "状态存疑派",
+          "claim": "Zeus在HLE两年S赛最好仅八强，未能证明能独立带队；且上野已两年未合作，契合度未知，T1更像是回收一名状态未获证明的高薪选手。"
+        }
+      ],
+      "gap": "缺乏2027赛季T1新阵容的实战数据：需看LCK春季赛开赛后的上野联动与战术分工，可查LCK官方赛程与赛后数据（如Riot赛事官网/LCK官方公告）中Zeus与Oner的首发配合表现。",
+      "reading": [
+        {
+          "title": "T1 官宣 Zeus 回归队伍并签约至 2029 年,ZOFPK 组合的 T1 还会继续称霸吗? - 知乎",
+          "url": "https://www.zhihu.com/question/2108988267815073586/answer/2109022670876692488?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "官方发布会口径，交代签约细节与阵容构建逻辑"
+        },
+        {
+          "title": "957 直播中爆料「小道消息 Zeus 将回归 T1」2027 年的 T1 会卷土重来吗? - 知乎",
+          "url": "https://www.zhihu.com/question/2103088687386817711/answer/2105877872359503507?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "拆解回归三方争议，点明纸面之外的风险变量"
+        }
+      ],
+      "web_evidence": null
+    }
+  ]
+}
