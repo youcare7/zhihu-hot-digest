@@ -1064,6 +1064,9 @@ def build_brief() -> dict:
         # 富化使用独立追加预算：主生成耗尽整批预算后仍可执行。
         _extend_deadline_for_enrichment()
         _run_enrichment_pass(items)
+        # 跨平台核验（微博情绪/知乎切面/事实信源）：依赖 web_search 配额（默认 0），
+        # 配额为 0 时本 pass 静默跳过，不影响任何已有功能。
+        _run_crosscheck_pass(items)
 
         return {
             "date": today_str(),
@@ -1246,6 +1249,147 @@ def _run_enrichment_pass(items: list) -> None:
         if item.get("punch"):
             enriched += 1
     _log(f"富化 pass 完成：{enriched}/{len(items)} 条带锐评组件")
+
+
+# ---------------------------------------------------------------------------
+# 跨平台核验 crosscheck pass（2026-11-26）：059 线上快照的全功能对照中唯一
+# 没有任何管线产出过的字段（此前只存在于人工富化数据）。用知乎全网搜索拿
+# 真实站外信源（URL 白名单校验，模型不得自造链接），直答生成微博情绪 /
+# 知乎切面 / 事实核验三段摘要。web_search 配额默认 0 时本 pass 静默跳过。
+# ---------------------------------------------------------------------------
+CROSSCHECK_MAX = _env_int("CROSSCHECK_MAX", 10, minimum=0)
+CROSSCHECK_LINE_MAX = 40
+CROSSCHECK_FACT_MAX = 80
+CROSSCHECK_SOURCE_NAME_MAX = 20
+
+
+def _build_crosscheck_prompt(item: dict, candidates: list) -> str:
+    lines = [
+        "你是「热榜深潜简报」的跨平台核验编辑。下面是一条热点的全网搜索结果（编号 | 标题 | 来源 | 摘要）。",
+        "请只基于这些材料生成跨平台核验摘要，不得新增任何事实、数据、机构名，不得输出编号之外的链接。",
+        "",
+        f"【热点标题】{item.get('title')}",
+        "",
+        "【全网搜索结果】",
+    ]
+    for i, c in enumerate(candidates[:5], 1):
+        title = re.sub(r"\s+", " ", str(c.get("Title") or ""))[:60]
+        source = re.sub(r"\s+", " ", str(c.get("AuthorName") or ""))[:20]
+        summary = re.sub(r"\s+", " ", str(c.get("ContentText") or ""))[:80]
+        lines.append(f"{i} | {title} | {source} | {summary}")
+    lines += [
+        "",
+        "【输出 JSON 结构】只输出一个 JSON 对象，不要 markdown 代码块、不要解释文字：",
+        '{"weibo":"≤40 字：其他平台（微博/社媒）上的大众情绪走向",'
+        '"zhihu":"≤40 字：知乎站内的讨论切面（角度/画风）",'
+        '"fact":"≤80 字：基于材料能核实到哪一步、还缺什么",'
+        '"sources":[{"name":"≤20 字信源名","index":1}]}',
+        "",
+        "【硬性要求】",
+        "1. sources 只能选上面的搜索结果，index 必须对应编号，最多 2 条。",
+        "2. 材料不足以支撑某项时如实写明，禁止编造情绪、数据或信源。",
+    ]
+    return "\n".join(lines)
+
+
+def _sanitize_crosscheck(raw: dict, candidates: list) -> dict | None:
+    """校验 crosscheck 输出：三段摘要齐全 + 至少 1 个白名单信源，否则整体丢弃。
+    sources 的 URL 只能来自 api_web_search 的真实返回（编号映射），模型无权自造。"""
+    if not isinstance(raw, dict):
+        return None
+    weibo = _clip(raw.get("weibo"), CROSSCHECK_LINE_MAX)
+    zhihu = _clip(raw.get("zhihu"), CROSSCHECK_LINE_MAX)
+    fact = _clip(raw.get("fact"), CROSSCHECK_FACT_MAX)
+    if not (weibo and zhihu and fact):
+        return None
+    allowed = {}
+    for idx, c in enumerate(candidates[:5], 1):
+        if not isinstance(c, dict):
+            continue
+        url = str(c.get("Url") or "").strip()
+        if url.startswith(("http://", "https://")):
+            allowed[idx] = url
+    sources = []
+    seen = set()
+    raw_sources = raw.get("sources")
+    if isinstance(raw_sources, list):
+        for s in raw_sources:
+            if len(sources) >= 2:
+                break
+            if not isinstance(s, dict):
+                continue
+            url = allowed.get(s.get("index"))
+            name = _clip(s.get("name"), CROSSCHECK_SOURCE_NAME_MAX)
+            if url and name and url not in seen:
+                seen.add(url)
+                sources.append({"name": name, "url": url})
+    if not sources:
+        return None
+    return {"weibo": weibo, "zhihu": zhihu, "fact": fact, "sources": sources}
+
+
+def _crosscheck_item(item: dict) -> bool:
+    """单条跨平台核验。返回 False 表示配额/预算硬约束命中，调用方应停止整个 pass。"""
+    if item.get("background") == NO_BACKGROUND or item.get("crosscheck"):
+        return True
+    try:
+        candidates = [c for c in api_web_search(str(item.get("title") or ""))
+                      if isinstance(c, dict)]
+    except UpstreamError as exc:
+        if "配额" in str(exc):
+            return False  # web_search 配额耗尽：后续条目同样会失败
+        _log(f"  第 {item.get('rank')} 条 crosscheck 检索失败（组件保持关闭）：{exc}")
+        return True
+    except Exception as exc:
+        _log(f"  第 {item.get('rank')} 条 crosscheck 检索异常（组件保持关闭）：{exc}")
+        return True
+    if not candidates:
+        return True
+    messages = [{"role": "user", "content": _build_crosscheck_prompt(item, candidates)}]
+    for attempt in (1, 2):
+        try:
+            text = _chat_with_retry(
+                ZHIHU_BASE + "/v1/chat/completions",
+                zhihu_headers(),
+                {"model": ZHIDA_MODEL, "messages": messages, "stream": False},
+                "核验直答",
+            )
+            got = _sanitize_crosscheck(extract_json(text), candidates)
+        except UpstreamError as exc:
+            if "配额" in str(exc) or "预算" in str(exc):
+                return False
+            if attempt == 1:
+                continue
+            _log(f"  第 {item.get('rank')} 条 crosscheck 生成失败（组件保持关闭）：{exc}")
+            return True
+        except Exception as exc:
+            _log(f"  第 {item.get('rank')} 条 crosscheck 异常（组件保持关闭）：{exc}")
+            return True
+        if got:
+            item["crosscheck"] = got
+            return True
+        if attempt == 2:
+            _log(f"  第 {item.get('rank')} 条 crosscheck 输出缺字段或无白名单信源，重试后仍无效，组件保持关闭")
+            return True
+    return True
+
+
+def _run_crosscheck_pass(items: list) -> None:
+    """主生成与富化完成后统一核验。CROSSCHECK_MAX 限制每份简报最多核验条数；
+    web_search 配额（QUOTA_WEB_SEARCH_DAILY，默认 0）不足时静默少做或跳过。"""
+    if MOCK_MODE or not items or CROSSCHECK_MAX <= 0:
+        return
+    done = 0
+    for item in items:
+        if done >= CROSSCHECK_MAX:
+            break
+        had = bool(item.get("crosscheck"))
+        if not _crosscheck_item(item):
+            _log(f"crosscheck：web_search 配额耗尽，提前结束（已核验 {done} 条）")
+            return
+        if item.get("crosscheck") and not had:
+            done += 1
+    _log(f"crosscheck pass 完成：{done} 条带跨平台核验")
 
 
 def build_digest(items: list) -> dict:

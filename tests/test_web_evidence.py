@@ -25,6 +25,8 @@ def verify_chat(url, headers, payload, label):
 class TestWebEvidence(AppStateTestCase):
     def setUp(self):
         super().setUp()
+        self._saved_crosscheck_max = app.CROSSCHECK_MAX
+        app.CROSSCHECK_MAX = 0  # 本文件只测 web_evidence 预算语义，屏蔽 crosscheck pass 的额外检索
         app.RETRY_WAIT = 0
         app.RETRY_TIMES = 1
         app.QUOTA_GUARD_DISABLED = False
@@ -32,6 +34,10 @@ class TestWebEvidence(AppStateTestCase):
         app.fetch_search = lambda title, rank: [
             {"Title": "候选回答", "ContentText": "候选摘要", "Url": "https://www.zhihu.com/question/1/answer/9"},
         ]
+
+    def tearDown(self):
+        app.CROSSCHECK_MAX = self._saved_crosscheck_max
+        super().tearDown()
 
     def _reset_web(self, name):
         app._QUOTA = app.QuotaGuard(self.tmp_path / name)
