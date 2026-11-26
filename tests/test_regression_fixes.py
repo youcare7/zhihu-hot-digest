@@ -95,6 +95,7 @@ class TestRegressionFixes(AppStateTestCase):
             "status": "degraded",
             "secret_configured": False,
             "gen_budget_seconds": app.GEN_BUDGET_SECONDS,
+            "enrich_budget_seconds": app.ENRICH_BUDGET_SECONDS,
         })
 
         # Secret set, verbose off => ok, minimal payload
@@ -104,6 +105,7 @@ class TestRegressionFixes(AppStateTestCase):
             "status": "ok",
             "secret_configured": True,
             "gen_budget_seconds": app.GEN_BUDGET_SECONDS,
+            "enrich_budget_seconds": app.ENRICH_BUDGET_SECONDS,
         })
 
         # HEALTHZ_VERBOSE=1 => includes operational counters
