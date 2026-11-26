@@ -91,12 +91,20 @@ class TestRegressionFixes(AppStateTestCase):
         app.MOCK_MODE = False
         os.environ.pop("HEALTHZ_VERBOSE", None)
         body = json.loads(client.get("/healthz").get_data(as_text=True))
-        self.assertEqual(body, {"status": "degraded", "secret_configured": False})
+        self.assertEqual(body, {
+            "status": "degraded",
+            "secret_configured": False,
+            "gen_budget_seconds": app.GEN_BUDGET_SECONDS,
+        })
 
         # Secret set, verbose off => ok, minimal payload
         app.ZHIHU_ACCESS_SECRET = "secret-xyz"
         body_ok = json.loads(client.get("/healthz").get_data(as_text=True))
-        self.assertEqual(body_ok, {"status": "ok", "secret_configured": True})
+        self.assertEqual(body_ok, {
+            "status": "ok",
+            "secret_configured": True,
+            "gen_budget_seconds": app.GEN_BUDGET_SECONDS,
+        })
 
         # HEALTHZ_VERBOSE=1 => includes operational counters
         os.environ["HEALTHZ_VERBOSE"] = "1"

@@ -98,6 +98,7 @@ def main(argv=None):
                 "请在 GitHub Actions Secrets 中配置密钥"
             )
             return 1
+        print(f"开始实时生成：预算 {app.GEN_BUDGET_SECONDS}s / {app.HOT_LIST_LIMIT} 条")
         brief = app.build_brief()
 
     if brief.get("source") not in ("live", "cache"):

@@ -1640,6 +1640,7 @@ def healthz():
         # 只暴露布尔值，不泄露密钥内容：用于部署后确认环境变量是否注入成功，
         # 避免"没有报错、但一直静默服务兜底数据"这类最难排查的故障。
         "secret_configured": secret_ok,
+        "gen_budget_seconds": GEN_BUDGET_SECONDS,
     }
     if os.environ.get("HEALTHZ_VERBOSE", "0") == "1":
         age = cache_age_seconds()
