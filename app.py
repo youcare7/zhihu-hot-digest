@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import copy
 import datetime
 import ipaddress
 import json
@@ -18,6 +19,7 @@ import os
 import pathlib
 import re
 import sys
+import tempfile
 import threading
 import time
 import urllib.error
@@ -337,18 +339,15 @@ _GEN_DEADLINE = 0.0  # monotonic 时间戳；0 表示本批不设预算；仅由
 CACHE_TTL_SECONDS = int(_env_float("CACHE_TTL_HOURS", 3, minimum=0) * 3600)
 # 刷新失败或结果被防劣化门丢弃后，暂停后续整批生成，避免访客流量形成重试风暴。
 REFRESH_COOLDOWN_SECONDS = _env_int("REFRESH_COOLDOWN_SECONDS", 900, minimum=0)
-# 当日直答调用硬上限：比通用配额（QUOTA_ZHIDA_DAILY）更保守。
-# 触顶后跳过后台刷新、继续服务旧缓存，保证当天后续访客仍有额度可用。
-DAILY_ZHIDA_LIMIT = _env_int("DAILY_ZHIDA_LIMIT", 80, minimum=0)
 
-# 跨线程共享的刷新状态：只在这把短临界区锁内读写。
+# 跨线程共享的刷新状态与当日缓存内存镜像：只在这把短临界区锁内读写。
 # 旧实现让请求线程 acquire、后台线程 release，threading.Lock 跨线程释放属未定义行为，
 # 这里改为「标志位 + 短临界区」，所有加锁/解锁都发生在同一线程内。
 _STATE_LOCK = threading.Lock()
 _REFRESH_IN_PROGRESS = False
 _REFRESH_NOT_BEFORE = 0.0          # monotonic 时间；仅进程内状态，不假装持久化
-_ZHIDA_USED = 0                    # 当日直答尝试次数（北京时间自然日）
-_ZHIDA_USED_DAY = today_str()
+_BRIEF_CACHE_KEY = None            # (str(path), date_str, mtime_ns)
+_BRIEF_CACHE_DATA = None
 
 
 def _refresh_active() -> bool:
@@ -390,26 +389,30 @@ class _RefreshStateView:
 _REFRESH_LOCK = _RefreshStateView()
 
 
-def _zhida_quota_take() -> bool:
-    """记录一次直答调用尝试（按北京时间自然日）；触达上限返回 False。"""
-    global _ZHIDA_USED, _ZHIDA_USED_DAY
-    with _STATE_LOCK:
-        day = today_str()
-        if day != _ZHIDA_USED_DAY:
-            _ZHIDA_USED_DAY, _ZHIDA_USED = day, 0
-        if DAILY_ZHIDA_LIMIT > 0 and _ZHIDA_USED >= DAILY_ZHIDA_LIMIT:
-            return False
-        _ZHIDA_USED += 1
-        return True
+def _atomic_write_text(path: pathlib.Path, content: str) -> None:
+    """使用同目录唯一临时文件 + os.replace() 原子落盘，避免固定 .tmp 并发写冲突。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_name: str | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as fh:
+            tmp_name = fh.name
+            fh.write(content)
+        os.replace(tmp_name, path)
+    except Exception:
+        if tmp_name:
+            try:
+                os.unlink(tmp_name)
+            except OSError:
+                pass
+        raise
 
-
-def _zhida_used_today() -> int:
-    with _STATE_LOCK:
-        return _ZHIDA_USED if _ZHIDA_USED_DAY == today_str() else 0
-
-
-def _zhida_quota_exhausted() -> bool:
-    return DAILY_ZHIDA_LIMIT > 0 and _zhida_used_today() >= DAILY_ZHIDA_LIMIT
 
 # ---- 配额守卫：按接口、按自然日统计「请求尝试次数」，失败/超时/429 全部计入 ----
 # 修订版方案 P1 前置（reviews/2026-11-19/zhihu_top15_optimization_plan_审查修订版_2026-11-19.md）：
@@ -418,7 +421,7 @@ def _zhida_quota_exhausted() -> bool:
 QUOTA_LIMITS = {
     "hot_list": _env_int("QUOTA_HOT_LIST_DAILY", 100, minimum=0),
     "search": _env_int("QUOTA_SEARCH_DAILY", 2000, minimum=0),
-    "zhida": _env_int("QUOTA_ZHIDA_DAILY", 90, minimum=0),
+    "zhida": _env_int("QUOTA_ZHIDA_DAILY", 80, minimum=0),
     "model_alt": _env_int("QUOTA_MODEL_ALT_DAILY", 500, minimum=0),
     # 全网搜索试点前保持 0 = 完全禁用；试点时按需调大并配合试点规范上线
     "web_search": _env_int("QUOTA_WEB_SEARCH_DAILY", 0, minimum=0),
@@ -460,11 +463,10 @@ class QuotaGuard:
 
         异常统一由 attempt() 兜住，这里保持纯 IO，便于测试注入真实磁盘错误。
         """
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self._path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"date": self._day, "counts": self._counts},
-                                ensure_ascii=False), encoding="utf-8")
-        tmp.replace(self._path)
+        _atomic_write_text(
+            self._path,
+            json.dumps({"date": self._day, "counts": self._counts}, ensure_ascii=False),
+        )
 
     def attempt(self, kind: str) -> bool:
         """记录一次请求尝试并返回是否允许；False = 已达当日上限，调用方必须放弃。"""
@@ -489,7 +491,16 @@ class QuotaGuard:
             return True
 
     def used(self, kind: str) -> int:
-        return self._counts.get(kind, 0)
+        with self._lock:
+            if today_str() != self._day:
+                return 0
+            return self._counts.get(kind, 0)
+
+    def exhausted(self, kind: str) -> bool:
+        if QUOTA_GUARD_DISABLED or kind not in QUOTA_LIMITS:
+            return False
+        limit = QUOTA_LIMITS[kind]
+        return self.used(kind) >= limit
 
 
 _QUOTA = QuotaGuard(QUOTA_STATE_PATH)
@@ -507,10 +518,6 @@ def _chat_with_retry(url: str, headers: dict, payload: dict, label: str) -> str:
             raise UpstreamError(f"{label} 整批生成预算耗尽，跳过剩余尝试")
         if not _QUOTA.attempt("zhida"):
             raise UpstreamError(f"{label} 当日配额已达上限，停止调用（配额守卫）")
-        if not _zhida_quota_take():
-            raise UpstreamError(
-                f"{label} 当日调用已达 {DAILY_ZHIDA_LIMIT} 次上限（DAILY_ZHIDA_LIMIT），停止调用"
-            )
         try:
             return _chat(url, headers, payload, label)
         except UpstreamError as exc:
@@ -824,10 +831,11 @@ def build_web_evidence(title: str, gap: str) -> dict:
 # ---------------------------------------------------------------------------
 def _base_item(rank: int, hot: dict) -> dict:
     """降级态骨架：任何条目在生成失败/预算耗尽时都能安全渲染，不编造内容。"""
+    raw_url = str(hot.get("Url") or "").strip()
     return {
         "rank": rank,
         "title": str(hot.get("Title") or "").strip(),
-        "question_url": str(hot.get("Url") or "").strip(),
+        "question_url": raw_url if _is_zhihu_url(raw_url) else "",
         # 降级态默认「待验证」：不确定时不假装有分歧
         "type": TYPE_VERIFY,
         "claim_type": "",
@@ -1273,10 +1281,21 @@ def is_simulated_brief(data: dict) -> bool:
 
 
 def load_today_cache() -> dict | None:
-    """FR-07：当天已有缓存则直接读取，秒开。"""
+    """FR-07：当天已有缓存则直接读取，秒开；带 (date_str, mtime) 轻量内存缓存。"""
+    global _BRIEF_CACHE_KEY, _BRIEF_CACHE_DATA
     path = cache_path()
-    if not path.exists():
+    try:
+        st = path.stat()
+    except OSError:
         return None
+    day = today_str()
+    cache_key = (str(path), day, st.st_mtime_ns)
+    with _STATE_LOCK:
+        if _BRIEF_CACHE_KEY == cache_key and _BRIEF_CACHE_DATA is not None:
+            cached_copy = copy.deepcopy(_BRIEF_CACHE_DATA)
+            if not MOCK_MODE and is_simulated_brief(cached_copy):
+                return None
+            return cached_copy
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:
@@ -1298,8 +1317,11 @@ def load_today_cache() -> dict | None:
     generated_at = str(data.get("generated_at") or "").strip()
     if not re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}", generated_at):
         # 兼容早期缺少有效时间戳的缓存：以缓存文件修改时间为准，不再写死“当日缓存”。
-        generated_at = datetime.datetime.fromtimestamp(path.stat().st_mtime, CN_TZ).strftime("%Y-%m-%d %H:%M")
+        generated_at = datetime.datetime.fromtimestamp(st.st_mtime, CN_TZ).strftime("%Y-%m-%d %H:%M")
     data["generated_at"] = generated_at
+    with _STATE_LOCK:
+        _BRIEF_CACHE_KEY = cache_key
+        _BRIEF_CACHE_DATA = copy.deepcopy(data)
     _log(f"命中当日缓存：{path.name}")
     return data
 
@@ -1326,6 +1348,8 @@ def load_fallback() -> dict:
         # 前端封面/总览直接读 digest.total / headline / 三态 / insights，
         # 最小兜底也必须带完整 digest，否则「有 JS、无字段」仍是白屏。
         data = {"items": [], "digest": build_digest([])}
+    if not isinstance(data.get("digest"), dict) or not isinstance(data["digest"].get("total"), int):
+        data["digest"] = build_digest(data["items"])
     data["date"] = data.get("date") or today_str()
     data["generated_at"] = data.get("generated_at") or now_str()
     data["source"] = "fallback"
@@ -1347,9 +1371,9 @@ def _set_refresh_cooldown() -> None:
 
 def _start_background_refresh() -> bool:
     """尝试启动唯一后台生成线程；冷却中、已有线程或直答配额触顶时返回 False。"""
-    if _zhida_quota_exhausted():
+    if _QUOTA.exhausted("zhida"):
         _log(
-            f"当日直答调用已达 {DAILY_ZHIDA_LIMIT} 次上限，跳过后台刷新，继续服务现有缓存"
+            f"当日直答调用已达 {QUOTA_LIMITS['zhida']} 次上限，跳过后台刷新，继续服务现有缓存"
         )
         return False
     if not _refresh_claim():
@@ -1506,24 +1530,28 @@ def assets(filename):
 
 @app.route("/healthz")
 def healthz():
-    """只读健康检查：不触发任何生成/刷新，仅汇报进程内状态与当日缓存年龄。
+    """只读健康检查：不触发任何生成/刷新，仅汇报密钥状态；详细计数器需 HEALTHZ_VERBOSE=1。
 
     供云托管探针与值班巡检使用；零副作用是本端点唯一硬约束。
     """
-    age = cache_age_seconds()
+    secret_ok = bool(ZHIHU_ACCESS_SECRET) or MOCK_MODE
     payload = {
-        "status": "ok",
-        "date": today_str(),
-        "has_today_cache": age is not None,
-        "cache_age_sec": None if age is None else int(age),
-        "refreshing": _refresh_active(),
-        "cooldown_remaining": _refresh_retry_after(),
-        "zhida_calls_today": _zhida_used_today(),
-        "zhida_daily_limit": DAILY_ZHIDA_LIMIT,
+        "status": "ok" if secret_ok else "degraded",
         # 只暴露布尔值，不泄露密钥内容：用于部署后确认环境变量是否注入成功，
         # 避免"没有报错、但一直静默服务兜底数据"这类最难排查的故障。
-        "secret_configured": bool(ZHIHU_ACCESS_SECRET) or MOCK_MODE,
+        "secret_configured": secret_ok,
     }
+    if os.environ.get("HEALTHZ_VERBOSE", "0") == "1":
+        age = cache_age_seconds()
+        payload.update({
+            "date": today_str(),
+            "has_today_cache": age is not None,
+            "cache_age_sec": None if age is None else int(age),
+            "refreshing": _refresh_active(),
+            "cooldown_remaining": _refresh_retry_after(),
+            "zhida_calls_today": _QUOTA.used("zhida"),
+            "zhida_daily_limit": QUOTA_LIMITS["zhida"],
+        })
     return Response(
         json.dumps(payload, ensure_ascii=False),
         mimetype="application/json",

@@ -63,6 +63,7 @@ check("dockerignore timeline js", "!demo/timeline.js" in dockerignore)
 tempdir = pathlib.Path(tempfile.mkdtemp(prefix="timeline-test-"))
 try:
     old_data_dir = app.DATA_DIR
+    old_build_brief_main = app.build_brief
     app.DATA_DIR = tempdir
 
     existing = tempdir / "archive" / "2026-11-20.json"
@@ -94,8 +95,9 @@ try:
     check("daily rejects fewer than five healthy", rc != 0)
     check("low healthy count preserves archive", existing.read_text(encoding="utf-8") == before)
 
-    app.DATA_DIR = old_data_dir
 finally:
+    app.DATA_DIR = old_data_dir
+    app.build_brief = old_build_brief_main
     shutil.rmtree(tempdir, ignore_errors=True)
 
 # 3-5. Timeline merge and output

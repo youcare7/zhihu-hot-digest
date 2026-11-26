@@ -9,6 +9,7 @@ import subprocess
 import sys
 import threading
 import time
+import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -62,100 +63,87 @@ SIMULATED = dict(
     notice="【模拟数据】当前为 mock 模式：全部内容来自本地示例，并非知乎 API 真实返回，链接不可点击。",
     items=SIMULATED_ITEMS,
 )
-state = {"mode": "recover", "data_hits": 0}
 
 
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path.startswith("/data.js"):
-            state["data_hits"] += 1
-            if state["mode"] == "fallback":
-                data = FALLBACK
-            elif state["mode"] == "simulated":
-                data = SIMULATED
-            elif state["mode"] == "recover" and state["data_hits"] == 1:
-                data = FALLBACK
-            else:
-                data = HEALTHY
-            raw = ("window.BRIEF_DATA = " + json.dumps(data, ensure_ascii=False) + ";").encode("utf-8")
-            content_type = "application/javascript; charset=utf-8"
-        else:
-            raw = ('<html><body><div id="digest"></div>unslop TYPE_LABEL'
-                   '<script src="data.js"></script></body></html>').encode("utf-8")
-            content_type = "text/html; charset=utf-8"
-        self.send_response(200)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(raw)))
-        self.end_headers()
-        self.wfile.write(raw)
+class TestVerificationScripts(unittest.TestCase):
+    def test_smoke_check_and_verify_live_contracts(self):
+        state = {"mode": "recover", "data_hits": 0}
 
-    def log_message(self, *args):
-        return
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.path.startswith("/data.js"):
+                    state["data_hits"] += 1
+                    if state["mode"] == "fallback":
+                        data = FALLBACK
+                    elif state["mode"] == "simulated":
+                        data = SIMULATED
+                    elif state["mode"] == "recover" and state["data_hits"] == 1:
+                        data = FALLBACK
+                    else:
+                        data = HEALTHY
+                    raw = ("window.BRIEF_DATA = " + json.dumps(data, ensure_ascii=False) + ";").encode("utf-8")
+                    content_type = "application/javascript; charset=utf-8"
+                else:
+                    raw = ('<html><body><div id="digest"></div>unslop TYPE_LABEL'
+                           '<script src="data.js"></script></body></html>').encode("utf-8")
+                    content_type = "text/html; charset=utf-8"
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+
+            def log_message(self, *args):
+                return
+
+        def run_script(name, *args):
+            return subprocess.run(
+                [sys.executable, str(ROOT / "scripts" / name), *args],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=10,
+            )
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base = f"http://127.0.0.1:{server.server_port}"
+        try:
+            result = run_script(
+                "smoke_check.py", "--url", base, "--timeout", "1",
+                "--wait", "3", "--poll-interval", "0.05",
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("结果：PASS", result.stdout)
+            self.assertGreaterEqual(state["data_hits"], 2)
+
+            state["mode"] = "fallback"
+            state["data_hits"] = 0
+            started = time.monotonic()
+            result = run_script("verify_live.py", base)
+            elapsed = time.monotonic() - started
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("内容未就绪", result.stdout)
+            self.assertLess(elapsed, 5)
+
+            state["mode"] = "simulated"
+            state["data_hits"] = 0
+            result = run_script("smoke_check.py", "--url", base, "--timeout", "1")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("模拟数据", result.stdout)
+
+            state["data_hits"] = 0
+            result = run_script("verify_live.py", base)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("模拟数据", result.stdout)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(2)
 
 
-def run_script(name, *args):
-    return subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / name), *args],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=10,
-    )
-
-
-server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-thread = threading.Thread(target=server.serve_forever, daemon=True)
-thread.start()
-base = f"http://127.0.0.1:{server.server_port}"
-failures = []
-try:
-    # 第一次返回带 refreshing 的 4 条兜底，第二次返回 10 条健康缓存。
-    # 冒烟应只在有界等待后复跑完整内容门，而不是把 4 条兜底误报成普通结构错误。
-    result = run_script(
-        "smoke_check.py", "--url", base, "--timeout", "1",
-        "--wait", "3", "--poll-interval", "0.05",
-    )
-    if result.returncode != 0 or "结果：PASS" not in result.stdout or state["data_hits"] < 2:
-        failures.append("smoke_check 冷恢复用例失败：\n" + result.stdout + result.stderr)
-    else:
-        print("场景A ✅ smoke_check 有界等待兜底恢复，再执行完整内容门")
-
-    # 持续兜底代表服务进程可用、真实内容未就绪；不能沿用旧格式兼容路径误判通过。
-    state["mode"] = "fallback"
-    state["data_hits"] = 0
-    started = time.monotonic()
-    result = run_script("verify_live.py", base)
-    elapsed = time.monotonic() - started
-    if result.returncode == 0 or "内容未就绪" not in result.stdout or elapsed >= 5:
-        failures.append(
-            f"verify_live 持续兜底用例失败（{elapsed:.2f}s）：\n"
-            + result.stdout + result.stderr
-        )
-    else:
-        print("场景B ✅ verify_live 快速、明确地区分服务存活与内容未就绪")
-
-    # 模拟缓存即使结构完整、URL 主机是知乎，也绝不能作为真实线上内容通过。
-    state["mode"] = "simulated"
-    state["data_hits"] = 0
-    result = run_script("smoke_check.py", "--url", base, "--timeout", "1")
-    if result.returncode == 0 or "模拟数据" not in result.stdout:
-        failures.append("smoke_check 模拟缓存用例失败：\n" + result.stdout + result.stderr)
-    else:
-        print("场景C ✅ smoke_check 拒绝伪装成 cache 的模拟数据")
-
-    state["data_hits"] = 0
-    result = run_script("verify_live.py", base)
-    if result.returncode == 0 or "模拟数据" not in result.stdout:
-        failures.append("verify_live 模拟缓存用例失败：\n" + result.stdout + result.stderr)
-    else:
-        print("场景D ✅ verify_live 拒绝模拟数据，不再误报真实内容全绿")
-finally:
-    server.shutdown()
-    server.server_close()
-    thread.join(2)
-
-if failures:
-    raise AssertionError("\n\n".join(failures))
-print("全部通过")
+if __name__ == "__main__":
+    unittest.main()

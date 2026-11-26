@@ -1,8 +1,8 @@
 # 待办清单 · 知乎黑客松 S3「热榜深潜简报」
 
-> 版本：2026-11-21 21:39（部署后口径同步：生产 DeployId 039，旧 037/038/031/503 口径作废）｜ 唯一任务看板，开工先读 `HANDOFF.md`
+> 版本：2026-11-26（口径同步：生产 DeployId 039，历史交接与旧脚本已归档至 `docs/archive/` 与 `scripts/archive/`）｜ 唯一任务看板，开工先读 `docs/archive/HANDOFF.md`
 >
-> **当前线上**：CloudBase `zhihu-hot-digest`，公网链接不变；生产为 **DeployId 039**（11-21 21:39 部署，100% 流量，版本名 `zhihu-hot-digest-039`），首选回滚点 **DeployId 038**（0% 流量）。代码 = `main` `60c14aa`：038 全套工程加固（gunicorn WSGI、`/healthz`、`DAILY_ZHIDA_LIMIT`、`_js_safe_json`+nosniff）+ 补齐 8 类稳定性残留缺陷（详见 `HANDOFF.md` 头部）。冷启动约 2 分钟由 fallback 自动切 cache 10 条；线上 `smoke_check.py` PASS、`verify_live.py` 13/13，digest 自洽 1/3/6。11-19 的 503 资源隔离为历史故障，当前服务 `normal`。详见 `HANDOFF.md` 头部最新部署状态段。
+> **当前线上**：CloudBase `zhihu-hot-digest`，公网链接不变；生产为 **DeployId 039**（11-21 21:39 部署，100% 流量，版本名 `zhihu-hot-digest-039`），首选回滚点 **DeployId 038**（0% 流量）。代码已合入 038/039 工程加固及统一 `QuotaGuard`（`QUOTA_ZHIDA_DAILY=80`）、`web_evidence` 核验与安全/测试加固。冷启动约 2 分钟由 fallback 自动切 cache 10 条；线上 `smoke_check.py` PASS、`verify_live.py` 13/13，digest 自洽 1/3/6。11-19 的 503 资源隔离为历史故障，当前服务 `normal`。历史记录见 `docs/archive/HANDOFF.md`。
 >
 > **质量证据分时点保存**：19:32 快照 gap 严尺 9/10；19:47:58 独立预审发现 #10 整卡降级、5 处疑似硬截断与 1 处乱码；19:59 快照仍有 1 条降级。11-18 已补上安全收束与文本质量门，五项独立测试和固定基线复算通过；00:17 页面仍有 1 条降级，不能写成内容全绿。
 >
@@ -39,7 +39,7 @@
 - [ ] **【全员】收集 9 条亲历痛点**：每人 3 条，只写具体场景与问题；1 号合并后选 3 条进入计划书。
 - [ ] **【1 号】把真实用户证据写入计划书**：只写实际发生的试用，不编造访谈、留存或满意度；样本小就明确标注。
 - [x] **【3 号测 / 2 号修】最小 HTTP 冒烟验收**：`scripts/smoke_check.py` 已入仓，覆盖首页、`data.js`、10 条数据、digest、链接域名与降级哨兵拦截。
-- [x] **【3 号】README 测试命令**：README 现为九项 Python + 两项 Node 逐脚本运行说明，并说明无 CI 与 `unittest discover` 的 0 项发现边界（工作区另有未提交的第 10 项 Python 测试 `test_reading_index_guard.py`，提交后 README 需同步为十项）。
+- [x] **【3 号】README 测试命令**：README 现已同步为 15 项 Python + 2 项 Node 测试，支持 `python -B -m unittest discover -s tests -p "test_*.py" -v` 与逐脚本运行。
 - [ ] **【1 号】视频工程预搭**：准备字幕、信息图、二维码和试剪；正式数据素材留到提交前录制。
 - [ ] **【全员】每日文字站会**：昨天完成什么（commit 链接）/ 今天做什么 / 有什么阻塞。
 
@@ -64,14 +64,14 @@
 
 | 文件 | 用途 |
 |---|---|
-| `HANDOFF.md` | 项目现状、线上版本、运维约束与验收记录 |
+| `docs/archive/HANDOFF.md` | 历史交接、线上版本与验收记录（已归档） |
 | `TODO.md` | 本任务看板 |
-| `产品说明计划书_v2.7修订版.md` | 唯一计划书工作源文件，历史版本查 Git |
-| `产品说明计划书_v2.7修订版.docx` | 由 Markdown 同步生成的交付版 |
-| `B方案试验_GAP样板_2026-11-17.md` | B 方案试验协议与 19:32 验收结论 |
+| `产品说明计划书_v2.7修订版.md` | 唯一计划书工作源文件（含 `[待补充]` 成员姓名与试用数据占位） |
+| `docs/archive/产品说明计划书_v2.7修订版.docx` | 历史 Word 交付版（已归档，定稿后需重新导出） |
+| `docs/archive/B方案试验_GAP样板_2026-11-17.md` | B 方案试验协议与 19:32 验收结论（已归档） |
 | `答辩问答手册.md` | 评委追问与回答边界 |
-| `团队协作公约_2026-11-17.md` | 三人协作、Git 纪律与 AI 交接规范 |
-| `值班卡_评审期运维_2026-11-17.md` | 冷缓存 504、配额触顶、预热与回滚 |
+| `docs/archive/团队协作公约_2026-11-17.md` | 三人协作、Git 纪律与 AI 交接规范（已归档） |
+| `docs/archive/值班卡_评审期运维_2026-11-17.md` | 冷缓存 504、配额触顶、预热与回滚（已归档） |
 | `reviews/2026-11-17/` | 当次 AI 预审、双人独立复核表与用户试用工具包 |
 | `README.md` | 安装、根目录部署、逐脚本测试与披露 |
 | `scripts/smoke_check.py` | HTTP 冒烟验收，不评价语义质量 |

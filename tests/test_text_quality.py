@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -38,63 +39,61 @@ def run_script(script, data, expected_code, expected_text):
     return output
 
 
-# 1. 安全收束：短文本不变，超长文本不直接切成半句。
-assert app._clip(" 短句。 ", 80) == "短句。"
-long_sentence = "甲" * 60 + "。" + "乙" * 50 + "。"
-assert app._clip(long_sentence, 80) == "甲" * 60 + "。"
-long_clause = "甲" * 60 + "；" + "乙" * 80
-assert app._clip(long_clause, 80) == "甲" * 60 + "。"
-no_boundary = app._clip("甲" * 100, 80)
-assert len(no_boundary) == 80 and no_boundary.endswith("…")
-assert app._clip("甲乙丙", 0) == ""
-assert app._clip("甲乙", 1) == "…"
-print("场景 1 ✅ 短文本、句号、分号、无安全边界和极小上限")
+class TestTextQuality(unittest.TestCase):
+    def test_clip_boundaries(self):
+        self.assertEqual(app._clip(" 短句。 ", 80), "短句。")
+        long_sentence = "甲" * 60 + "。" + "乙" * 50 + "。"
+        self.assertEqual(app._clip(long_sentence, 80), "甲" * 60 + "。")
+        long_clause = "甲" * 60 + "；" + "乙" * 80
+        self.assertEqual(app._clip(long_clause, 80), "甲" * 60 + "。")
+        no_boundary = app._clip("甲" * 100, 80)
+        self.assertEqual(len(no_boundary), 80)
+        self.assertTrue(no_boundary.endswith("…"))
+        self.assertEqual(app._clip("甲乙丙", 0), "")
+        self.assertEqual(app._clip("甲乙", 1), "…")
 
-baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
-run_script(VERIFY, baseline, 0, "全部硬性约束满足")
-print("场景 2 ✅ 固定基线未被新增文本质量门误伤")
+    def test_verify_plan_numbers_baseline_garbled_and_truncated(self):
+        baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
+        run_script(VERIFY, baseline, 0, "全部硬性约束满足")
 
-# 2. U+FFFD 必须报出，不能静默清洗成看似正常的文本。
-garbled = copy.deepcopy(baseline)
-garbled["items"][0]["consensus"] = "人口数据出现�。"
-output = run_script(VERIFY, garbled, 1, "文本含 U+FFFD 乱码")
-assert "乱码位置" in output
-print("场景 3 ✅ 乱码检测")
+        garbled = copy.deepcopy(baseline)
+        garbled["items"][0]["consensus"] = "人口数据出现\ufffd。"
+        output = run_script(VERIFY, garbled, 1, "文本含 U+FFFD 乱码")
+        self.assertIn("乱码位置", output)
 
-# 3. 恰好达到上限却没有完整收尾，按疑似硬截断失败。
-truncated = copy.deepcopy(baseline)
-truncated["items"][0]["consensus"] = "甲" * 80
-output = run_script(VERIFY, truncated, 1, "疑似硬截断")
-assert "sides.claim" not in output.split("疑似硬截断：", 1)[-1]
-print("场景 4 ✅ 疑似硬截断检测")
+        truncated = copy.deepcopy(baseline)
+        truncated["items"][0]["consensus"] = "甲" * 80
+        output = run_script(VERIFY, truncated, 1, "疑似硬截断")
+        self.assertNotIn("sides.claim", output.split("疑似硬截断：", 1)[-1])
 
-# 4. 冒烟先证明正常数据可通过，再证明降级哨兵会失败。
-def smoke_data(background="正常背景。"):
-    items = []
-    for rank in range(1, 11):
-        items.append({
-            "rank": rank,
-            "title": f"热点 {rank}",
-            "question_url": f"https://www.zhihu.com/question/{rank}",
-            "background": background if rank == 10 else "正常背景。",
-            "focus": "聚焦问题。",
-            "gap": "可核验材料。",
-            "type": "verify",
-            "sides": [],
-            "reading": [],
-        })
-    return {
-        "date": "2026-11-17",
-        "source": "cache",
-        "digest": {
-            "headline": "真分歧 0 条、已形成共识 0 条、待验证 10 条。",
-        },
-        "items": items,
-    }
+    def test_smoke_check_passes_and_blocks_degraded(self):
+        def smoke_data(background="正常背景。"):
+            items = []
+            for rank in range(1, 11):
+                items.append({
+                    "rank": rank,
+                    "title": f"热点 {rank}",
+                    "question_url": f"https://www.zhihu.com/question/{rank}",
+                    "background": background if rank == 10 else "正常背景。",
+                    "focus": "聚焦问题。",
+                    "gap": "可核验材料。",
+                    "type": "verify",
+                    "sides": [],
+                    "reading": [],
+                })
+            return {
+                "date": "2026-11-17",
+                "source": "cache",
+                "digest": {
+                    "headline": "真分歧 0 条、已形成共识 0 条、待验证 10 条。",
+                },
+                "items": items,
+            }
 
-run_script(SMOKE, smoke_data(), 0, "结果：PASS")
-output = run_script(SMOKE, smoke_data("暂无解读。"), 1, "background 为降级哨兵")
-assert "结果：FAIL" in output
-print("场景 5 ✅ 冒烟正常通过与降级拦截")
+        run_script(SMOKE, smoke_data(), 0, "结果：PASS")
+        output = run_script(SMOKE, smoke_data("暂无解读。"), 1, "background 为降级哨兵")
+        self.assertIn("结果：FAIL", output)
 
-print("全部通过")
+
+if __name__ == "__main__":
+    unittest.main()

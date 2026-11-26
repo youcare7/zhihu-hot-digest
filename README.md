@@ -120,7 +120,13 @@ tcb cloudrun deploy \
 
 **本项目没有接入 CI**，所有检查均为本地脚本手动执行。
 
-十五项 Python 测试是**独立脚本，不是 unittest 用例**（没有 `TestCase` 类），因此 `python -m unittest discover` 会显示 0 项——这是预期行为，不是"测试不存在"。正确运行方式：
+十五项 Python 测试与两项 Node 测试覆盖核心链路，支持 `unittest discover` 统一运行或逐脚本运行：
+
+```bash
+python -B -m unittest discover -s tests -p "test_*.py" -v
+```
+
+逐脚本运行清单：
 
 ```bash
 python tests/test_cache_timestamp.py  # 缓存保留真实生成时刻，旧缓存按 mtime 补齐
@@ -159,7 +165,7 @@ python scripts/audit_gap_quality.py                                      # gap �
 ```
 
 > `data/baseline_insight_v2.json` 是人工归类预览基线，**不是运行时产物**，不能用它跑 `smoke_check.py`。
-> 评审期运维（冷缓存自动恢复、配额触顶、预热、回滚）见 `值班卡_评审期运维_2026-11-17.md`；本轮二次修复与部署边界见 `HANDOFF_稳定性二次修复_2026-11-18.md`。
+> 评审期运维（冷缓存自动恢复、配额触顶、预热、回滚）见 `docs/archive/值班卡_评审期运维_2026-11-17.md`；历史交接记录见 `docs/archive/HANDOFF.md`。
 
 ## 研发工具链
 
@@ -167,7 +173,7 @@ python scripts/audit_gap_quality.py                                      # gap �
 - **Kimi Claw**：云端「柳东凯」的两个首页只读巡检条目已启用，分别在每天 09:17、21:23（Asia/Shanghai）仅 GET 生产根路径；本机旧条目已于 2026-11-19 21:28 删除。21:23 自动触发、日志与异常告警已验证，结果为 HTTP 503；这表示巡检机制正常、被巡检首页不可用，不代表简报内容验收通过。Claw 不进入核心生成链路，不持有密钥，不自动修改仓库或生产环境。
 - **Kimi Work**：继续承担本地文件处理与综合交付。
 
-具体权限、实际任务编号、运行记录和退出条件见 `研发工具链_Kimi_Code_Claw.md` 与 `HANDOFF.md`。这些工具属于研发与运营辅助，不改变 Demo 架构，也不作为产品核心创新宣称；首页巡检不能替代 10 条内容完整性与质量验收。
+具体权限、实际任务编号、运行记录和退出条件见 `docs/archive/研发工具链_Kimi_Code_Claw.md` 与 `docs/archive/HANDOFF.md`。这些工具属于研发与运营辅助，不改变 Demo 架构，也不作为产品核心创新宣称；首页巡检不能替代 10 条内容完整性与质量验收。
 
 ## 目录结构
 
@@ -199,6 +205,7 @@ python scripts/audit_gap_quality.py                                      # gap �
 - `REFRESH_COOLDOWN_SECONDS`：刷新异常、整批 0 条成功或劣化结果丢弃后的冷却时间，默认 900 秒；冷却期间保留旧缓存或静态兜底，不重复调用上游。
 - `RETRY_BACKOFF_BASE` / `RETRY_WAIT` / `RETRY_TIMES`：429 有界指数退避，默认 `2` / `30` / `6`；首次等待 2s 后按 2 倍递增，`RETRY_WAIT` 为单次等待上限，`RETRY_TIMES` 含首次。
 - `GEN_BUDGET_SECONDS`：整批生成软预算，默认 180 秒；耗尽后停止新重试与补跑并保留已生成的部分结果，`0` = 不限制。
+- `QUOTA_ZHIDA_DAILY` / `QUOTA_HOT_LIST_DAILY` / `QUOTA_SEARCH_DAILY` / `QUOTA_MODEL_ALT_DAILY` / `QUOTA_WEB_SEARCH_DAILY`：统一 `QuotaGuard` 日配额熔断上限（默认 `80` / `100` / `2000` / `500` / `0`，持久化于 `data/quota_counters.json`）。
 
 ## 分步验证命令
 
@@ -241,7 +248,7 @@ MOCK_MODE=0 python app.py            # 成功：打印中文设置指引，退�
 ## 参考与引用披露
 
 - **AI 辅助开发**：本作品由学生团队完成，开发过程全程使用 AI 辅助编程（结对 AI + 人工验收）。
-- **数据来源**：知乎开放平台 API（热榜、站内搜索）与知乎直答；所有延伸阅读链接均来自知乎搜索 API 的真实返回并跳回知乎站内。
+- **数据来源**：知乎开放平台 API（热榜、站内搜索）与知乎直答；延伸阅读链接以知乎搜索 API 真实返回的站内链接为主，仅在「待验证（`verify`）」条目启用 `web_evidence` 时附带少量经校验的外部权威来源。
 - **开源组件**：Flask（BSD-3-Clause），通过 `pip install flask` 引入，未修改其源码。
 - **设计打磨**：页面视觉参考开源 Skill [heydamir/unslop](https://github.com/heydamir/unslop)（作者 Damir Sokolovsky，[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)）进行九层审查，未执行其第三方脚本。
 - **README 文案**：参考 [MohamedAbdallah-14/unslop](https://github.com/MohamedAbdallah-14/unslop)（MIT）的自然语言清理原则；保留命令、路径、数字与技术事实，未使用 AI 检测规避功能。

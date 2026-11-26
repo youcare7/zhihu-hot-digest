@@ -5,19 +5,13 @@
 """
 import os
 import sys
+import time as _real_time
 import types
+import unittest
 
-os.environ.pop("MOCK_MODE", None)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import app  # noqa: E402
-
-# 加速测试：跳过补跑前的退避等待。
-# 补跑不再无条件 sleep，但 build_brief 的整批预算需要 monotonic，桩必须一并提供。
-app.time = types.SimpleNamespace(
-    sleep=lambda s: None,
-    strftime=__import__("time").strftime,
-    monotonic=__import__("time").monotonic,
-)
+from tests._app_state import AppStateTestCase  # noqa: E402
 
 CANDIDATES = [{"Title": "候选回答1", "Url": "https://www.zhihu.com/question/1/answer/9"}]
 
@@ -26,38 +20,47 @@ def make_hot(n):
     return [{"Title": f"热点{i}", "Url": f"https://www.zhihu.com/question/{i}"} for i in range(1, n + 1)]
 
 
-def run_case(name, fail_forever):
-    app.api_hot_list = lambda: make_hot(3)
-    app.fetch_search = lambda title, rank: list(CANDIDATES)
-    calls = {"热点1": 0}
+class TestRetryPass(AppStateTestCase):
+    def setUp(self):
+        super().setUp()
+        app.time = types.SimpleNamespace(
+            sleep=lambda s: None,
+            strftime=_real_time.strftime,
+            monotonic=_real_time.monotonic,
+        )
 
-    def fake_generate(title, text):
-        if title == "热点1":
-            calls["热点1"] += 1
-            if fail_forever or calls["热点1"] == 1:
-                raise app.UpstreamError("429 限流（模拟）")
-        return {
-            "background": f"{title}的背景解读",
-            "viewpoints": {"support": "支持", "oppose": "反对", "undecided": "未定论"},
-            "reading": [{"index": 1, "reason": "视角独特"}],
-        }
+    def _run_case(self, fail_forever):
+        app.api_hot_list = lambda: make_hot(3)
+        app.fetch_search = lambda title, rank: list(CANDIDATES)
+        calls = {"热点1": 0}
 
-    app.generate = fake_generate
-    brief = app.build_brief()
-    bgs = [it["background"] for it in brief["items"]]
-    print(f"[{name}] 第1条调用次数={calls['热点1']}")
-    for it in brief["items"]:
-        print("   rank", it["rank"], "|", it["background"][:24], "| reading:", len(it["reading"]))
-    if fail_forever:
-        assert bgs[0] == "暂无解读。", "场景B：应仍降级"
-        assert bgs[1] != "暂无解读。", "场景B：其他条应正常"
-        print("   ✅ 场景B通过：持续失败保持降级，不影响其他条\n")
-    else:
-        assert bgs[0] == "热点1的背景解读", "场景A：补跑应成功"
-        assert brief["items"][0]["reading"], "场景A：补跑后应有延伸阅读"
-        print("   ✅ 场景A通过：首轮降级 → 收尾补跑成功\n")
+        def fake_generate(title, text):
+            if title == "热点1":
+                calls["热点1"] += 1
+                if fail_forever or calls["热点1"] == 1:
+                    raise app.UpstreamError("429 限流（模拟）")
+            return {
+                "background": f"{title}的背景解读",
+                "viewpoints": {"support": "支持", "oppose": "反对", "undecided": "未定论"},
+                "reading": [{"index": 1, "reason": "视角独特"}],
+            }
+
+        app.generate = fake_generate
+        brief = app.build_brief()
+        bgs = [it["background"] for it in brief["items"]]
+        if fail_forever:
+            self.assertEqual(bgs[0], "暂无解读。")
+            self.assertNotEqual(bgs[1], "暂无解读。")
+        else:
+            self.assertEqual(bgs[0], "热点1的背景解读")
+            self.assertTrue(brief["items"][0]["reading"])
+
+    def test_retry_pass_recovers_transient_failure(self):
+        self._run_case(fail_forever=False)
+
+    def test_retry_pass_keeps_degraded_on_permanent_failure(self):
+        self._run_case(fail_forever=True)
 
 
-run_case("场景A：第1条首轮失败、补跑成功", fail_forever=False)
-run_case("场景B：第1条持续失败", fail_forever=True)
-print("全部通过")
+if __name__ == "__main__":
+    unittest.main()

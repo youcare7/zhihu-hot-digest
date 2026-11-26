@@ -855,7 +855,7 @@
       </div>
       <footer>
         <p>本工具基于知乎开放平台 API 构建 · AI 生成内容仅供参考</p>
-        <p>参考与引用披露：本项目由 3 人大学生团队在 AI 辅助下完成开发；数据来自知乎开放平台 API（热榜 / 站内搜索 / 知乎直答），延伸阅读链接全部跳转回知乎站内；后端框架为 Flask（BSD-3-Clause 许可证）；页面视觉经开源 skill unslop（作者 Damir Sokolovsky，CC BY 4.0）辅助审查，特此署名。</p>
+        <p>参考与引用披露：本项目由 3 人大学生团队在 AI 辅助下完成开发；数据来自知乎开放平台 API（热榜 / 站内搜索 / 知乎直答），延伸阅读链接以知乎站内为主（需补材料条目偶含已核验的外部一手来源）；后端框架为 Flask（BSD-3-Clause 许可证）；页面视觉经开源 skill unslop（作者 Damir Sokolovsky，CC BY 4.0；参考实现 MohamedAbdallah-14/unslop，MIT 许可证）辅助审查，特此署名。</p>
         <p>阅读方式：分页支持按钮、键盘方向键、hash 深链与手机横向滑动；目录可直达任意热点（自动展开该条），速览全部可快速浏览十条结论。</p>
       </footer>
     </div>
@@ -954,7 +954,10 @@
 
     function stopWithManualHint() {
       var noticeEl = document.getElementById('notice');
-      if (noticeEl) noticeEl.textContent += ' 后台生成暂未结束，请稍后手动刷新。';
+      if (noticeEl) {
+        noticeEl.textContent += ' 后台生成暂未结束，请稍后手动刷新。';
+        noticeEl.hidden = false;
+      }
     }
 
     function schedule(delay) {
@@ -1069,6 +1072,15 @@
 
   function demoTag() { return el('span', 'tag-demo', '示例'); }
 
+  function safeHref(url) {
+    try {
+      var u = new URL(String(url || ''));
+      return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : '#';
+    } catch (e) {
+      return '#';
+    }
+  }
+
   function renderTitle(item) {
     var box = el('div', 'card-title-box');
     var titleNode;
@@ -1077,9 +1089,9 @@
       titleNode.appendChild(demoTag());
     } else {
       titleNode = el('a', 'card-title', item.title);
-      titleNode.href = item.question_url;
+      titleNode.href = safeHref(item.question_url);
       titleNode.target = '_blank';
-      titleNode.rel = 'noopener';
+      titleNode.rel = 'noopener noreferrer';
     }
     box.appendChild(titleNode);
     return box;
@@ -1095,9 +1107,9 @@
         li.appendChild(dead);
       } else {
         var a = el('a', 'rt', r.title);
-        a.href = r.url;
+        a.href = safeHref(r.url);
         a.target = '_blank';
-        a.rel = 'noopener';
+        a.rel = 'noopener noreferrer';
         li.appendChild(a);
       }
       if (r.reason) li.appendChild(el('span', 'reason', '—— ' + r.reason));
@@ -1117,9 +1129,9 @@
       if (!ev.title || !ev.url) return null;
       box.appendChild(el('b', '', '全网检索到的第一手材料'));
       var link = el('a', 'web-evidence-title', ev.title);
-      link.href = ev.url;
+      link.href = safeHref(ev.url);
       link.target = '_blank';
-      link.rel = 'noopener';
+      link.rel = 'noopener noreferrer';
       box.appendChild(link);
       box.appendChild(el('span', 'web-evidence-meta',
         '来源：' + (ev.source || '未知来源') + '｜核验截至 ' + (ev.checked_at || '—')));
@@ -1470,9 +1482,9 @@
       var note = el('p', 'degrade-note');
       note.appendChild(document.createTextNode('本条暂无可用素材，未生成解读。我们不编造背景与争议，你可以'));
       var go = el('a', '', '直接去知乎原问题看看大家怎么说 →');
-      go.href = item.question_url;
+      go.href = safeHref(item.question_url);
       go.target = '_blank';
-      go.rel = 'noopener';
+      go.rel = 'noopener noreferrer';
       note.appendChild(go);
       card.appendChild(note);
     } else if (item.background) {
