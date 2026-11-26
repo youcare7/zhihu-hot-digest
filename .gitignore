@@ -3,6 +3,7 @@
 
 # 运行时产物：当日缓存、配额计数与原子写临时文件（绝不入仓/入镜像）
 data/brief_*.json
+data/item_pool_*.json
 data/quota_counters.json
 data/*.tmp
 

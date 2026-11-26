@@ -1,0 +1,150 @@
+name: Tests
+
+# 每次 push / PR 自动跑全部测试；纯文档改动不触发。
+# 不读取任何 Secrets：fork 来的 PR 也能安全运行，测试全程不联网（上游接口均已在用例里打桩）。
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+  pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python 单元与验收测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONDONTWRITEBYTECODE: "1"
+      MOCK_MODE: "0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"   # 与 Dockerfile 的 python:3.11-slim 保持一致
+          cache: pip
+
+      - name: 安装依赖
+        run: pip install -r requirements.txt
+
+      - name: 语法检查
+        run: python -m compileall -q app.py scripts tests
+
+      # 逐文件独立进程运行，而不是 unittest discover：
+      # 1) test_timeline_pipeline / test_bugfix_timeline_contract / test_build_snapshot 是脚本式验收，
+      #    在 import 时就执行并修改 app 全局状态，discover 下会污染其他用例；
+      # 2) test_timeline_integration 没有 TestCase，discover 会静默跳过它；
+      # 3) 独立进程让 app 模块级全局变量（配额计数、缓存键、冷却时间）互不串味。
+      - name: 运行全部 Python 测试
+        shell: bash
+        run: |
+          set -uo pipefail
+          passed=0
+          failed=()
+          for f in tests/test_*.py; do
+            echo "::group::${f}"
+            start=$(date +%s)
+            if timeout 300 python "$f"; then
+              passed=$((passed + 1))
+              status="✅"
+            else
+              failed+=("$f")
+              status="❌"
+            fi
+            echo "::endgroup::"
+            echo "| ${status} | \`${f}\` | $(( $(date +%s) - start ))s |" >> "$RUNNER_TEMP/rows.md"
+          done
+          {
+            echo "### Python 测试：${passed} 通过，${#failed[@]} 失败"
+            echo ""
+            echo "| 结果 | 文件 | 耗时 |"
+            echo "|---|---|---|"
+            cat "$RUNNER_TEMP/rows.md"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ ${#failed[@]} -gt 0 ]; then
+            for f in "${failed[@]}"; do echo "::error file=${f}::测试失败：${f}"; done
+            exit 1
+          fi
+
+      # 测试不应改动仓库里已跟踪的文件（例如把缓存/条目池写进 data/）。
+      # 先只告警不失败，确认首轮干净后可改成 exit 1。
+      - name: 检查测试是否污染工作区
+        if: always()
+        run: |
+          dirty=$(git status --porcelain)
+          if [ -n "$dirty" ]; then
+            echo "::warning::测试运行后工作区有改动，可能有用例没把 DATA_DIR 指到临时目录："
+            echo "$dirty"
+          else
+            echo "工作区干净"
+          fi
+
+  node:
+    name: 前端行为测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      # package.json 没有依赖，无需 npm install
+      - name: 运行前端测试
+        run: npm run test:frontend
+
+  docker:
+    name: 镜像构建与启动冒烟
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # 能提前发现 .dockerignore 白名单漏放运行时文件、依赖装不上等「本地好好的、上线就挂」的问题
+      - name: 构建镜像
+        run: docker build -t zhihu-hot-digest:ci .
+
+      - name: 以 mock 模式启动并探活
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run -d --name app -p 5000:5000 -e MOCK_MODE=1 zhihu-hot-digest:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:5000/healthz > /tmp/healthz.json; then break; fi
+            sleep 1
+          done
+          echo "healthz: $(cat /tmp/healthz.json)"
+          grep -q '"status": "ok"' /tmp/healthz.json
+
+          curl -fsS http://127.0.0.1:5000/ -o /tmp/index.html
+          grep -q '<script src="data.js' /tmp/index.html
+
+          curl -fsS http://127.0.0.1:5000/data.js -o /tmp/data.js
+          grep -q '^window.BRIEF_DATA = ' /tmp/data.js
+
+          curl -fsS http://127.0.0.1:5000/timeline.js | grep -q '^window.TIMELINE_DATA = '
+
+          # 功能示例页：人工整理快照必须带「功能示例」标记，与首页数据分开
+          curl -fsS http://127.0.0.1:5000/showcase/ | grep -q '<script src="data.js'
+          curl -fsS http://127.0.0.1:5000/showcase/data.js | grep -q '"showcase": true'
+
+          # 吉祥物资源必须在镜像里且 MIME 正确（iOS Safari / 微信对 nosniff 很严格）
+          curl -fsSI http://127.0.0.1:5000/assets/ks-idle.webp | grep -qi '^content-type: image/webp'
+          echo "冒烟通过"
+
+      - name: 容器日志
+        if: always()
+        run: docker logs app || true

@@ -107,6 +107,12 @@ ZHIDA_MODEL = os.environ.get("ZHIDA_MODEL", "zhida-fast-1p5")
 NOTICE_LIVE = "由知乎开放平台 API 实时生成，AI 内容仅供参考。"
 NOTICE_FALLBACK = "当前展示缓存快照，知乎实时接口暂不可用，恢复后自动切换。"
 NOTICE_MOCK = "【模拟数据】当前为 mock 模式：全部内容来自本地示例，并非知乎 API 真实返回，链接不可点击。"
+# 人工整理快照（如 v2.8 富化快照、静态兜底）：内容在管线结果上经编辑补充，
+# 部分链接来自站外媒体、未经过 _is_zhihu_url 白名单——不能再沿用「实时生成」的说法。
+NOTICE_CURATED = (
+    "当前展示的是人工整理快照，并非程序实时生成："
+    "部分链接来自站外媒体，未经过程序的知乎域名校验，请以原文为准。"
+)
 
 EMPTY_VIEWPOINT = "站内暂无明确该立场声音"   # 保留：历史缓存 / fallback.json 兼容
 NO_BACKGROUND = "暂无解读。"                  # 保留：降级哨兵，不改
@@ -346,6 +352,13 @@ _GEN_DEADLINE = 0.0  # monotonic 时间戳；0 表示本批不设预算；仅由
 CACHE_TTL_SECONDS = int(_env_float("CACHE_TTL_HOURS", 3, minimum=0) * 3600)
 # 刷新失败或结果被防劣化门丢弃后，暂停后续整批生成，避免访客流量形成重试风暴。
 REFRESH_COOLDOWN_SECONDS = _env_int("REFRESH_COOLDOWN_SECONDS", 900, minimum=0)
+# 增量刷新：按「知乎问题 ID → 规范化标题」复用当日已成功生成的条目，
+# 只给新上榜 / 上次失败的条目调用直答，减少重复消耗直答配额。
+# 0 = 关闭（每次整批重算，旧行为）。
+INCREMENTAL_REFRESH = os.environ.get("INCREMENTAL_REFRESH", "1") != "0"
+# 单条复用的最长年龄（小时）：超过则重新生成该条，避免快速演进的事件背景过旧；
+# 0 = 当日内不限（复用池本身按北京时间自然日隔离，跨日自动失效）。
+ITEM_REUSE_MAX_HOURS = _env_float("ITEM_REUSE_MAX_HOURS", 0, minimum=0)
 
 # 跨线程共享的刷新状态与当日缓存内存镜像：只在这把短临界区锁内读写。
 # 旧实现让请求线程 acquire、后台线程 release，threading.Lock 跨线程释放属未定义行为，
@@ -1013,10 +1026,182 @@ def process_item(rank: int, hot: dict) -> dict:
             }
 
         item["kanshan"] = _build_kanshan(item_type, item["focus"], item["gap"], rank)
+        item["item_generated_at"] = now_str()
 
         _log(f"  第 {rank} 条生成成功[{item_type}]：{title[:24]}")
+        # 立即入池：即使本批之后被防劣化门丢弃，这次配额也不白花
+        _pool_put([item])
     except Exception as exc:
         _log(f"  第 {rank} 条生成失败（单条降级，不影响整份简报）：{exc}")
+    return item
+
+
+# ---------------------------------------------------------------------------
+# 增量刷新：当日条目复用池
+# 复用来源 = 当日缓存（load_today_cache 已排除模拟/坏缓存）+ 当日条目池
+# data/item_pool_<日期>.json。条目池在每条生成成功时立即落盘，所以即便整批
+# 结果被防劣化门丢弃、进程被 SIGTERM 杀掉，已消耗配额换来的条目也不会白费。
+# ---------------------------------------------------------------------------
+_QID_RE = re.compile(r"/question/(\d+)")
+_POOL_LOCK = threading.Lock()
+_POOL_MAX_ITEMS = 200  # 单日上限：热榜一天也就几十个不同问题，防止异常增长
+
+
+def item_pool_path() -> pathlib.Path:
+    return DATA_DIR / f"item_pool_{today_str()}.json"
+
+
+def _norm_title(title) -> str:
+    return re.sub(r"\s+", "", str(title or "")).strip()
+
+
+def _item_keys(title, url) -> list:
+    """复用键：优先知乎问题 ID（标题被编辑也能对上），其次规范化标题。"""
+    keys = []
+    if _is_zhihu_url(url):
+        m = _QID_RE.search(str(url))
+        if m:
+            keys.append("q:" + m.group(1))
+    t = _norm_title(title)
+    if t:
+        keys.append("t:" + t)
+    return keys
+
+
+def _parse_cn_time(value) -> datetime.datetime | None:
+    m = re.match(r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})", str(value or ""))
+    if not m:
+        return None
+    try:
+        return datetime.datetime.strptime(m.group(1), "%Y-%m-%d %H:%M").replace(tzinfo=CN_TZ)
+    except ValueError:
+        return None
+
+
+def _is_reusable(item, fallback_time: str = "") -> bool:
+    """只复用「健康」条目：有真实背景、有标题、三态合法；dispute 必须两派成型。"""
+    if not isinstance(item, dict):
+        return False
+    if not str(item.get("title") or "").strip():
+        return False
+    bg = item.get("background")
+    if not isinstance(bg, str) or not bg.strip() or bg == NO_BACKGROUND:
+        return False
+    if item.get("type") not in VALID_TYPES:
+        return False
+    if item.get("type") == TYPE_DISPUTE and len(item.get("sides") or []) != 2:
+        return False
+    # 人工整理条目（带站外原问题 / 延伸阅读链接）不得混进管线生成的简报
+    q = str(item.get("question_url") or "").strip()
+    if q and not _is_zhihu_url(q):
+        return False
+    for r in item.get("reading") or []:
+        if isinstance(r, dict) and str(r.get("url") or "").strip() \
+                and not _is_zhihu_url(str(r.get("url")).strip()):
+            return False
+    if ITEM_REUSE_MAX_HOURS > 0:
+        born = _parse_cn_time(item.get("item_generated_at") or fallback_time)
+        if born is None:
+            return False  # 无法判断年龄时宁可重算，不让旧内容无限续命
+        age_h = (datetime.datetime.now(CN_TZ) - born).total_seconds() / 3600
+        if age_h > ITEM_REUSE_MAX_HOURS:
+            return False
+    return True
+
+
+def _pool_load() -> list:
+    path = item_pool_path()
+    try:
+        text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return []
+    except (OSError, UnicodeError) as exc:
+        _log(f"条目池读取失败（下次将重新生成）：{exc}")
+        return []
+    try:
+        raw = json.loads(text)
+    except json.JSONDecodeError as exc:
+        _log(f"条目池 JSON 无效（下次将重新生成）：{exc}")
+        return []
+    if not isinstance(raw, dict) or raw.get("date") != today_str():
+        return []
+    items = raw.get("items")
+    if not isinstance(items, list):
+        _log(f"条目池结构无效（下次将重新生成）：{path.name}")
+        return []
+    return [it for it in items if isinstance(it, dict)]
+
+
+def _pool_put(items: list) -> None:
+    """把健康条目写进当日条目池（同键覆盖为最新版本）。尽力而为，绝不抛异常。"""
+    if MOCK_MODE or not INCREMENTAL_REFRESH:
+        return  # mock 条目绝不能进入真实模式的复用池
+    fresh = [copy.deepcopy(it) for it in items if _is_reusable(it)]
+    if not fresh:
+        return
+    try:
+        with _POOL_LOCK:
+            pool = _pool_load()
+            new_keys = set()
+            for it in fresh:
+                new_keys.update(_item_keys(it.get("title"), it.get("question_url")))
+            # 同键旧版本剔除，再把新版本追加到末尾（末尾 = 最新）
+            pool = [
+                it for it in pool
+                if not (set(_item_keys(it.get("title"), it.get("question_url"))) & new_keys)
+            ]
+            pool.extend(fresh)
+            pool = pool[-_POOL_MAX_ITEMS:]
+            _atomic_write_text(
+                item_pool_path(),
+                json.dumps({"date": today_str(), "items": pool}, ensure_ascii=False),
+            )
+    except Exception as exc:
+        _log(f"条目池落盘失败（不影响本次生成，只是下次少复用）：{exc}")
+
+
+def _build_reuse_index() -> dict:
+    """键 → 可复用条目。条目池（更新）覆盖当日缓存；含人工 crosscheck 的缓存条目优先保留。"""
+    if MOCK_MODE or not INCREMENTAL_REFRESH:
+        return {}
+    index = {}
+    cached = load_today_cache() or {}
+    cache_time = str(cached.get("generated_at") or "")
+    for it in cached.get("items") or []:
+        if _is_reusable(it, cache_time):
+            for k in _item_keys(it.get("title"), it.get("question_url")):
+                index[k] = it
+    for it in _pool_load():
+        if not _is_reusable(it):
+            continue
+        for k in _item_keys(it.get("title"), it.get("question_url")):
+            if isinstance(index.get(k), dict) and index[k].get("crosscheck"):
+                continue
+            index[k] = it
+    return index
+
+
+def _lookup_reuse(index: dict, hot: dict):
+    if not index:
+        return None
+    for k in _item_keys(hot.get("Title"), str(hot.get("Url") or "").strip()):
+        if k in index:
+            return index[k]
+    return None
+
+
+def _reuse_item(old: dict, rank: int, hot: dict) -> dict:
+    """复用旧条目：内容原样保留，只按本次热榜刷新排名/标题/问题链接。"""
+    item = copy.deepcopy(old)
+    base = _base_item(rank, hot)
+    item["rank"] = rank
+    if base["title"]:
+        item["title"] = base["title"]
+    if base["question_url"]:
+        item["question_url"] = base["question_url"]
+    item.setdefault("item_generated_at", "")
+    if not isinstance(item.get("kanshan"), dict):
+        item["kanshan"] = _build_kanshan(item["type"], item.get("focus", ""), item.get("gap", ""), rank)
     return item
 
 
@@ -1043,7 +1228,27 @@ def build_brief() -> dict:
         if len(hot_items) < HOT_LIST_LIMIT:
             notice += f" 热榜接口本次仅返回 {len(hot_items)} 条，按实际条数展示。"
 
-        items = [process_item(i + 1, hot) for i, hot in enumerate(hot_items)]
+        # 增量刷新：先认领可复用条目（并先扣掉它们已占用的全网核验配额），
+        # 再只为剩余条目走「搜索 → 直答」。
+        reuse_index = _build_reuse_index()
+        items = [None] * len(hot_items)
+        for i, hot in enumerate(hot_items):
+            old = _lookup_reuse(reuse_index, hot)
+            if old is None:
+                continue
+            item = _reuse_item(old, i + 1, hot)
+            items[i] = item
+            ev = item.get("web_evidence")
+            if isinstance(ev, dict):
+                _WEB_SEARCH_TRIED[item["title"]] = dict(ev)
+                if ev.get("status") == "found":
+                    _WEB_EVIDENCE_BUDGET = max(0, _WEB_EVIDENCE_BUDGET - 1)
+        reused = sum(1 for it in items if it is not None)
+        if reused:
+            _log(f"增量刷新：复用 {reused} 条，新生成 {len(hot_items) - reused} 条")
+        for i, hot in enumerate(hot_items):
+            if items[i] is None:
+                items[i] = process_item(i + 1, hot)
 
         # 收尾补跑：首轮仍处降级态的条目再试一轮。429 突发通常几十秒内过去，
         # 补跑能把「9/10」这类单条永久降级压到最低，且不改变 PRD 锁定的功能边界。
@@ -1067,6 +1272,8 @@ def build_brief() -> dict:
         # 跨平台核验（微博情绪/知乎切面/事实信源）：依赖 web_search 配额（默认 0），
         # 配额为 0 时本 pass 静默跳过，不影响任何已有功能。
         _run_crosscheck_pass(items)
+        # 富化与跨平台核验后的版本回写条目池，供后续增量刷新复用
+        _pool_put(items)
 
         return {
             "date": today_str(),
@@ -1706,6 +1913,46 @@ def is_simulated_brief(data: dict) -> bool:
     )
 
 
+def _offsite_link_count(data) -> int:
+    """统计简报中不属于知乎域名的原问题链接与延伸阅读链接条数。
+
+    真实管线产物恒为 0：_base_item 只保留知乎 question_url，assemble_reading
+    只放行候选池内的知乎链接。非 0 说明内容经过人工整理或来自旧版数据。
+    web_evidence / crosscheck 是明确标注的站外信源，不计入。
+    """
+    count = 0
+    items = data.get("items") if isinstance(data, dict) else None
+    for it in items if isinstance(items, list) else []:
+        if not isinstance(it, dict):
+            continue
+        q = str(it.get("question_url") or "").strip()
+        if q and not _is_zhihu_url(q):
+            count += 1
+        reading = it.get("reading")
+        for r in reading if isinstance(reading, list) else []:
+            if isinstance(r, dict):
+                u = str(r.get("url") or "").strip()
+                if u and not _is_zhihu_url(u):
+                    count += 1
+    return count
+
+
+def annotate_provenance(data):
+    """标注内容来源：显式声明 curated 或检出站外链接 → 标为人工整理快照。
+
+    只新增 provenance / offsite_links 两个字段并替换 notice；source 仍严格保持
+    demo / live / cache / fallback 四值，前端恢复轮询与归档闸门逻辑不受影响。
+    """
+    if not isinstance(data, dict):
+        return data
+    offsite = _offsite_link_count(data)
+    if data.get("provenance") == "curated" or offsite:
+        data["provenance"] = "curated"
+        data["offsite_links"] = offsite
+        data["notice"] = NOTICE_CURATED
+    return data
+
+
 def load_today_cache() -> dict | None:
     """FR-07：当天已有缓存则直接读取，秒开；带 (date_str, mtime) 轻量内存缓存。"""
     global _BRIEF_CACHE_KEY, _BRIEF_CACHE_DATA
@@ -1745,6 +1992,7 @@ def load_today_cache() -> dict | None:
         # 兼容早期缺少有效时间戳的缓存：以缓存文件修改时间为准，不再写死“当日缓存”。
         generated_at = datetime.datetime.fromtimestamp(st.st_mtime, CN_TZ).strftime("%Y-%m-%d %H:%M")
     data["generated_at"] = generated_at
+    annotate_provenance(data)
     with _STATE_LOCK:
         _BRIEF_CACHE_KEY = cache_key
         _BRIEF_CACHE_DATA = copy.deepcopy(data)
@@ -1779,7 +2027,7 @@ def load_fallback() -> dict:
     data["date"] = data.get("date") or today_str()
     data["generated_at"] = data.get("generated_at") or now_str()
     data["source"] = "fallback"
-    return data
+    return annotate_provenance(data)
 
 
 def _refresh_retry_after() -> int:
@@ -2112,6 +2360,70 @@ def timeline_js():
             "X-Content-Type-Options": "nosniff",
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# 功能示例页 /showcase/：人工整理快照与程序生成数据彻底分开
+# 首页 / 兜底只用管线产物；跨平台核验等人工整理内容只在这里展示，并明确标注。
+# 页面复用 demo/index.html，其 data.js / timeline.js / assets 均为相对路径，
+# 在 /showcase/ 下自动解析到下面几个路由。
+# ---------------------------------------------------------------------------
+NOTICE_SHOWCASE = (
+    "这是功能示例页：展示一份人工整理快照，包含跨平台核验等自动管线尚未产出的内容；"
+    "部分链接来自站外媒体，未经过程序的知乎域名校验。今日简报请回首页查看。"
+)
+
+
+def showcase_path() -> pathlib.Path:
+    return DATA_DIR / "showcase.json"
+
+
+def load_showcase() -> dict | None:
+    """读取功能示例快照；缺失或结构无效返回 None（页面显示数据为空，不回落到管线数据）。"""
+    try:
+        data = json.loads(showcase_path().read_text(encoding="utf-8"))
+    except Exception as exc:
+        _log(f"功能示例快照不可用：{exc}")
+        return None
+    if not isinstance(data, dict) or not isinstance(data.get("items"), list) or not data["items"]:
+        return None
+    annotate_provenance(data)
+    # source 用 cache：示例页不触发前端恢复轮询；showcase 标记驱动「功能示例」徽章与横幅
+    data["source"] = "cache"
+    data["showcase"] = True
+    data["notice"] = NOTICE_SHOWCASE
+    data.pop("refreshing", None)
+    data.pop("retry_after", None)
+    return data
+
+
+@app.route("/showcase/")
+def showcase_index():
+    return send_file(INDEX_PATH)
+
+
+@app.route("/showcase/data.js")
+def showcase_data_js():
+    data = load_showcase()
+    payload = "null" if data is None else _js_safe_json(json.dumps(data, ensure_ascii=False))
+    return Response(
+        f"window.BRIEF_DATA = {payload};",
+        mimetype="application/javascript",
+        headers={
+            "Cache-Control": "no-store, max-age=0",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@app.route("/showcase/timeline.js")
+def showcase_timeline_js():
+    return timeline_js()
+
+
+@app.route("/showcase/assets/<path:filename>")
+def showcase_assets(filename):
+    return assets(filename)
 
 
 # ---------------------------------------------------------------------------

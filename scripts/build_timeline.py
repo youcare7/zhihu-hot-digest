@@ -413,14 +413,15 @@ def key_answer(item):
     reading = item.get("reading")
     if not isinstance(reading, list) or not reading:
         return None
-    first = reading[0]
-    if not isinstance(first, dict):
-        return None
-    title = str(first.get("title") or "").strip()
-    url = safe_http_url(first.get("url"))
-    if not title or not url:
-        return None
-    return {"title": title, "url": url}
+    # 「高赞视角」只能指向知乎站内回答：人工整理快照里的媒体报道链接不得冒充。
+    for entry in reading:
+        if not isinstance(entry, dict):
+            continue
+        title = str(entry.get("title") or "").strip()
+        url = safe_http_url(entry.get("url"))
+        if title and url and app._is_zhihu_url(url):
+            return {"title": title, "url": url}
+    return None
 
 
 def ext_ref(item):
