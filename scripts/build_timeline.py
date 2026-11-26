@@ -421,10 +421,13 @@ def build_timeline(min_days=2):
     alias_map = aliases.get("aliases") if isinstance(aliases.get("aliases"), dict) else {}
     splits = aliases.get("splits") if isinstance(aliases.get("splits"), list) else []
     hidden = set(str(v) for v in (aliases.get("hidden_topics") or []))
-    split_pairs = set()
+    # 一对 split 的两端都须隔离：若只标记 topic_q，另一端 question_q 会与
+    # 第三方相似 qid 误合并，凭空造出假跨天话题（违反防幻觉红线）。
+    split_qids = set()
     for pair in splits:
         if isinstance(pair, list) and len(pair) == 2:
-            split_pairs.add((str(pair[0]), str(pair[1])))
+            split_qids.add(str(pair[0]))
+            split_qids.add(str(pair[1]))
 
     archives = load_archives()
     present_dates = sorted({str(a["_path_date"]) for a in archives})
@@ -448,7 +451,7 @@ def build_timeline(min_days=2):
                 # 无 qid 的站外条目：主干完全一致视为同一事件的强身份证据，
                 # 纯中文标题也能跨天聚合，且不引入任何人工种子。
                 forced = "stem:" + stem if stem else ""
-            split = bool(qid and any(topic_q == qid for topic_q, _question_q in split_pairs))
+            split = bool(qid and str(qid) in split_qids)
             records.append({
                 "date": date,
                 "title": title,

@@ -177,6 +177,35 @@ try:
 finally:
     shutil.rmtree(tempdir, ignore_errors=True)
 
+# 5b. split 配对两端都必须隔离：第二端 question_q 不得与第三方相似 qid 误合并
+#     回归：曾只标记 topic_q（配对首元素），导致 201 与 202 合并出假跨天话题。
+old_load_aliases = build_timeline.load_aliases
+old_load_archives = build_timeline.load_archives
+try:
+    build_timeline.load_aliases = lambda: {
+        "aliases": {}, "splits": [["200", "201"]], "hidden_topics": [],
+    }
+
+    def _split_archives():
+        def mk(qid, title, date):
+            return {"_path_date": date, "date": date, "items": [{
+                "question_url": f"https://www.zhihu.com/question/{qid}",
+                "title": title, "question": title,
+            }]}
+        return [
+            mk("201", "DeepSeek 完成第二轮融资 1050 亿元", "2026-11-25"),
+            mk("202", "如何看待 DeepSeek 第二轮融资 1050 亿落地", "2026-11-26"),
+        ]
+
+    build_timeline.load_archives = _split_archives
+    split_result = build_timeline.build_timeline(2)
+    merged = [t for t in split_result["topics"] if set(t["question_ids"]) & {"201", "202"}]
+    check("split 第二端不得与第三方误合并", not merged,
+          f"误合并话题={[t['topic_id'] for t in merged]}")
+finally:
+    build_timeline.load_aliases = old_load_aliases
+    build_timeline.load_archives = old_load_archives
+
 # 6. /timeline.js route
 empty_payload = {
     "generated_at": "", "archive_files": 0, "tracked_days": 0,
