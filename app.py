@@ -1056,6 +1056,10 @@ def build_brief() -> dict:
         elif degraded:
             _log(f"首轮生成完成，{len(degraded)} 条降级；预算已耗尽，跳过补跑并保留现有结果")
 
+        # 互动组件富化（锐评/站队/吃瓜/楼上导读）：补跑之后统一处理；
+        # 单条失败只关组件不降级条目，配额耗尽自动提前结束。
+        _run_enrichment_pass(items)
+
         return {
             "date": today_str(),
             "source": "live",
@@ -1066,6 +1070,169 @@ def build_brief() -> dict:
         }
     finally:
         _GEN_DEADLINE = 0.0
+
+
+# ---------------------------------------------------------------------------
+# 互动组件富化 pass（2026-11-26）：主生成完成后补采锐评/站队/吃瓜/楼上导读。
+# 这些创作性字段此前只存在于人工富化快照，管线不产出导致功能静默关闭；
+# 现按缺补采：每条有效条目最多 2 次直答调用，配额耗尽提前结束，
+# 任何失败只关闭对应组件，绝不使条目本身降级。
+# ---------------------------------------------------------------------------
+PUNCH_MAX = 40
+VOTE_LINE_MAX = 60
+QUOTE_MAX = 30
+LOU_ANGLE_MAX = 60
+LOU_TIP_MAX = 50
+LOU_PERSONA_MAX = 50
+LOU_PERSONAS = ("考研党", "上班族", "业内人士")
+
+
+def _build_enrich_prompt(item: dict, want_vote: bool) -> str:
+    """按条目类型拼装富化 prompt：站队/吃瓜字段只给真分歧（两派成型）的条目。"""
+    sides = item.get("sides") or []
+    lines = [
+        "你是「热榜深潜简报」的互动文案编辑。一条榜单条目已完成事实分析（如下），",
+        "请基于这些材料写组件文案：所有文案只能做表达加工与观点提炼，",
+        "不得新增事实、数据、机构名、人名，不得输出任何 URL。",
+        "",
+        f"【标题】{item.get('title')}",
+        f"【类型】{TYPE_NAMES.get(item.get('type'), '')}",
+        f"【背景】{item.get('background')}",
+        f"【焦点】{item.get('focus')}",
+    ]
+    if item.get("consensus"):
+        lines.append(f"【共识底座】{item['consensus']}")
+    if want_vote:
+        lines.append(f"【甲方·{sides[0]['label']}】{sides[0]['claim']}")
+        lines.append(f"【乙方·{sides[1]['label']}】{sides[1]['claim']}")
+    gap = item.get("gap")
+    if gap and gap != EMPTY_GAP:
+        lines.append(f"【待补拼图】{gap}")
+    lines += [
+        "",
+        "【输出 JSON 结构】只输出一个 JSON 对象，不要 markdown 代码块、不要解释文字：",
+    ]
+    fields = [
+        '"punch":"≤40 字一句话锐评：有观点有锋利度，但必须能从材料推出，不喊口号、不编数据"',
+    ]
+    if want_vote:
+        fields.append(
+            '"vote":{"blue":"≤60 字，站在甲方立场说一句话（用自己的逻辑，不复述 claim 原文）",'
+            '"orange":"≤60 字，站在乙方立场说一句话",'
+            '"melon":"≤60 字，旁观者吃瓜吐槽一句，轻松但贴着事实"}'
+        )
+        fields.append('"quotes":["恰好 2 条吃瓜金句，每条 ≤30 字，口语化、像评论区高赞"]')
+    fields.append(
+        '"lou":{"angle":"≤60 字：给一个大家都在表层争吵、但还没人提过的切入角度",'
+        '"tips":["恰好 3 条写作提纲（每条 ≤50 字），第一条必须是可直接引用的开篇金句"],'
+        '"personas":{"考研党":"≤50 字代入视角","上班族":"≤50 字代入视角","业内人士":"≤50 字代入视角"}}'
+    )
+    lines.append("{" + ",".join(fields) + "}")
+    return "\n".join(lines)
+
+
+def _sanitize_enrichment(raw: dict, item: dict) -> dict:
+    """校验并裁剪富化输出：结构不合格或超长截断后为空的一律丢弃该字段，
+    脏类型交给 _clip 按缺失处理，绝不把 Python repr 写进正文。"""
+    out = {}
+    punch = _clip(raw.get("punch"), PUNCH_MAX)
+    if punch:
+        out["punch"] = punch
+    sides = item.get("sides") or []
+    if item.get("type") == TYPE_DISPUTE and len(sides) == 2:
+        vote = raw.get("vote")
+        if isinstance(vote, dict):
+            blue = _clip(vote.get("blue"), VOTE_LINE_MAX)
+            orange = _clip(vote.get("orange"), VOTE_LINE_MAX)
+            melon = _clip(vote.get("melon"), VOTE_LINE_MAX)
+            if blue and orange and melon:
+                out["vote"] = {"blue": blue, "orange": orange, "melon": melon}
+        quotes = raw.get("quotes")
+        if isinstance(quotes, list):
+            cleaned = [q for q in (_clip(x, QUOTE_MAX) for x in quotes) if q]
+            if len(cleaned) >= 2:
+                out["quotes"] = cleaned[:2]
+    lou = raw.get("lou")
+    if isinstance(lou, dict):
+        angle = _clip(lou.get("angle"), LOU_ANGLE_MAX)
+        tips_raw = lou.get("tips")
+        tips = []
+        if isinstance(tips_raw, list):
+            tips = [t for t in (_clip(x, LOU_TIP_MAX) for x in tips_raw) if t][:3]
+        personas_raw = lou.get("personas")
+        personas = {}
+        if isinstance(personas_raw, dict):
+            for name in LOU_PERSONAS:
+                value = _clip(personas_raw.get(name), LOU_PERSONA_MAX)
+                if value:
+                    personas[name] = value
+        if angle and tips and len(personas) == len(LOU_PERSONAS):
+            out["lou"] = {"angle": angle, "tips": tips, "personas": personas}
+    return out
+
+
+def _enrich_item(item: dict) -> bool:
+    """单条富化。返回 False 表示配额/预算硬约束命中，调用方应停止整个 pass。"""
+    if item.get("background") == NO_BACKGROUND:
+        return True  # 降级条目没有可加工的材料，保持降级、跳过
+    sides = item.get("sides") or []
+    want_vote = item.get("type") == TYPE_DISPUTE and len(sides) == 2
+    need = not item.get("punch") or (
+        want_vote and not (item.get("vote") and len(item.get("quotes") or []) == 2)
+    )
+    if not need:
+        return True
+    messages = [{"role": "user", "content": _build_enrich_prompt(item, want_vote)}]
+    for attempt in (1, 2):
+        try:
+            text = _chat_with_retry(
+                ZHIHU_BASE + "/v1/chat/completions",
+                zhihu_headers(),
+                {"model": ZHIDA_MODEL, "messages": messages, "stream": False},
+                "富化直答",
+            )
+            got = _sanitize_enrichment(extract_json(text), item)
+        except UpstreamError as exc:
+            if "配额" in str(exc) or "预算" in str(exc):
+                return False  # 硬约束：后续条目也会撞墙，停止整个 pass
+            if attempt == 1:
+                continue  # 坏 JSON / 网络抖动允许重试一次
+            _log(f"  第 {item.get('rank')} 条富化失败（组件保持关闭，条目不受影响）：{exc}")
+            return True
+        except Exception as exc:
+            # 头部构造等未预期异常同样只关组件（与 process_item 的宽容边界一致），
+            # 富化绝不允许反过来让整条简报失败。
+            _log(f"  第 {item.get('rank')} 条富化异常（组件保持关闭，条目不受影响）：{exc}")
+            return True
+        if got.get("punch"):
+            item["punch"] = got["punch"]
+        if want_vote and got.get("vote"):
+            item["vote"] = got["vote"]
+        if want_vote and got.get("quotes"):
+            item["quotes"] = got["quotes"]
+        if got.get("lou"):
+            item["lou"] = got["lou"]
+        if item.get("punch") and (not want_vote or (item.get("vote") and item.get("quotes"))):
+            return True
+        if attempt == 2:
+            _log(f"  第 {item.get('rank')} 条富化输出缺字段，重试后仍不完整，组件保持关闭")
+            return True
+    return True
+
+
+def _run_enrichment_pass(items: list) -> None:
+    """主生成完成后统一富化。mock 不联网直接跳过；逐条推进，
+    配额耗尽提前结束——已生成条目照常服务，缺的只是可选组件。"""
+    if MOCK_MODE or not items:
+        return
+    enriched = 0
+    for item in items:
+        if not _enrich_item(item):
+            _log(f"富化配额/预算耗尽，提前结束富化 pass（已富化 {enriched} 条锐评）")
+            return
+        if item.get("punch"):
+            enriched += 1
+    _log(f"富化 pass 完成：{enriched}/{len(items)} 条带锐评组件")
 
 
 def build_digest(items: list) -> dict:
@@ -1527,11 +1694,13 @@ def _build_kanshan(item_type: str, focus: str, gap: str, rank: int) -> dict:
 
 
 def _is_enriched(data: dict) -> bool:
-    """v2.8 富化缓存（含判决卡/跨平台核验等人工增强字段）不可被管线覆盖：
-    管线生成器目前不产出这些字段，覆盖会让线上功能回退。"""
+    """v2.8 人工富化缓存（含跨平台核验等管线不产出的字段）不可被管线覆盖。
+
+    punch/vote/quotes/lou/kanshan 已由管线自动产出（富化 pass + 规则兜底），
+    不再构成「不可刷新」标记——否则含锐评的缓存会让后台刷新永久冻结、数据变陈。
+    仅剩 crosscheck 依赖人工/外部数据源补齐，保留保护避免功能回退。"""
     items = (data or {}).get("items") or []
-    return any(isinstance(it, dict) and (it.get("punch") or it.get("crosscheck"))
-               for it in items)
+    return any(isinstance(it, dict) and it.get("crosscheck") for it in items)
 
 
 def _background_refresh() -> None:
@@ -1543,7 +1712,7 @@ def _background_refresh() -> None:
             existing = load_today_cache()
             if _is_enriched(existing):
                 _set_refresh_cooldown()
-                _log("现有缓存为 v2.8 富化快照（含看山/判决卡/跨平台核验），管线结果不覆盖，冷却 "
+                _log("现有缓存为 v2.8 人工富化快照（含跨平台核验），管线结果不覆盖，冷却 "
                      f"{REFRESH_COOLDOWN_SECONDS} 秒")
                 return
             # 防劣化保护：只把 load_today_cache 认可的有效旧缓存作为基准。

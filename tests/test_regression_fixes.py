@@ -198,7 +198,10 @@ class TestRegressionFixes(AppStateTestCase):
         self.assertTrue(item["kanshan"]["gif"].startswith("assets/ks-"))
         self.assertTrue(item["kanshan"]["line"])
         self.assertFalse(app._is_enriched({"items": [item]}))
-        self.assertTrue(app._is_enriched({"items": [dict(item, punch="金句")]}))
+        # punch 已由富化 pass 自动产出，单独存在不再冻结后台刷新（防数据变陈）；
+        # 仅 crosscheck（管线不产出、依赖人工/外部数据源）保留不可覆盖保护。
+        self.assertFalse(app._is_enriched({"items": [dict(item, punch="金句")]}))
+        self.assertTrue(app._is_enriched({"items": [dict(item, crosscheck={"weibo": "x"})]}))
 
 
 if __name__ == "__main__":
