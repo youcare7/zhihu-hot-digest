@@ -19,7 +19,7 @@
 ### 兜底快照与功能示例页
 
 - **首页兜底**：`data/fallback.json`（线上冷启动时返回）和 `demo/data.js`（本地双击预览）只放程序生成的完整简报。每日归档任务运行 `python scripts/daily_archive.py --update-fallback`，当日简报满足「至少 8 条、全部有效、无站外链接、非模拟」时自动刷新这两个文件并提交；不满足时保留旧文件，归档照常完成。注意：提交后要重新部署，线上兜底才会更新。
-- **功能示例页**：`/showcase/` 复用同一个页面，数据来自 `data/showcase.json`（人工整理快照，含跨平台核验等字段）。页面徽章为「功能示例」，横幅说明内容来源并提供返回首页的链接；文件缺失时显示数据为空，不会回落到管线数据。
+- **功能示例页**：`/showcase/` 复用同一个页面，数据来自 `data/showcase.json`（早期人工整理的快照，含跨平台核验，部分链接未经过程序校验）。页面徽章为「功能示例」，横幅说明内容来源并提供返回首页的链接；文件缺失时显示数据为空，不会回落到管线数据。
 - **人工整理内容不要再写进 `fallback.json` 或 `data/brief_<日期>.json`**：它们属于程序数据路径，混入后会被标为「人工整理快照」，并让冒烟检查失败。
 
 ## 部署
@@ -60,6 +60,8 @@ tcb cloudrun deploy \
 - `INCREMENTAL_REFRESH`：增量刷新开关，默认 `1`；按知乎问题 ID（其次标题）复用当日已成功生成的条目，只为新上榜或失败的条目调用直答，复用池为 `data/item_pool_<日期>.json`。设为 `0` 恢复每次整批重算。
 - `ITEM_REUSE_MAX_HOURS`：单条最长复用时长（小时），默认 `0` = 当日内不限，跨日自动失效。
 - `QUOTA_ZHIDA_DAILY` / `QUOTA_HOT_LIST_DAILY` / `QUOTA_SEARCH_DAILY` / `QUOTA_MODEL_ALT_DAILY` / `QUOTA_WEB_SEARCH_DAILY`：统一 `QuotaGuard` 日配额熔断上限（默认 `80` / `100` / `2000` / `500` / `0`，持久化于 `data/quota_counters.json`）。
+- `CROSSCHECK_MAX`：每份简报最多生成几条跨平台核验，默认 `10`。实际是否生成取决于 `QUOTA_WEB_SEARCH_DAILY`（默认 `0` = 关闭）；开启前请确认全网搜索配额，每条核验消耗 1 次全网搜索 + 最多 2 次直答。
+- 来源保护：后台刷新只跳过来源标注为人工整理（`provenance: "curated"`）的缓存；程序生成的跨平台核验不会阻止刷新。
 
 ## 分步验证命令
 

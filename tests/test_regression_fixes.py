@@ -200,10 +200,14 @@ class TestRegressionFixes(AppStateTestCase):
         self.assertTrue(item["kanshan"]["gif"].startswith("assets/ks-"))
         self.assertTrue(item["kanshan"]["line"])
         self.assertFalse(app._is_enriched({"items": [item]}))
-        # punch 已由富化 pass 自动产出，单独存在不再冻结后台刷新（防数据变陈）；
-        # 仅 crosscheck（管线不产出、依赖人工/外部数据源）保留不可覆盖保护。
+        # punch / crosscheck 都已由管线自动产出，单独存在不得冻结后台刷新（防数据变陈）；
+        # 只有来源标注为人工整理（provenance=curated）的快照保留不可覆盖保护。
         self.assertFalse(app._is_enriched({"items": [dict(item, punch="金句")]}))
-        self.assertTrue(app._is_enriched({"items": [dict(item, crosscheck={"weibo": "x"})]}))
+        self.assertFalse(app._is_enriched({"items": [dict(item, crosscheck={"weibo": "x"})]}))
+        self.assertTrue(app._is_enriched({"provenance": "curated", "items": [item]}))
+        # 带站外链接的人工快照经 annotate_provenance 后同样受保护
+        curated = app.annotate_provenance({"items": [dict(item, question_url="https://news.ifeng.com/c/x")]})
+        self.assertTrue(app._is_enriched(curated))
 
 
 if __name__ == "__main__":

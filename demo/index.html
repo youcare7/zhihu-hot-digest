@@ -974,6 +974,10 @@
   // 功能示例页（/showcase/）：人工整理快照单独展示，和首页的程序生成数据分开。
   var isShowcase = !isDemo && data.showcase === true;
   var SHOWCASE_LABEL = '功能示例';
+  // 跨平台核验面板的来源说明：人工整理快照是静态对比示例；程序生成的信源来自知乎全网搜索
+  var XP_KIND = (isCurated || isShowcase) ? '静态对比示例' : '程序生成';
+  var XP_HEAD = (isCurated || isShowcase) ? '静态对比示例 · 人工整理，非实时全网检索'
+    : '程序生成 · 信源来自知乎全网搜索，链接由程序按编号映射';
   function offsiteTag() { return el('span', 'tag-offsite', '站外'); }
 
   var BADGES = { demo: '示例数据', live: '实时生成', cache: '当日缓存', fallback: '缓存快照' };
@@ -1121,7 +1125,7 @@
     var footerEl = document.querySelector('footer');
     if (footerEl) {
       var entry = el('p', 'showcase-entry');
-      var entryLink = el('a', null, '功能示例：跨平台核验等人工整理内容 →');
+      var entryLink = el('a', null, '功能示例：早期人工整理的跨平台核验 →');
       entryLink.href = 'showcase/';
       entry.appendChild(entryLink);
       footerEl.appendChild(entry);
@@ -1427,7 +1431,7 @@
 
   // 跨平台核验显式入口：文字按钮与印章联动同一个 xpanel（解决「看不到聚合结果」）
   function makeXpOpen() {
-    var btn = el('button', 'xp-open-btn', '跨平台核验（静态对比示例）· 微博情绪 / 知乎切面 / 事实信源 ▾');
+    var btn = el('button', 'xp-open-btn', '跨平台核验（' + XP_KIND + '）· 微博情绪 / 知乎切面 / 事实信源 ▾');
     btn.type = 'button';
     btn.setAttribute('aria-expanded', 'false');
     btn.addEventListener('click', function () {
@@ -1454,8 +1458,8 @@
     if (!cc) return wrap;
     var panel = el('div', 'xpanel');
     panel.setAttribute('role', 'region');
-    panel.setAttribute('aria-label', '跨平台核验（静态对比示例）');
-    panel.appendChild(el('div', 'xp-head', '静态对比示例 · 非实时全网检索'));
+    panel.setAttribute('aria-label', '跨平台核验（' + XP_KIND + '）');
+    panel.appendChild(el('div', 'xp-head', XP_HEAD));
     [['微博', 'weibo', 'xp-weibo'], ['知乎', 'zhihu', 'xp-zhihu']].forEach(function (r) {
       var row = el('div', 'xp-row');
       row.appendChild(el('span', 'xp-tag ' + r[2], r[0]));
