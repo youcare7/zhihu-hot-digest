@@ -7,7 +7,8 @@
     python scripts/verify_live.py https://your-domain.example.com
 
 判定标准（v2 六字段版）：
-    GET /          必须含旧版 id="digest" 或新版首页今日判断挂载点、unslop 署名；不得含「仅为 Flask」
+    GET /          必须含当前首页封面挂载点（id="cover" + cover-title/cover-date）、unslop 署名；
+                   不得含「仅为 Flask」
     GET /data.js   必须含 digest 对象，且 total == len(items) == dispute+consensus+verify
                    每条必须含 type；dispute 必须恰好 2 个 sides；非 dispute 不得有 sides
                    source=fallback 只代表服务存活，明确判为“内容未就绪”，不误报版本回退
@@ -51,10 +52,15 @@ def main():
         print(f"  请求失败：{e}")
         return 2
     check("HTTP 200", code == 200, f"status={code}")
-    has_digest_mount = 'id="digest"' in html or (
-        'id="today-heading"' in html and 'id="cover-insights"' in html
+    # 当前前端封面在 <section id="cover">，标题/日期分别为 cover-title / cover-date。
+    # 旧版 id="digest" / id="today-heading" / id="cover-insights" 均已不存在，
+    # 继续用旧锚点会天天误报「线上仍是 v1」。
+    has_cover_mount = (
+        'id="cover"' in html
+        and 'id="cover-title"' in html
+        and 'id="cover-date"' in html
     )
-    check("含今日判断挂载点（旧版 digest 或新版首页）", has_digest_mount)
+    check("含今日封面挂载点（id=cover/cover-title/cover-date）", has_cover_mount)
     check("含 unslop 署名（合规披露）", "unslop" in html)
     check("不含「仅为 Flask」（旧版页脚）", "仅为 Flask" not in html)
     check("含 TYPE_LABEL 或 .sides（v2 渲染逻辑）", ("TYPE_LABEL" in html) or ("sides" in html))
