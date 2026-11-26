@@ -1161,7 +1161,7 @@ def _pool_put(items: list) -> None:
 
 
 def _build_reuse_index() -> dict:
-    """键 → 可复用条目。条目池（更新）覆盖当日缓存；含人工 crosscheck 的缓存条目优先保留。"""
+    """键 → 可复用条目。条目池（更新）覆盖当日缓存；已带 crosscheck 的缓存条目优先保留，免得重复调用核验。"""
     if MOCK_MODE or not INCREMENTAL_REFRESH:
         return {}
     index = {}
@@ -2099,13 +2099,13 @@ def _build_kanshan(item_type: str, focus: str, gap: str, rank: int) -> dict:
 
 
 def _is_enriched(data: dict) -> bool:
-    """v2.8 人工富化缓存（含跨平台核验等管线不产出的字段）不可被管线覆盖。
+    """人工整理快照（provenance=curated，由 annotate_provenance 标注）不可被管线覆盖。
 
-    punch/vote/quotes/lou/kanshan 已由管线自动产出（富化 pass + 规则兜底），
-    不再构成「不可刷新」标记——否则含锐评的缓存会让后台刷新永久冻结、数据变陈。
-    仅剩 crosscheck 依赖人工/外部数据源补齐，保留保护避免功能回退。"""
-    items = (data or {}).get("items") or []
-    return any(isinstance(it, dict) and it.get("crosscheck") for it in items)
+    不能再按字段判断：punch/vote/quotes/lou/kanshan 由富化 pass 产出，crosscheck
+    也已由 _run_crosscheck_pass 自动产出（需 QUOTA_WEB_SEARCH_DAILY > 0）。按字段判断时，
+    开启配额后当日第一版管线缓存就带 crosscheck，之后每次后台刷新都会被跳过，
+    当天内容冻结在第一版。load_today_cache 读取时已调用 annotate_provenance。"""
+    return isinstance(data, dict) and data.get("provenance") == "curated"
 
 
 def _background_refresh() -> None:
@@ -2117,7 +2117,7 @@ def _background_refresh() -> None:
             existing = load_today_cache()
             if _is_enriched(existing):
                 _set_refresh_cooldown()
-                _log("现有缓存为 v2.8 人工富化快照（含跨平台核验），管线结果不覆盖，冷却 "
+                _log("现有缓存为人工整理快照（provenance=curated），管线结果不覆盖，冷却 "
                      f"{REFRESH_COOLDOWN_SECONDS} 秒")
                 return
             # 防劣化保护：只把 load_today_cache 认可的有效旧缓存作为基准。
