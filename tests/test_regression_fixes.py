@@ -106,6 +106,66 @@ class TestRegressionFixes(AppStateTestCase):
                     "cooldown_remaining", "zhida_calls_today", "zhida_daily_limit"):
             self.assertIn(key, body_v)
 
+    def test_timeline_js_remote_url_ttl_cache_and_fallback(self):
+        import urllib.request
+
+        client = app.app.test_client()
+        app.DATA_DIR = self.tmp_path
+        (self.tmp_path / "topic_timeline.json").write_text(
+            json.dumps({"topics": [{"id": "local-topic"}]}),
+            encoding="utf-8",
+        )
+        app.TIMELINE_REMOTE_URL = "https://remote.example.com/topic_timeline.json"
+        app.TIMELINE_CACHE_TTL_SECONDS = 600
+        with app._STATE_LOCK:
+            app._TIMELINE_CACHE.update({"data": None, "fetched_at": 0.0, "url": ""})
+
+        calls = {"n": 0}
+        orig_urlopen = urllib.request.urlopen
+
+        class FakeResp:
+            def __init__(self, payload: dict):
+                self._raw = json.dumps(payload).encode("utf-8")
+
+            def read(self):
+                return self._raw
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        def fake_urlopen(req, timeout=0):
+            calls["n"] += 1
+            return FakeResp({"topics": [{"id": "remote-topic"}]})
+
+        urllib.request.urlopen = fake_urlopen
+        try:
+            body1 = client.get("/timeline.js").get_data(as_text=True)
+            body2 = client.get("/timeline.js").get_data(as_text=True)
+            self.assertIn("remote-topic", body1)
+            self.assertIn("remote-topic", body2)
+            self.assertEqual(calls["n"], 1)
+
+            # Cache cleared + remote error => falls back to local topic_timeline.json
+            with app._STATE_LOCK:
+                app._TIMELINE_CACHE.update({"data": None, "fetched_at": 0.0, "url": ""})
+
+            def failing_urlopen(req, timeout=0):
+                raise OSError("network down")
+
+            urllib.request.urlopen = failing_urlopen
+            body_fb = client.get("/timeline.js").get_data(as_text=True)
+            self.assertIn("local-topic", body_fb)
+
+            # Invalid scheme => falls back to local without calling urlopen
+            app.TIMELINE_REMOTE_URL = "file:///etc/passwd"
+            body_bad = client.get("/timeline.js").get_data(as_text=True)
+            self.assertIn("local-topic", body_bad)
+        finally:
+            urllib.request.urlopen = orig_urlopen
+
 
 if __name__ == "__main__":
     unittest.main()

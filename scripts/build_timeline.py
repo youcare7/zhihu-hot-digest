@@ -17,6 +17,7 @@ import pathlib
 import re
 import sys
 import time
+import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -114,6 +115,7 @@ _ENTITY_BOOK = re.compile(r"《([^》]{1,40})》")
 _ENTITY_CORNER = re.compile(r"「([^」]{1,40})」")
 _ENTITY_QUOTE = re.compile(r"[“\"]([^”\"\s]{1,40})[”\"]")
 _ENTITY_CODE = re.compile(r"(?:[A-Za-z]+|[\u4e00-\u9fff]{1,4})\d+[A-Za-z0-9_-]*")
+_ENTITY_CN_CODE = re.compile(r"[\u4e00-\u9fff]{2,4}[一二三四五六七八九十百千万]+[号代期届轮型版]")
 
 try:  # jieba 为可选增强，未安装时完全走本地规则
     import jieba.posseg as _pseg
@@ -141,6 +143,8 @@ def hard_entities(title):
             if value:
                 found.add(value)
     for match in _ENTITY_CODE.findall(text):
+        found.add(match.lower())
+    for match in _ENTITY_CN_CODE.findall(denoise_title(text)):
         found.add(match.lower())
     if _pseg is not None:
         try:
@@ -210,18 +214,38 @@ def cross_day_match(rec_a, rec_b):
     if not shared_entities and len(non_generic_shared) < 2:
         return False
 
-    score = (
-        0.50 * _jaccard(rec_a["entities"], rec_b["entities"])
-        + 0.30 * _overlap(rec_a["keywords"], rec_b["keywords"])
-        + 0.20 * _jaccard(_bigrams(rec_a["stem"]), _bigrams(rec_b["stem"]))
-    )
+    kw_overlap = _overlap(rec_a["keywords"], rec_b["keywords"])
+    bigram_jaccard = _jaccard(_bigrams(rec_a["stem"]), _bigrams(rec_b["stem"]))
+    if shared_entities:
+        score = (
+            0.50 * _overlap(rec_a["entities"], rec_b["entities"])
+            + 0.30 * kw_overlap
+            + 0.20 * bigram_jaccard
+        )
+    else:
+        score = (0.30 * kw_overlap + 0.20 * bigram_jaccard) / 0.50
     threshold = SCORE_THRESHOLD_MULTI_ENTITY if len(shared_entities) >= 2 else SCORE_THRESHOLD
     return score >= threshold
 
 
+def _parse_iso_date(value):
+    try:
+        return datetime.date.fromisoformat(str(value))
+    except (ValueError, TypeError):
+        return None
+
+
 class UnionFind:
-    def __init__(self, size):
+    def __init__(self, size, dates=None, max_span_days=MATCH_WINDOW_DAYS):
         self.parent = list(range(size))
+        self.max_span_days = max_span_days
+        if dates is not None:
+            parsed = [_parse_iso_date(d) for d in dates]
+            self.min_date = list(parsed)
+            self.max_date = list(parsed)
+        else:
+            self.min_date = None
+            self.max_date = None
 
     def find(self, node):
         while self.parent[node] != node:
@@ -231,8 +255,92 @@ class UnionFind:
 
     def union(self, left, right):
         a, b = self.find(left), self.find(right)
-        if a != b:
-            self.parent[b] = a
+        if a == b:
+            return True
+        if self.min_date is not None:
+            min_a, max_a = self.min_date[a], self.max_date[a]
+            min_b, max_b = self.min_date[b], self.max_date[b]
+            if min_a is not None and min_b is not None:
+                merged_min = min(min_a, min_b)
+                merged_max = max(max_a, max_b)
+                if (merged_max - merged_min).days > self.max_span_days:
+                    return False
+                self.min_date[a] = merged_min
+                self.max_date[a] = merged_max
+            elif min_b is not None:
+                self.min_date[a] = min_b
+                self.max_date[a] = max_b
+        self.parent[b] = a
+        return True
+
+
+def link_topics_with_llm(records):
+    """1-call 批量 LLM 跨天语义归并；未配置 MODEL_API_KEY 或任何异常自动回落为 []。"""
+    api_key = os.environ.get("MODEL_API_KEY", "").strip()
+    model_base = os.environ.get("MODEL_BASE", "").rstrip("/")
+    model_name = os.environ.get("MODEL_NAME", "").strip()
+    if not (api_key and model_base and model_name) or len(records) < 2:
+        return []
+
+    candidates = [
+        (idx, rec) for idx, rec in enumerate(records)
+        if not rec.get("split") and rec.get("title")
+    ]
+    if len({rec["date"] for _, rec in candidates}) < 2:
+        return []
+
+    lines = [f"[{idx}] {rec['date']} | {rec['title']}" for idx, rec in candidates]
+    prompt = (
+        "以下是不同日期的知乎热榜话题列表（格式：[编号] 日期 | 标题）。\n"
+        "请找出属于**同一个持续新闻事件或同一核心议题**的跨天条目组（每组至少 2 个不同日期的编号）。\n"
+        "注意：不要仅仅因为都包含「如何看待」「官方通报」等泛问句模板而合并。\n"
+        "只输出严格 JSON 对象，格式为：{\"groups\": [[0, 5], [2, 8]]}；若无可合并项则输出 {\"groups\": []}。\n\n"
+        + "\n".join(lines)
+    )
+    payload = json.dumps(
+        {
+            "model": model_name,
+            "messages": [{"role": "user", "content": prompt}],
+            "stream": False,
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        f"{model_base}/v1/chat/completions",
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            raw = resp.read().decode("utf-8")
+        body = json.loads(raw)
+        content = str(body["choices"][0]["message"]["content"]).strip()
+        content = re.sub(r"^```(?:json)?\s*", "", content)
+        content = re.sub(r"\s*```$", "", content)
+        parsed = json.loads(content)
+        if not isinstance(parsed, dict) or not isinstance(parsed.get("groups"), list):
+            return []
+        valid_groups = []
+        for group in parsed["groups"]:
+            if not isinstance(group, list) or len(group) < 2:
+                continue
+            clean_ids = []
+            seen = set()
+            for item in group:
+                if isinstance(item, bool) or not isinstance(item, int):
+                    continue
+                if 0 <= item < len(records) and not records[item].get("split") and item not in seen:
+                    seen.add(item)
+                    clean_ids.append(item)
+            if len(clean_ids) >= 2 and len({records[i]["date"] for i in clean_ids}) >= 2:
+                valid_groups.append(clean_ids)
+        return valid_groups
+    except Exception:
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -465,7 +573,7 @@ def build_timeline(min_days=2):
                 "item": item,
             })
 
-    uf = UnionFind(len(records))
+    uf = UnionFind(len(records), dates=[r["date"] for r in records])
     # 1) 强身份合并：相同 qid / 显式 alias / 完全相同的无 qid 主干。
     by_forced = {}
     for index, record in enumerate(records):
@@ -485,6 +593,12 @@ def build_timeline(min_days=2):
                 continue
             if cross_day_match(records[left], records[right]):
                 uf.union(left, right)
+    # 3) 可选 1-call 批量 LLM 语义归并（未配置 MODEL_API_KEY 或任何异常自动回落）。
+    for group in link_topics_with_llm(records):
+        anchor = group[0]
+        for idx in group[1:]:
+            if uf.find(anchor) != uf.find(idx):
+                uf.union(anchor, idx)
 
     groups = {}
     for index, record in enumerate(records):

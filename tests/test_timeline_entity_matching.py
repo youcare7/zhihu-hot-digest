@@ -1,33 +1,19 @@
 # -*- coding: utf-8 -*-
-"""合订本 v3 实体匹配升级的三条验收测试（任务书 3.3）。
-
-1. 同事件不同问法跨天命中：去模板 + 硬实体匹配成功聚合，status_flow 按日期排序。
-2. 同模板不同事件防误合并：两条均含「如何看待官方最新通报」但主体不同，
-   被硬实体闸门拦截，topics == []。
-3. 无交集双层降级契约：topics == []、len(archives) == archive_files，
-   产物中无 curated_seed / tag-seed。
-"""
+"""合订本 v3 实体匹配与 Route B 回归测试。"""
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import sys
 import tempfile
+import unittest
+import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from scripts import build_timeline  # noqa: E402
-
-failures = []
-
-
-def check(name, ok, detail=""):
-    if ok:
-        print("PASS", name)
-    else:
-        failures.append(name + (f": {detail}" if detail else ""))
-        print("FAIL", name, detail)
 
 
 def archive_item(title, state="verify", qid=""):
@@ -67,91 +53,139 @@ def build_with(day1, day2, min_days=2):
             build_timeline.ARCHIVE_DIR, build_timeline.ALIASES_PATH = old_archive, old_aliases
 
 
-# ---------------------------------------------------------------------------
-# 1. 同事件不同问法跨天命中
-# ---------------------------------------------------------------------------
-hit = build_with(
-    [archive_item("DeepSeek 完成第二轮融资 1050 亿元", "verify")],
-    [archive_item("如何看待 DeepSeek 第二轮融资 1050 亿落地？", "consensus")],
-)
-check("同事件不同问法聚合出 1 个话题", len(hit["topics"]) == 1, f"实际 {len(hit['topics'])}")
-if hit["topics"]:
-    topic = hit["topics"][0]
-    check("命中硬实体标签", "deepseek" in topic.get("entities", []), str(topic.get("entities")))
-    check("status_flow 按日期升序且含状态跃迁",
-          topic.get("status_flow") == ["verify", "consensus"], str(topic.get("status_flow")))
-    check("节点按日期升序", [n["date"] for n in topic["nodes"]] == ["2026-11-20", "2026-11-21"])
-    check("标题取归档原始标题（未经二次改写）",
-          topic["title"] in ("DeepSeek 完成第二轮融资 1050 亿元",
-                             "如何看待 DeepSeek 第二轮融资 1050 亿落地？"),
-          topic["title"])
-else:
-    check("命中硬实体标签", False)
-    check("status_flow 按日期升序且含状态跃迁", False)
-    check("节点按日期升序", False)
-    check("标题取归档原始标题（未经二次改写）", False)
+class TestTimelineEntityMatching(unittest.TestCase):
+    def test_1_same_event_different_phrasings_merge(self):
+        hit = build_with(
+            [archive_item("DeepSeek 完成第二轮融资 1050 亿元", "verify")],
+            [archive_item("如何看待 DeepSeek 第二轮融资 1050 亿落地？", "consensus")],
+        )
+        self.assertEqual(len(hit["topics"]), 1)
+        topic = hit["topics"][0]
+        self.assertIn("deepseek", topic.get("entities", []))
+        self.assertEqual(topic.get("status_flow"), ["verify", "consensus"])
+        self.assertEqual([n["date"] for n in topic["nodes"]], ["2026-11-20", "2026-11-21"])
+        self.assertIn(
+            topic["title"],
+            ("DeepSeek 完成第二轮融资 1050 亿元", "如何看待 DeepSeek 第二轮融资 1050 亿落地？"),
+        )
+        self.assertTrue(build_timeline.denoise_title("如何看待 DeepSeek 第二轮融资？").startswith("deepseek"))
+        self.assertIn("deepseek", build_timeline.hard_entities("DeepSeek 完成融资"))
+        self.assertIn("幼儿园托班新政", build_timeline.hard_entities("《幼儿园托班新政》落地"))
+        self.assertNotIn("官方", build_timeline.event_keywords(build_timeline.denoise_title("官方最新通报")))
 
-check("去噪剥离问句模板",
-      build_timeline.denoise_title("如何看待 DeepSeek 第二轮融资？").startswith("deepseek"),
-      build_timeline.denoise_title("如何看待 DeepSeek 第二轮融资？"))
-check("硬实体提取英文专名", "deepseek" in build_timeline.hard_entities("DeepSeek 完成融资"))
-check("硬实体提取书名号专名", "幼儿园托班新政" in build_timeline.hard_entities("《幼儿园托班新政》落地"))
-check("事件词轨过滤热榜泛词",
-      "官方" not in build_timeline.event_keywords(build_timeline.denoise_title("官方最新通报")))
+    def test_2_same_template_different_entities_blocked(self):
+        blocked = build_with(
+            [archive_item("如何看待 Apple 官方最新通报？", "verify", "301")],
+            [archive_item("如何看待 Tesla 官方最新通报？", "consensus", "302")],
+        )
+        self.assertEqual(blocked["topics"], [])
+        self.assertFalse(
+            build_timeline.cross_day_match(
+                {"date": "2026-11-20", "entities": {"apple"}, "keywords": set(), "stem": "apple官方最新通报"},
+                {"date": "2026-11-21", "entities": {"tesla"}, "keywords": set(), "stem": "tesla官方最新通报"},
+            )
+        )
+        self.assertFalse(
+            build_timeline.cross_day_match(
+                {"date": "2026-11-01", "entities": {"deepseek"}, "keywords": set(), "stem": "deepseek融资"},
+                {"date": "2026-11-21", "entities": {"deepseek"}, "keywords": set(), "stem": "deepseek融资"},
+            )
+        )
+        self.assertFalse(
+            build_timeline.cross_day_match(
+                {"date": "2026-11-21", "entities": {"deepseek"}, "keywords": set(), "stem": "deepseek融资"},
+                {"date": "2026-11-21", "entities": {"deepseek"}, "keywords": set(), "stem": "deepseek融资"},
+            )
+        )
 
-# ---------------------------------------------------------------------------
-# 2. 同模板不同事件防误合并
-# ---------------------------------------------------------------------------
-blocked = build_with(
-    [archive_item("如何看待 Apple 官方最新通报？", "verify", "301")],
-    [archive_item("如何看待 Tesla 官方最新通报？", "consensus", "302")],
-)
-check("同模板不同事件被硬闸门拦截", blocked["topics"] == [], f"实际 {len(blocked['topics'])} 个话题")
-check("被拦截时跨天间隔在窗口内但仍不合并",
-      not build_timeline.cross_day_match(
-          {"date": "2026-11-20", "entities": {"apple"}, "keywords": set(), "stem": "apple官方最新通报"},
-          {"date": "2026-11-21", "entities": {"tesla"}, "keywords": set(), "stem": "tesla官方最新通报"}))
-check("超过 14 天窗口不合并",
-      not build_timeline.cross_day_match(
-          {"date": "2026-11-01", "entities": {"deepseek"}, "keywords": set(), "stem": "deepseek融资"},
-          {"date": "2026-11-21", "entities": {"deepseek"}, "keywords": set(), "stem": "deepseek融资"}))
-check("同一天不参与跨天打分",
-      not build_timeline.cross_day_match(
-          {"date": "2026-11-21", "entities": {"deepseek"}, "keywords": set(), "stem": "deepseek融资"},
-          {"date": "2026-11-21", "entities": {"deepseek"}, "keywords": set(), "stem": "deepseek融资"}))
+    def test_3_disjoint_fallback_contract(self):
+        empty = build_with(
+            [archive_item("胖东来搬离后原址所开新商场几乎倒闭", "verify")],
+            [archive_item("神舟二十四号载人飞船瞄准发射", "consensus")],
+        )
+        self.assertEqual(empty["topics"], [])
+        self.assertEqual(len(empty["archives"]), 2)
+        self.assertEqual(empty["archive_files"], 2)
+        self.assertEqual([a["date"] for a in empty["archives"]], ["2026-11-21", "2026-11-20"])
+        first = empty["archives"][0]
+        self.assertTrue({"date", "item_count", "status_counts", "items"} <= set(first))
+        self.assertEqual(set(first["status_counts"]), {"dispute", "consensus", "verify"})
+        self.assertEqual(first["items"][0]["title"], "神舟二十四号载人飞船瞄准发射")
+        self.assertEqual(first["items"][0]["status"], "consensus")
+        payload = json.dumps(empty, ensure_ascii=False)
+        self.assertNotIn("curated_seed", payload)
+        self.assertNotIn("tag-seed", payload)
+        self.assertTrue(all(t.get("origin") == "auto_archive" for t in empty["topics"]))
 
-# ---------------------------------------------------------------------------
-# 3. 无交集双层降级契约
-# ---------------------------------------------------------------------------
-empty = build_with(
-    [archive_item("胖东来搬离后原址所开新商场几乎倒闭", "verify")],
-    [archive_item("神舟二十四号载人飞船瞄准发射", "consensus")],
-)
-check("无交集输入 topics 为空", empty["topics"] == [])
-check("archives 期数等于 archive_files",
-      len(empty["archives"]) == empty["archive_files"] == 2,
-      f"archives={len(empty['archives'])} archive_files={empty['archive_files']}")
-check("archives 按日期倒序",
-      [a["date"] for a in empty["archives"]] == ["2026-11-21", "2026-11-20"],
-      str([a["date"] for a in empty["archives"]]))
-if empty["archives"]:
-    first = empty["archives"][0]
-    check("归档期刊含真实字段", set(("date", "item_count", "status_counts", "items")) <= set(first))
-    check("status_counts 三态齐全",
-          set(first["status_counts"]) == {"dispute", "consensus", "verify"},
-          str(first["status_counts"]))
-    check("归档条目标题为原始标题",
-          first["items"][0]["title"] == "神舟二十四号载人飞船瞄准发射")
-    check("归档条目状态为真实状态", first["items"][0]["status"] == "consensus")
-payload = json.dumps(empty, ensure_ascii=False)
-check("产物无 curated_seed", "curated_seed" not in payload)
-check("产物无 tag-seed", "tag-seed" not in payload)
-check("话题 origin 恒为 auto_archive",
-      all(t.get("origin") == "auto_archive" for t in empty["topics"]))
+    def test_4_cross_day_match_normalized_score_without_shared_entities(self):
+        rec_a = {
+            "date": "2026-11-20",
+            "entities": set(),
+            "keywords": {"芯片", "出口", "管制", "升级"},
+            "stem": "芯片出口管制升级",
+        }
+        rec_b = {
+            "date": "2026-11-22",
+            "entities": set(),
+            "keywords": {"芯片", "出口", "管制", "新规"},
+            "stem": "芯片出口管制新规",
+        }
+        self.assertTrue(build_timeline.cross_day_match(rec_a, rec_b))
 
-if failures:
-    print("\nFAILURES:", len(failures))
-    for failure in failures:
-        print("-", failure)
-    raise SystemExit(1)
-print("\nALL ENTITY MATCHING TESTS PASSED")
+    def test_5_union_find_14_day_cluster_span_bound(self):
+        uf = build_timeline.UnionFind(3, dates=["2026-11-01", "2026-11-10", "2026-11-20"], max_span_days=14)
+        self.assertTrue(uf.union(0, 1))
+        self.assertEqual(uf.find(0), uf.find(1))
+        self.assertFalse(uf.union(1, 2))
+        self.assertNotEqual(uf.find(0), uf.find(2))
+
+    def test_6_link_topics_with_llm_mocked_success_and_fallback(self):
+        records = [
+            {"date": "2026-11-20", "title": "事件甲第一天", "split": False},
+            {"date": "2026-11-21", "title": "事件甲第二天", "split": False},
+            {"date": "2026-11-21", "title": "同日无关条目", "split": True},
+        ]
+        saved_env = {k: os.environ.get(k) for k in ("MODEL_API_KEY", "MODEL_BASE", "MODEL_NAME")}
+        orig_urlopen = urllib.request.urlopen
+        try:
+            os.environ.pop("MODEL_API_KEY", None)
+            self.assertEqual(build_timeline.link_topics_with_llm(records), [])
+
+            os.environ["MODEL_API_KEY"] = "test-key"
+            os.environ["MODEL_BASE"] = "https://llm.example.com"
+            os.environ["MODEL_NAME"] = "test-model"
+
+            class FakeResp:
+                def __init__(self, content: str):
+                    self._raw = json.dumps({"choices": [{"message": {"content": content}}]}).encode("utf-8")
+
+                def read(self):
+                    return self._raw
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *args):
+                    return False
+
+            urllib.request.urlopen = lambda req, timeout=0: FakeResp(
+                '```json\n{"groups": [[0, 1, 99, "bad"], [1, 2]]}\n```'
+            )
+            self.assertEqual(build_timeline.link_topics_with_llm(records), [[0, 1]])
+
+            def broken_urlopen(req, timeout=0):
+                raise RuntimeError("llm timeout")
+
+            urllib.request.urlopen = broken_urlopen
+            self.assertEqual(build_timeline.link_topics_with_llm(records), [])
+        finally:
+            urllib.request.urlopen = orig_urlopen
+            for k, v in saved_env.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+
+
+if __name__ == "__main__":
+    unittest.main()

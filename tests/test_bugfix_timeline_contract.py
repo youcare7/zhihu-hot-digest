@@ -204,7 +204,7 @@ with tempfile.TemporaryDirectory(prefix="bugfix-merge-") as temp:
         (archive_dir / f"{date}.json").write_text(json.dumps({
             "date": date, "source": "cache",
             "items": [merge_item("301", "长征九号火箭试车成功"),
-                      merge_item("302", "长征九号火箭试车推迟")],
+                      merge_item("302", "天问三号火箭发射成功")],
         }, ensure_ascii=False), encoding="utf-8")
 
     old_archive, old_aliases = build_timeline.ARCHIVE_DIR, build_timeline.ALIASES_PATH

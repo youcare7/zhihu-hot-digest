@@ -38,6 +38,8 @@ class AppStateTestCase(unittest.TestCase):
         "MODEL_API_KEY",
         "MODEL_BASE",
         "MODEL_NAME",
+        "TIMELINE_REMOTE_URL",
+        "TIMELINE_CACHE_TTL_SECONDS",
         "api_hot_list",
         "fetch_search",
         "generate",
@@ -61,6 +63,7 @@ class AppStateTestCase(unittest.TestCase):
         self._saved_app_attrs = {name: getattr(app, name) for name in self._ATTRS}
         self._saved_quota_limits = dict(app.QUOTA_LIMITS)
         self._saved_web_tried = set(app._WEB_SEARCH_TRIED)
+        self._saved_timeline_cache = dict(app._TIMELINE_CACHE)
         self._saved_env_mock = os.environ.get("MOCK_MODE")
         self._saved_env_verbose = os.environ.get("HEALTHZ_VERBOSE")
         self._tmp_dir_obj = tempfile.TemporaryDirectory()
@@ -83,6 +86,8 @@ class AppStateTestCase(unittest.TestCase):
         with app._STATE_LOCK:
             app._BRIEF_CACHE_KEY = self._saved_app_attrs["_BRIEF_CACHE_KEY"]
             app._BRIEF_CACHE_DATA = self._saved_app_attrs["_BRIEF_CACHE_DATA"]
+            app._TIMELINE_CACHE.clear()
+            app._TIMELINE_CACHE.update(self._saved_timeline_cache)
 
         if self._saved_env_mock is None:
             os.environ.pop("MOCK_MODE", None)

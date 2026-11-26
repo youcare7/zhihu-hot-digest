@@ -563,6 +563,7 @@
   .stamp-wrap { position: static; }
   .xpanel { display: none; margin-top: 10px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: 10px; background: #faf9f3; text-align: left; }
   .xpanel.open { display: block; }
+  .xp-head { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .04em; margin-bottom: 6px; }
   .xp-row { display: flex; gap: 8px; align-items: baseline; font-size: 13px; line-height: 1.7; margin: 2px 0; color: #2c323a; }
   .xp-tag { flex: none; font-size: 11px; font-weight: 700; padding: 0 6px; border-radius: 5px; line-height: 1.8; }
   .xp-weibo { background: rgba(183,96,24,.13); color: var(--orange); }
@@ -1355,7 +1356,7 @@
 
   // 跨平台核验显式入口：文字按钮与印章联动同一个 xpanel（解决「看不到聚合结果」）
   function makeXpOpen() {
-    var btn = el('button', 'xp-open-btn', '全网核验 · 微博情绪 / 知乎切面 / 事实信源 ▾');
+    var btn = el('button', 'xp-open-btn', '跨平台核验（静态对比示例）· 微博情绪 / 知乎切面 / 事实信源 ▾');
     btn.type = 'button';
     btn.setAttribute('aria-expanded', 'false');
     btn.addEventListener('click', function () {
@@ -1382,7 +1383,8 @@
     if (!cc) return wrap;
     var panel = el('div', 'xpanel');
     panel.setAttribute('role', 'region');
-    panel.setAttribute('aria-label', '跨平台核验');
+    panel.setAttribute('aria-label', '跨平台核验（静态对比示例）');
+    panel.appendChild(el('div', 'xp-head', '静态对比示例 · 非实时全网检索'));
     [['微博', 'weibo', 'xp-weibo'], ['知乎', 'zhihu', 'xp-zhihu']].forEach(function (r) {
       var row = el('div', 'xp-row');
       row.appendChild(el('span', 'xp-tag ' + r[2], r[0]));
@@ -1397,9 +1399,9 @@
       var srcs = el('div', 'xp-srcs');
       cc.sources.forEach(function (s) {
         var a = el('a', '', s.name);
-        a.href = s.url;
+        a.href = safeHref(s.url);
         a.target = '_blank';
-        a.rel = 'noopener';
+        a.rel = 'noopener noreferrer';
         srcs.appendChild(a);
       });
       panel.appendChild(srcs);

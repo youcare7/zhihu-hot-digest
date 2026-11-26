@@ -96,6 +96,10 @@ MODEL_API_KEY = os.environ.get("MODEL_API_KEY", "").strip()
 MODEL_BASE = os.environ.get("MODEL_BASE", "").rstrip("/")
 MODEL_NAME = os.environ.get("MODEL_NAME", "").strip()
 
+# 可选远程时间线 JSON（未配置或拉取失败时自动回落本地 DATA_DIR/topic_timeline.json）
+TIMELINE_REMOTE_URL = os.environ.get("TIMELINE_REMOTE_URL", "").strip()
+TIMELINE_CACHE_TTL_SECONDS = _env_int("TIMELINE_CACHE_TTL_SECONDS", 600, minimum=0)
+
 HOT_LIST_LIMIT = 10          # 热榜固定取 10 条
 SEARCH_COUNT = 10            # 每条热点的搜索素材上限
 ZHIDA_MODEL = os.environ.get("ZHIDA_MODEL", "zhida-fast-1p5")
@@ -728,9 +732,74 @@ def sanitize_sides(value, item_type: str) -> list:
 # 内存标记去重（_WEB_SEARCH_TRIED）；跨进程不保证（重启/并发进程可能各搜一次），
 # 由配额守卫按日熔断兜底——此边界为任务书 §2 明确写明可接受。
 _WEB_SEARCH_TRIED: dict = {}
-# 每份简报的核验配额：只有第一条满足条件（verify 且 gap 有效）的热点消耗它，
-# 不择优、不循环、不补选。
-_WEB_EVIDENCE_BUDGET = 1
+# 每份简报的核验配额：按 found 结果消耗，最多 3 条满足条件（verify 或 fact 型 dispute 且 gap 有效）的热点。
+_WEB_EVIDENCE_BUDGET = 3
+
+_WEB_BOILERPLATE_RE = re.compile(
+    r"[？?！!。，,、；;：:「」『』“”\"'‘’（）()【】\[\]《》<>·—\-…]+"
+)
+_WEB_TOKEN_RE = re.compile(r"[a-z0-9]{2,}|[\u4e00-\u9fff]{2,}")
+_WEB_TIER_HIGH_DOMAINS = (
+    "gov.cn", "edu.cn", "news.cn", "xinhuanet.com", "people.com.cn",
+    "cctv.com", "chinanews.com.cn", "gmw.cn", "ce.cn", "legaldaily.com.cn",
+    "gov.hk", "reuters.com", "apnews.com", "bbc.com", "nature.com", "science.org",
+)
+_WEB_TIER_MID_DOMAINS = (
+    "thepaper.cn", "caixin.com", "jiemian.com", "yicai.com", "21jingji.com",
+    "cls.cn", "163.com", "sina.com.cn", "qq.com", "sohu.com", "ifeng.com",
+    "baidu.com", "36kr.com", "ithome.com", "wikipedia.org",
+)
+
+
+def _clean_web_terms(text: str) -> str:
+    """剥离标点与多余空白，提炼用于全网检索的紧凑词串。"""
+    cleaned = _WEB_BOILERPLATE_RE.sub(" ", str(text or ""))
+    return re.sub(r"\s+", " ", cleaned).strip()
+
+
+def _build_web_query(title: str, gap: str = "") -> str:
+    """构造全网检索词：核心标题 + gap 关键词（受 WEB_QUERY_MAX 约束）。"""
+    core_title = _clean_web_terms(title) or str(title or "").strip()
+    core_gap = _clean_web_terms(gap)
+    if not core_gap:
+        return _clip(core_title, WEB_QUERY_MAX)
+    if len(core_title) + 1 + len(core_gap) <= WEB_QUERY_MAX:
+        return f"{core_title} {core_gap}".strip()
+    gap_budget = min(len(core_gap), max(16, WEB_QUERY_MAX // 2))
+    title_budget = max(16, WEB_QUERY_MAX - gap_budget - 1)
+    clipped_title = _clip(core_title, title_budget)
+    rem = max(0, WEB_QUERY_MAX - len(clipped_title) - 1)
+    clipped_gap = _clip(core_gap, rem) if rem > 0 else ""
+    return _clip(f"{clipped_title} {clipped_gap}".strip(), WEB_QUERY_MAX)
+
+
+def _web_tokens(text: str) -> set[str]:
+    """提取中英文检索词元（含中文双字切片）用于相关性打分。"""
+    tokens: set[str] = set()
+    for part in _WEB_TOKEN_RE.findall(str(text or "").lower()):
+        if part.isascii():
+            tokens.add(part)
+        elif len(part) <= 4:
+            tokens.add(part)
+        else:
+            for i in range(len(part) - 1):
+                tokens.add(part[i:i + 2])
+    return tokens
+
+
+def _score_web_candidate(it: dict, item_title: str, url: str, title: str, gap: str) -> int:
+    """按域名权威层级 + 标题/缺口词元重合度对合法站外候选排序。"""
+    host = (urllib.parse.urlparse(url).hostname or "").lower().rstrip(".")
+    tier_score = 0
+    if any(host == d or host.endswith("." + d) for d in _WEB_TIER_HIGH_DOMAINS):
+        tier_score = 30
+    elif any(host == d or host.endswith("." + d) for d in _WEB_TIER_MID_DOMAINS):
+        tier_score = 15
+
+    query_tokens = _web_tokens(f"{title} {gap}")
+    cand_text = f"{item_title} {str(it.get('ContentText') or '')}"
+    overlap = len(query_tokens & _web_tokens(cand_text)) if query_tokens else 0
+    return tier_score + min(overlap, 10) * 3
 
 
 def _is_valid_web_url(url) -> bool:
@@ -756,13 +825,14 @@ def _is_valid_web_url(url) -> bool:
 
 
 def build_web_evidence(title: str, gap: str) -> dict:
-    """对一条 verify 热点发起一次全网核验，返回可落盘的 web_evidence 对象。
+    """对一条热点发起全网核验，返回可落盘的 web_evidence 对象。
 
     status 四值之一必落盘：found / no_result / error / skipped。
     任何失败只影响本字段（error/skipped），绝不使该条站内内容降级——
-    核验是增强不是依赖。同一热点在同一次生成中只真正发起一次检索。
+    核验是增强不是依赖。同一热点在同一次生成中只真正发起一次检索（no_result 时
+    在时间预算内最多用精简标题重试一次）。
     """
-    query = _clip(f"{title} {gap}".strip(), WEB_QUERY_MAX)
+    query = _build_web_query(title, gap)
     cached = _WEB_SEARCH_TRIED.get(title)
     if cached is not None:
         return dict(cached)  # 补跑复用首轮结论，不重复发起全网检索
@@ -784,19 +854,42 @@ def build_web_evidence(title: str, gap: str) -> dict:
         return evidence
 
     if not items:
+        fallback_query = _build_web_query(title, "")
+        within_deadline = not _GEN_DEADLINE or time.monotonic() < _GEN_DEADLINE
+        if fallback_query and fallback_query != query and within_deadline:
+            try:
+                retry_items = api_web_search(fallback_query)
+            except Exception:
+                retry_items = []
+            if retry_items:
+                items = retry_items
+                evidence["query"] = fallback_query
+
+    if not items:
         # 「没搜到」只说这一次检索没返回，绝不说「全网没有」（任务书 §4 禁语）
         evidence["status"] = "no_result"
         _WEB_SEARCH_TRIED[title] = dict(evidence)
         return evidence
 
     try:
-        for it in items:
+        valid_items = []
+        for idx, it in enumerate(items):
             if not isinstance(it, dict):
                 continue
             url = str(it.get("Url") or "").strip()
             item_title = str(it.get("Title") or "").strip()
             if not item_title or not _is_valid_web_url(url):
                 continue  # 缺字段或链接未过独立校验：丢弃该条，不补选为虚假结果
+            valid_items.append((idx, it, item_title, url))
+
+        if valid_items:
+            _, it, item_title, url = max(
+                valid_items,
+                key=lambda entry: (
+                    _score_web_candidate(entry[1], entry[2], entry[3], title, gap),
+                    -entry[0],
+                ),
+            )
             evidence["status"] = "found"
             evidence["title"] = item_title        # 接口原始标题，不改写
             evidence["url"] = url                 # 接口原始链接（含溯源参数），原样保存
@@ -805,14 +898,15 @@ def build_web_evidence(title: str, gap: str) -> dict:
             edit_time = it.get("EditTime")
             # 上游 EditTime 口径可能漂移（毫秒级 13 位 / 超大值），换算失败只能
             # 丢掉这个可选日期字段，绝不能击穿「核验绝不使该条降级」的契约。
-            if (isinstance(edit_time, int) and not isinstance(edit_time, bool)
-                    and 0 < edit_time < 2 ** 32):
-                try:
-                    evidence["published_at"] = datetime.datetime.fromtimestamp(
-                        edit_time, CN_TZ).strftime("%Y-%m-%d")
-                except (OSError, OverflowError, ValueError):
-                    pass
-            break
+            if isinstance(edit_time, int) and not isinstance(edit_time, bool):
+                if 10 ** 11 <= edit_time < 10 ** 14:
+                    edit_time = edit_time // 1000
+                if 0 < edit_time < 2 ** 32:
+                    try:
+                        evidence["published_at"] = datetime.datetime.fromtimestamp(
+                            edit_time, CN_TZ).strftime("%Y-%m-%d")
+                    except (OSError, OverflowError, ValueError):
+                        pass
         else:
             # 接口返回了条目但全部不可用（缺字段/链接非法）：结构异常记 error，
             # 与「接口正常返回 0 条」的 no_result 区分，便于排查上游变化。
@@ -890,16 +984,22 @@ def process_item(rank: int, hot: dict) -> dict:
 
         item["reading"] = assemble_reading(model_output, candidates)
 
-        # 全网证据核验（单条试点）：仅 verify 且 gap 有效时触发；每份简报只核验
-        # 第一条满足条件的热点。任何异常只影响 web_evidence 字段，绝不使该条
-        # 站内内容降级（核验是增强不是依赖）；补跑时复用首轮结论，不重复检索。
-        if item_type == TYPE_VERIFY and item["gap"] and item["gap"] != EMPTY_GAP:
+        # 全网证据核验：verify 或 fact 型 dispute（且 gap 有效）触发；每份简报最多消耗
+        # 3 个 found 配额。任何异常只影响 web_evidence 字段，绝不使该条站内内容降级；
+        # 补跑时复用首轮结论，不重复检索。
+        needs_web = (
+            item_type == TYPE_VERIFY
+            or (item_type == TYPE_DISPUTE and item["claim_type"] == "fact")
+        )
+        if needs_web and item["gap"] and item["gap"] != EMPTY_GAP:
             global _WEB_EVIDENCE_BUDGET
             if title in _WEB_SEARCH_TRIED:
                 item["web_evidence"] = dict(_WEB_SEARCH_TRIED[title])
             elif _WEB_EVIDENCE_BUDGET > 0:
-                _WEB_EVIDENCE_BUDGET -= 1
-                item["web_evidence"] = build_web_evidence(title, item["gap"])
+                ev = build_web_evidence(title, item["gap"])
+                item["web_evidence"] = ev
+                if ev.get("status") == "found":
+                    _WEB_EVIDENCE_BUDGET -= 1
 
         # 兼容字段：由 v2 字段回填，旧前端仍能渲染出大致正确的三派
         if item_type == TYPE_DISPUTE and sides:
@@ -921,10 +1021,10 @@ def build_brief() -> dict:
     if MOCK_MODE:
         return build_brief_mock()
 
-    # 每份简报重置全网核验状态：只选 1 条 verify 热点、同一热点只检索一次。
+    # 每份简报重置全网核验状态：最多 3 条 found 配额、同一热点只检索一次。
     # 进程内内存状态，不假装跨进程持久化（任务书 §2 明确此边界可接受）。
     _WEB_SEARCH_TRIED.clear()
-    _WEB_EVIDENCE_BUDGET = 1
+    _WEB_EVIDENCE_BUDGET = 3
 
     # 整批软预算：耗尽后 _chat_with_retry 停止新尝试、补跑跳过，已生成条目照常保留；
     # 不杀线程，冷却与劣化结果覆盖规则仍由 generate_and_cache 的既有逻辑负责。
@@ -1596,9 +1696,45 @@ def data_js():
     )
 
 
+_TIMELINE_CACHE: dict = {"data": None, "fetched_at": 0.0, "url": ""}
+
+
+def _fetch_remote_timeline(remote_url: str) -> dict | None:
+    """拉取并校验远程时间线 JSON（带 _STATE_LOCK 内存 TTL 缓存），失败返回 None。"""
+    parsed = urllib.parse.urlparse(remote_url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        _log(f"/timeline.js 远程地址非法，回落本地文件：{remote_url!r}")
+        return None
+
+    now_mono = time.monotonic()
+    with _STATE_LOCK:
+        if (
+            _TIMELINE_CACHE["data"] is not None
+            and _TIMELINE_CACHE["url"] == remote_url
+            and TIMELINE_CACHE_TTL_SECONDS > 0
+            and (now_mono - _TIMELINE_CACHE["fetched_at"]) < TIMELINE_CACHE_TTL_SECONDS
+        ):
+            return _TIMELINE_CACHE["data"]
+
+    try:
+        req = urllib.request.Request(remote_url, headers={"User-Agent": "zhihu-hot-digest/1.0"})
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        if not (isinstance(data, dict) and isinstance(data.get("topics"), list)):
+            raise ValueError("远程时间线 JSON 缺少 topics 列表")
+        with _STATE_LOCK:
+            _TIMELINE_CACHE["data"] = data
+            _TIMELINE_CACHE["fetched_at"] = time.monotonic()
+            _TIMELINE_CACHE["url"] = remote_url
+        return data
+    except Exception as exc:
+        _log(f"/timeline.js 远程拉取失败，回落本地文件：{exc}")
+        return None
+
+
 @app.route("/timeline.js")
 def timeline_js():
-    """只读话题时间线：只读文件，不触发上游请求或后台刷新。"""
+    """话题时间线：优先读取 TIMELINE_REMOTE_URL（带 TTL 缓存），失败或未配置时回落本地文件。"""
     empty = {
         "generated_at": "",
         "archive_files": 0,
@@ -1606,13 +1742,17 @@ def timeline_js():
         "missing_dates": [],
         "topics": [],
     }
-    try:
-        data = json.loads((DATA_DIR / "topic_timeline.json").read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            raise ValueError("topic_timeline.json 顶层不是对象")
-    except Exception as exc:
-        _log(f"/timeline.js 文件不可用，安全回落空结构：{exc}")
-        data = empty
+    remote_url = TIMELINE_REMOTE_URL.strip()
+    data = _fetch_remote_timeline(remote_url) if remote_url else None
+    if data is None:
+        try:
+            local_data = json.loads((DATA_DIR / "topic_timeline.json").read_text(encoding="utf-8"))
+            if not (isinstance(local_data, dict) and isinstance(local_data.get("topics"), list)):
+                raise ValueError("topic_timeline.json 顶层结构无效")
+            data = local_data
+        except Exception as exc:
+            _log(f"/timeline.js 文件不可用，安全回落空结构：{exc}")
+            data = empty
     payload = _js_safe_json(json.dumps(data, ensure_ascii=False))
     return Response(
         f"window.TIMELINE_DATA = {payload};",

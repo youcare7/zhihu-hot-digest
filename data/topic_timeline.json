@@ -1,12 +1,79 @@
 {
-  "generated_at": "2026-11-26 07:01",
+  "generated_at": "2026-11-26 21:53",
   "archive_files": 4,
   "tracked_days": 6,
   "missing_dates": [
     "2026-11-22",
     "2026-11-23"
   ],
-  "topics": [],
+  "topics": [
+    {
+      "topic_id": "entity:神舟二十四号",
+      "origin": "auto_archive",
+      "title": "为什么神舟二十四号外籍航天员名额给了巴基斯坦而不是其他国家？",
+      "question_id": "2108916871718073510",
+      "question_ids": [
+        "2108916871718073510"
+      ],
+      "days": 2,
+      "appearances": 2,
+      "dates": [
+        "2026-11-24",
+        "2026-11-26"
+      ],
+      "state_changes": 1,
+      "has_state_change": true,
+      "state_label": "待验证",
+      "latest_state_label": "待验证",
+      "status_flow": [
+        "consensus",
+        "verify"
+      ],
+      "entities": [
+        "神舟二十四号"
+      ],
+      "key_answer": {
+        "title": "为什么神舟二十四号外籍航天员名额给了巴基斯坦而不是其他国家? - 知乎",
+        "url": "https://www.zhihu.com/question/2108916871718073510/answer/2109037102981763719?utm_medium=openapi_platform&utm_source=b38f6831b176"
+      },
+      "ext_ref": [],
+      "nodes": [
+        {
+          "date": "2026-11-24",
+          "date_label": "11月24日",
+          "rank": 7,
+          "title": "神舟二十四号载人飞船瞄准 11 月 25 日 8 时 18 分发射，「天宫」将迎来首位外籍航天员，有哪些信息值得关注？",
+          "question_id": "",
+          "state": "consensus",
+          "status": "consensus",
+          "state_label": "已形成共识",
+          "hook": "关注点集中在三个首次级信息：天宫首位外籍访客、我",
+          "key_answer": {
+            "title": "首位外籍航天员：第一个知道我入选的人是妻子 - 潮新闻综合",
+            "url": "https://feng.ifeng.com/c/8yJJyKUoUrd"
+          },
+          "ext_ref": []
+        },
+        {
+          "date": "2026-11-26",
+          "date_label": "11月26日",
+          "rank": 1,
+          "title": "为什么神舟二十四号外籍航天员名额给了巴基斯坦而不是其他国家？",
+          "question_id": "2108916871718073510",
+          "state": "verify",
+          "status": "verify",
+          "state_label": "待验证",
+          "hook": "不少讨论追问为何跳过欧洲等国选中巴基斯坦，但这一",
+          "key_answer": {
+            "title": "为什么神舟二十四号外籍航天员名额给了巴基斯坦而不是其他国家? - 知乎",
+            "url": "https://www.zhihu.com/question/2108916871718073510/answer/2109037102981763719?utm_medium=openapi_platform&utm_source=b38f6831b176"
+          },
+          "ext_ref": []
+        }
+      ],
+      "question_url": "https://www.zhihu.com/question/2108916871718073510"
+    }
+  ],
   "archives": [
     {
       "date": "2026-11-26",

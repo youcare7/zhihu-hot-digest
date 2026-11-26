@@ -40,7 +40,7 @@ class TestWebEvidence(AppStateTestCase):
         app._WEB_SEARCH_TRIED.clear()
         app._WEB_EVIDENCE_BUDGET = 1
 
-    def test_1_valid_result_found_and_single_budget(self):
+    def test_1_valid_result_found_and_budget_three(self):
         self._reset_web("w1.json")
         web_calls = {"n": 0}
 
@@ -52,6 +52,8 @@ class TestWebEvidence(AppStateTestCase):
         app.api_hot_list = lambda: [
             {"Title": "热点甲", "Url": "https://www.zhihu.com/question/1"},
             {"Title": "热点乙", "Url": "https://www.zhihu.com/question/2"},
+            {"Title": "热点丙", "Url": "https://www.zhihu.com/question/3"},
+            {"Title": "热点丁", "Url": "https://www.zhihu.com/question/4"},
         ]
         brief = app.build_brief()
         items = brief["items"]
@@ -64,8 +66,10 @@ class TestWebEvidence(AppStateTestCase):
         self.assertIn("热点甲", ev["query"])
         self.assertIn("关键缺口", ev["query"])
         self.assertTrue(ev["checked_at"])
-        self.assertNotIn("web_evidence", items[1])
-        self.assertEqual(web_calls["n"], 1)
+        self.assertEqual((items[1].get("web_evidence") or {}).get("status"), "found")
+        self.assertEqual((items[2].get("web_evidence") or {}).get("status"), "found")
+        self.assertNotIn("web_evidence", items[3])
+        self.assertEqual(web_calls["n"], 3)
 
     def test_2_no_result_and_frontend_copy(self):
         self._reset_web("w2.json")
@@ -188,6 +192,57 @@ class TestWebEvidence(AppStateTestCase):
         ev = app.build_web_evidence("热点子", "缺口词")
         self.assertEqual(ev["status"], "skipped")
         self.assertEqual(upstream_hits["n"], 1)
+
+    def test_8_authority_ranking_and_ms_edit_time(self):
+        self._reset_web("w8.json")
+        app.api_web_search = lambda query, count=app.WEB_SEARCH_COUNT: [
+            {"Title": "普通博客报道", "Url": "https://blog.example.com/1", "EditTime": 1753632000},
+            {"Title": "门户报道", "Url": "https://news.163.com/article/2", "EditTime": 1753632000},
+            {"Title": "官方权威通报", "Url": "https://www.gov.cn/zhengce/3", "EditTime": 1753632000000},
+        ]
+        ev = app.build_web_evidence("权威政策发布", "官方原文")
+        self.assertEqual(ev["status"], "found")
+        self.assertEqual(ev["url"], "https://www.gov.cn/zhengce/3")
+        self.assertEqual(ev["published_at"], "2025-07-28")
+
+    def test_9_dispute_fact_eligibility_and_found_only_budget(self):
+        self._reset_web("w9.json")
+        app.api_web_search = lambda query, count=app.WEB_SEARCH_COUNT: (
+            [] if "无结果" in query else [dict(OUT_ITEM)]
+        )
+
+        def multi_chat(url, headers, payload, label):
+            prompt_text = payload["messages"][0]["content"]
+            if "价值争议" in prompt_text:
+                return (
+                    '{"type":"dispute","claim_type":"value","background":"甲背景",'
+                    '"sides":[{"label":"A","claim":"1"},{"label":"B","claim":"2"}],'
+                    '"focus":"焦点","gap":"关键缺口","consensus":""}'
+                )
+            if "事实争议" in prompt_text:
+                return (
+                    '{"type":"dispute","claim_type":"fact","background":"甲背景",'
+                    '"sides":[{"label":"A","claim":"1"},{"label":"B","claim":"2"}],'
+                    '"focus":"焦点","gap":"关键缺口","consensus":""}'
+                )
+            return verify_chat(url, headers, payload, label)
+
+        app._chat = multi_chat
+        app.api_hot_list = lambda: [
+            {"Title": "价值争议一", "Url": "https://www.zhihu.com/question/1"},
+            {"Title": "无结果核验", "Url": "https://www.zhihu.com/question/2"},
+            {"Title": "事实争议一", "Url": "https://www.zhihu.com/question/3"},
+            {"Title": "待核验二", "Url": "https://www.zhihu.com/question/4"},
+            {"Title": "待核验三", "Url": "https://www.zhihu.com/question/5"},
+            {"Title": "待核验四", "Url": "https://www.zhihu.com/question/6"},
+        ]
+        items = app.build_brief()["items"]
+        self.assertNotIn("web_evidence", items[0])  # dispute + value => ineligible
+        self.assertEqual(items[1]["web_evidence"]["status"], "no_result")  # does not consume found budget
+        self.assertEqual(items[2]["web_evidence"]["status"], "found")      # dispute + fact => #1 found
+        self.assertEqual(items[3]["web_evidence"]["status"], "found")      # #2 found
+        self.assertEqual(items[4]["web_evidence"]["status"], "found")      # #3 found
+        self.assertNotIn("web_evidence", items[5])                         # budget exhausted after 3 found
 
 
 if __name__ == "__main__":
