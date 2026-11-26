@@ -336,6 +336,9 @@ RETRY_BACKOFF_BASE = _env_int("RETRY_BACKOFF_BASE", 2, minimum=1)  # 首次 429 
 # 整批生成软预算（秒）：耗尽后停止发起新的重试/补跑，保留已生成的部分结果，
 # 不杀线程；0 = 关闭预算。保留策略、冷却与劣化结果覆盖规则沿用 generate_and_cache 既有逻辑。
 GEN_BUDGET_SECONDS = _env_int("GEN_BUDGET_SECONDS", 180, minimum=0)
+# 富化 pass 的独立追加预算（秒）：主生成慢时整批预算会被耗尽，
+# 富化与主生成共享 deadline 会一启动就被「预算耗尽」打断（065 线上实测 0 条富化）。
+ENRICH_BUDGET_SECONDS = _env_int("ENRICH_BUDGET_SECONDS", 120, minimum=0)
 _GEN_DEADLINE = 0.0  # monotonic 时间戳；0 表示本批不设预算；仅由 build_brief 写入/清除
 
 # 缓存有效期（小时）：过期后由访问流量惰性触发后台刷新（stale-while-revalidate），
@@ -1058,6 +1061,8 @@ def build_brief() -> dict:
 
         # 互动组件富化（锐评/站队/吃瓜/楼上导读）：补跑之后统一处理；
         # 单条失败只关组件不降级条目，配额耗尽自动提前结束。
+        # 富化使用独立追加预算：主生成耗尽整批预算后仍可执行。
+        _extend_deadline_for_enrichment()
         _run_enrichment_pass(items)
 
         return {
@@ -1218,6 +1223,14 @@ def _enrich_item(item: dict) -> bool:
             _log(f"  第 {item.get('rank')} 条富化输出缺字段，重试后仍不完整，组件保持关闭")
             return True
     return True
+
+
+def _extend_deadline_for_enrichment() -> None:
+    """给富化 pass 追加独立预算。主生成可能已耗尽整批 GEN_BUDGET_SECONDS，
+    共享 deadline 会让富化第一次调用就抛「预算耗尽」并整体停止（065 实测）。"""
+    global _GEN_DEADLINE
+    if _GEN_DEADLINE:
+        _GEN_DEADLINE = time.monotonic() + ENRICH_BUDGET_SECONDS
 
 
 def _run_enrichment_pass(items: list) -> None:
@@ -1832,6 +1845,7 @@ def healthz():
         # 避免"没有报错、但一直静默服务兜底数据"这类最难排查的故障。
         "secret_configured": secret_ok,
         "gen_budget_seconds": GEN_BUDGET_SECONDS,
+        "enrich_budget_seconds": ENRICH_BUDGET_SECONDS,
     }
     if os.environ.get("HEALTHZ_VERBOSE", "0") == "1":
         age = cache_age_seconds()

@@ -6,6 +6,7 @@
 import json
 import os
 import sys
+import time
 import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -196,6 +197,35 @@ class TestEnrichmentPass(AppStateTestCase):
         self.assertNotIn("【共识底座】", prompt)
         self.assertNotIn("【待补拼图】", prompt)
         self.assertNotIn("【甲方·", prompt)
+
+    def test_deadline_extension_contract(self):
+        # 已过期/禁用的 deadline：扩展后给足追加预算；禁用（0）保持禁用
+        app._GEN_DEADLINE = time.monotonic() - 10
+        app._extend_deadline_for_enrichment()
+        self.assertGreater(app._GEN_DEADLINE, time.monotonic())
+        self.assertLessEqual(
+            app._GEN_DEADLINE - time.monotonic(), app.ENRICH_BUDGET_SECONDS + 1)
+
+        app._GEN_DEADLINE = 0.0
+        app._extend_deadline_for_enrichment()
+        self.assertEqual(app._GEN_DEADLINE, 0.0)
+
+    def test_enrichment_runs_after_main_gen_exhausted_budget(self):
+        """065 线上事故回归：主生成耗尽整批预算后，富化仍须执行。"""
+        app._chat = self._chat_once
+        # 未扩展 deadline（旧行为）：第一次富化调用即被预算打断，0 消耗 0 产出
+        app._GEN_DEADLINE = time.monotonic() - 1
+        broken = dispute_item()
+        app._run_enrichment_pass([broken])
+        self.assertNotIn("punch", broken)
+        self.assertEqual(self.calls, [])
+        # build_brief 尾部先扩展再富化（新行为）：组件正常产出
+        app._GEN_DEADLINE = time.monotonic() - 1
+        app._extend_deadline_for_enrichment()
+        fixed = dispute_item()
+        app._run_enrichment_pass([fixed])
+        self.assertEqual(fixed["punch"], "一句足够锋利的锐评")
+        self.assertEqual(len(self.calls), 1)
 
 
 if __name__ == "__main__":
