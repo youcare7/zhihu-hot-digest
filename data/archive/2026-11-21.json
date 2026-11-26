@@ -1,6 +1,9 @@
 {
   "date": "2026-11-21",
   "source": "cache",
+  "provenance": "curated",
+  "offsite_links": 9,
+  "curation_note": "人工整理快照（2026-11-21）：含管线不产出的跨平台核验等字段；原问题与延伸阅读中有 9 条站外媒体链接，未经过程序的知乎域名校验。",
   "archived_at": "2026-11-24 23:22",
   "items": [
     {

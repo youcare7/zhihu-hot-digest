@@ -12,6 +12,7 @@
 !demo/assets/**
 !data/
 !data/fallback.json
+!data/showcase.json
 !data/topic_timeline.json
 !data/archive/
 
@@ -21,5 +22,4 @@
 # 加载到富化缓存时生效）。仅放行明确预置的日期文件，其余 brief_*.json 仍排除。
 data/brief_*.json
 data/live_*.json
-!data/brief_2026-11-23.json
-!data/brief_2026-11-24.json
+data/item_pool_*.json

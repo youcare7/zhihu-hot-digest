@@ -200,6 +200,10 @@
   }
   .badge.fallback { color: var(--orange); border-color: rgba(183,96,24,.3); }
   .badge.demo { color: var(--secondary); border-color: var(--line); }
+  .badge.curated { color: var(--orange); border-color: rgba(183,96,24,.3); }
+  .notice-link, .showcase-entry a { color: var(--blue); text-decoration: underline; text-underline-offset: 3px; }
+  .tag-offsite { display: inline-block; margin-left: 6px; padding: 0 5px; border: 1px solid rgba(183,96,24,.35); border-radius: 4px; color: var(--orange); font: 400 11px/1.6 -apple-system, BlinkMacSystemFont, sans-serif; vertical-align: 2px; }
+  .guard-curated { margin: 10px 0 14px; padding: 10px 13px; border-left: 3px solid var(--orange); background: rgba(183,96,24,.06); color: var(--ink); font-size: 13px; line-height: 1.7; }
   .notice { margin: 6px 0 14px; padding: 12px 15px; border: 1px solid rgba(183,96,24,.22); border-radius: 12px; background: #f6efe2; color: #754718; font-size: 13px; }
   .reading-progress { height: 2px; overflow: hidden; border-radius: 99px; background: rgba(29,37,46,.08); }
   .reading-progress span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--blue); transition: width 200ms ease; }
@@ -943,6 +947,35 @@
     || String(data.notice || '').indexOf('模拟数据') !== -1
     || String(data.generated_at || '').indexOf('模拟') !== -1;
 
+  // 人工整理快照：后端会标注 provenance=curated；双击本地预览（无后端）时按链接域名自行判定。
+  // 真实管线只产出知乎站内链接，出现站外链接即说明内容经过人工整理，必须如实标出。
+  var CURATED_LABEL = '人工整理快照';
+  var CURATED_NOTICE = '当前展示的是人工整理快照，并非程序实时生成：'
+    + '部分链接来自站外媒体，未经过程序的知乎域名校验，请以原文为准。';
+  function isZhihuUrl(url) {
+    try {
+      var u = new URL(String(url || ''));
+      var host = u.hostname.toLowerCase().replace(/\.$/, '');
+      return (u.protocol === 'http:' || u.protocol === 'https:')
+        && (host === 'zhihu.com' || /\.zhihu\.com$/.test(host));
+    } catch (e) {
+      return false;
+    }
+  }
+  var offsiteLinks = 0;
+  data.items.forEach(function (item) {
+    if (!item) return;
+    if (item.question_url && !isZhihuUrl(item.question_url)) offsiteLinks += 1;
+    (Array.isArray(item.reading) ? item.reading : []).forEach(function (r) {
+      if (r && r.url && !isZhihuUrl(r.url)) offsiteLinks += 1;
+    });
+  });
+  var isCurated = !isDemo && (data.provenance === 'curated' || offsiteLinks > 0);
+  // 功能示例页（/showcase/）：人工整理快照单独展示，和首页的程序生成数据分开。
+  var isShowcase = !isDemo && data.showcase === true;
+  var SHOWCASE_LABEL = '功能示例';
+  function offsiteTag() { return el('span', 'tag-offsite', '站外'); }
+
   var BADGES = { demo: '示例数据', live: '实时生成', cache: '当日缓存', fallback: '缓存快照' };
   var TYPE_LABEL = { dispute: '仍有分歧', consensus: '已有共识', verify: '需补材料' };
   var CLAIM_LABEL = { fact: '可裁决', inference: '推测对推测', impression: '观感对观感', value: '价值判断' };
@@ -1018,9 +1051,11 @@
 
   // ---------- 元信息与首页判断 ----------
   var badgeEl = document.getElementById('badge');
-  badgeEl.textContent = isDemo ? BADGES.demo : (BADGES[data.source] || data.source);
+  badgeEl.textContent = isDemo ? BADGES.demo
+    : (isShowcase ? SHOWCASE_LABEL : (isCurated ? CURATED_LABEL : (BADGES[data.source] || data.source)));
   if (data.source === 'fallback') badgeEl.classList.add('fallback');
   if (isDemo) badgeEl.classList.add('demo');
+  if (isCurated) badgeEl.classList.add('curated');
   document.getElementById('m-count').textContent = '共 ' + data.items.length + ' 条';
   var generatedAt = String(data.generated_at || '').trim();
   var hasExactTime = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(generatedAt);
@@ -1029,7 +1064,8 @@
   document.getElementById('m-gen').textContent = '';
   document.getElementById('cover-date').textContent = asOf || '今日简报';
   var coverTotalEl = document.getElementById('cover-total'); if (coverTotalEl) coverTotalEl.textContent = data.items.length + ' 条热点';
-  document.getElementById('cover-source').textContent = isDemo ? BADGES.demo : (BADGES[data.source] || '3 类判断');
+  document.getElementById('cover-source').textContent = isDemo ? BADGES.demo
+    : (isShowcase ? SHOWCASE_LABEL : (isCurated ? CURATED_LABEL : (BADGES[data.source] || '3 类判断')));
 
   // 战报胶囊：数字直接从数据计算，不写死
   var byType = { dispute: 0, consensus: 0, verify: 0 };
@@ -1065,10 +1101,43 @@
     return node;
   }
 
-  if (data.notice) {
-    var noticeEl = document.getElementById('notice');
-    noticeEl.textContent = data.notice;
+  var noticeText = data.notice;
+  if (isCurated && !isShowcase && String(noticeText || '').indexOf(CURATED_LABEL) === -1) noticeText = CURATED_NOTICE;
+  var noticeEl = document.getElementById('notice');
+  if (noticeText) {
+    noticeEl.textContent = noticeText;
     noticeEl.hidden = false;
+  }
+  if (isShowcase && noticeEl) {
+    var backLink = el('a', 'notice-link', '返回今日简报 →');
+    backLink.href = '../';
+    noticeEl.appendChild(document.createTextNode(' '));
+    noticeEl.appendChild(backLink);
+    noticeEl.hidden = false;
+  }
+
+  // 首页页脚给出功能示例入口；示例页自身、示例数据与本地双击预览（file://）不显示。
+  if (!isShowcase && !isDemo && window.location.protocol !== 'file:') {
+    var footerEl = document.querySelector('footer');
+    if (footerEl) {
+      var entry = el('p', 'showcase-entry');
+      var entryLink = el('a', null, '功能示例：跨平台核验等人工整理内容 →');
+      entryLink.href = 'showcase/';
+      entry.appendChild(entryLink);
+      footerEl.appendChild(entry);
+    }
+  }
+
+  // 「来源与链接」页的四道校验只约束管线产物；人工整理快照必须在这里说明例外。
+  if (isCurated) {
+    var guardSub = document.querySelector('#page-guard .guard-sub');
+    if (guardSub && guardSub.parentNode) {
+      var curatedNote = el('p', 'guard-curated',
+        '注意：当前展示的是人工整理快照，其中 ' + offsiteLinks + ' 条链接来自站外媒体，'
+        + '是人工加入的，没有经过下面的四道程序校验，已在卡片上标为「站外」。'
+        + '实时生成的简报只包含通过校验的知乎链接。');
+      guardSub.parentNode.insertBefore(curatedNote, guardSub.nextSibling);
+    }
   }
 
   function demoTag() { return el('span', 'tag-demo', '示例'); }
@@ -1093,6 +1162,7 @@
       titleNode.href = safeHref(item.question_url);
       titleNode.target = '_blank';
       titleNode.rel = 'noopener noreferrer';
+      if (!isZhihuUrl(item.question_url)) titleNode.appendChild(offsiteTag());
     }
     box.appendChild(titleNode);
     return box;
@@ -1111,6 +1181,7 @@
         a.href = safeHref(r.url);
         a.target = '_blank';
         a.rel = 'noopener noreferrer';
+        if (!isZhihuUrl(r.url)) a.appendChild(offsiteTag());
         li.appendChild(a);
       }
       if (r.reason) li.appendChild(el('span', 'reason', '—— ' + r.reason));

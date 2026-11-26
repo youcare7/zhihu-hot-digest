@@ -40,6 +40,8 @@ class AppStateTestCase(unittest.TestCase):
         "MODEL_NAME",
         "TIMELINE_REMOTE_URL",
         "TIMELINE_CACHE_TTL_SECONDS",
+        "INCREMENTAL_REFRESH",
+        "ITEM_REUSE_MAX_HOURS",
         "api_hot_list",
         "fetch_search",
         "generate",
@@ -68,6 +70,10 @@ class AppStateTestCase(unittest.TestCase):
         self._saved_env_verbose = os.environ.get("HEALTHZ_VERBOSE")
         self._tmp_dir_obj = tempfile.TemporaryDirectory()
         self.tmp_path = pathlib.Path(self._tmp_dir_obj.name)
+        # 增量刷新默认关闭：不少既有用例没有重定向 DATA_DIR，开启会把条目池写进
+        # 仓库 data/ 并在用例之间串味。只在 test_incremental_refresh.py 中显式开启。
+        app.INCREMENTAL_REFRESH = False
+        app.ITEM_REUSE_MAX_HOURS = 0
 
     def tearDown(self):
         deadline = time.monotonic() + 3.0

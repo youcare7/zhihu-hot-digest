@@ -81,9 +81,68 @@ def atomic_write(path, data):
             time.sleep(0.4 * (attempt + 1))
 
 
+# ---------------------------------------------------------------------------
+# 兜底快照刷新（--update-fallback，仅每日归档任务开启）
+# 首页静态兜底 data/fallback.json 与本地预览 demo/data.js 只用程序生成的完整简报；
+# 人工整理内容放在 data/showcase.json（功能示例页），两者不再混用。
+# ---------------------------------------------------------------------------
+FALLBACK_MIN_ITEMS = 8
+FALLBACK_NOTICE = "当前展示的是 {date} 由程序生成的简报快照，今日简报生成后自动切换。AI 内容仅供参考。"
+DEMO_NOTICE = "本地预览：{date} 由知乎开放平台 API 生成的简报快照，AI 内容仅供参考。"
+_SNAPSHOT_DROP = ("refreshing", "retry_after", "provenance", "offsite_links", "curation_note", "showcase")
+
+
+def fallback_reject_reason(brief) -> str:
+    """兜底快照的门槛比归档更严：至少 8 条、全部有效、无站外链接、非模拟。"""
+    if not isinstance(brief, dict):
+        return "简报不是对象"
+    items = brief.get("items") if isinstance(brief.get("items"), list) else []
+    if len(items) < FALLBACK_MIN_ITEMS:
+        return f"条目仅 {len(items)} 条（至少 {FALLBACK_MIN_ITEMS} 条）"
+    healthy = sum(1 for item in items if has_healthy_background(item))
+    if healthy != len(items):
+        return f"有 {len(items) - healthy} 条降级"
+    if brief.get("provenance") == "curated" or app._offsite_link_count(brief):
+        return "含人工整理内容或站外链接"
+    if app.is_simulated_brief(brief):
+        return "模拟数据"
+    return ""
+
+
+def refresh_fallback(brief, data_dir, demo_dir) -> bool:
+    """用健康的程序生成简报覆盖 fallback.json 与 demo/data.js；不合格时保留现有文件。"""
+    reason = fallback_reject_reason(brief)
+    if reason:
+        print(f"未更新兜底快照：{reason}，保留现有 fallback.json")
+        return False
+    snap = {k: v for k, v in brief.items() if k not in _SNAPSHOT_DROP}
+    snap["items"] = [dict(item) for item in brief["items"]]
+    for item in snap["items"]:
+        if not isinstance(item.get("kanshan"), dict):
+            item["kanshan"] = app._build_kanshan(
+                item.get("type"), item.get("focus") or "", item.get("gap") or "", item.get("rank") or 1)
+    if not isinstance(snap.get("digest"), dict):
+        snap["digest"] = app.build_digest(snap["items"])
+    if not str(snap.get("generated_at") or "").strip():
+        snap["generated_at"] = app.now_str()
+    date = str(snap.get("date") or "")
+    fallback = dict(snap, source="fallback", notice=FALLBACK_NOTICE.replace("{date}", date))
+    atomic_write(pathlib.Path(data_dir) / "fallback.json", fallback)
+    # 本地双击预览用 source=cache：file:// 下无法轮询恢复，fallback 会让页面反复重试
+    demo = dict(snap, source="cache", notice=DEMO_NOTICE.replace("{date}", date))
+    app._atomic_write_text(
+        pathlib.Path(demo_dir) / "data.js",
+        "window.BRIEF_DATA = " + app._js_safe_json(json.dumps(demo, ensure_ascii=False)) + ";\n",
+    )
+    print(f"兜底快照已更新为 {date} 程序生成简报（{len(snap['items'])} 条）")
+    return True
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--date", default=None)
+    parser.add_argument("--update-fallback", action="store_true",
+                        help="归档成功后，用当日简报刷新 data/fallback.json 与 demo/data.js")
     args = parser.parse_args(argv)
     target_date = args.date or app.today_str()
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", target_date):
@@ -132,8 +191,19 @@ def main(argv=None):
         "archived_at": __import__("datetime").datetime.now(app.CN_TZ).strftime("%Y-%m-%d %H:%M"),
         "items": archived_items,
     }
+    # 人工整理快照归档后也要保留来源标注，合订本与复核脚本据此区分管线产物
+    annotated = app.annotate_provenance({"items": archived_items, "provenance": brief.get("provenance")})
+    if annotated.get("provenance") == "curated":
+        archived["provenance"] = "curated"
+        archived["offsite_links"] = annotated.get("offsite_links", 0)
     atomic_write(app.DATA_DIR / "archive" / f"{target_date}.json", archived)
     print(f"归档完成：{target_date}，保留 {len(archived_items)} 条，其中健康解读 {healthy} 条")
+    if args.update_fallback:
+        # 兜底刷新失败不影响归档结果：保留旧兜底，归档照常成功
+        try:
+            refresh_fallback(brief, app.DATA_DIR, app.DEMO_DIR)
+        except Exception as exc:
+            print(f"兜底快照更新失败（归档已完成，不受影响）：{exc}")
     return 0
 
 

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-26 21:53",
+  "generated_at": "2026-11-27 00:15",
   "archive_files": 4,
   "tracked_days": 6,
   "missing_dates": [
@@ -48,10 +48,7 @@
           "status": "consensus",
           "state_label": "已形成共识",
           "hook": "关注点集中在三个首次级信息：天宫首位外籍访客、我",
-          "key_answer": {
-            "title": "首位外籍航天员：第一个知道我入选的人是妻子 - 潮新闻综合",
-            "url": "https://feng.ifeng.com/c/8yJJyKUoUrd"
-          },
+          "key_answer": null,
           "ext_ref": []
         },
         {
