@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-11-27 00:15",
-  "archive_files": 4,
-  "tracked_days": 6,
+  "generated_at": "2026-11-27 06:56",
+  "archive_files": 5,
+  "tracked_days": 7,
   "missing_dates": [
     "2026-11-22",
     "2026-11-23"
@@ -72,6 +72,68 @@
     }
   ],
   "archives": [
+    {
+      "date": "2026-11-27",
+      "date_label": "11月27日",
+      "item_count": 10,
+      "status_counts": {
+        "dispute": 2,
+        "consensus": 0,
+        "verify": 8
+      },
+      "items": [
+        {
+          "title": "两地通报女教授介入已婚副校长家庭事件，安大副校长付某、武大曾某某被免职，有哪些值得关注的信息？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2109373596413818484?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "U17世界杯男足小组赛，中国U17男足 8-0 斐济U17男足，如何评价本场比赛？",
+          "status": "dispute",
+          "url": "https://www.zhihu.com/question/2109332098678879742?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "魏建军直言很多车企靠国家补贴生存，拿到的补贴比车企盈利还多，该说法有依据吗？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2109295438058870508?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "网友爆料小米YU7车型前视摄像头集中故障，行车录像无法录制，前向防碰撞失效，是批次质量问题吗？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2109256447582266632?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "高中生武术比赛滑倒尝试鲤鱼打挺失败仍获亚军，官方称仅 3 人参赛无违规，该结果是否合理？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2108924693923341664?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "厦航年利润7亿人民币，现在却突然订了74亿美元波音飞机，相当70 年利润，这笔账风险落在谁身上？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2108699823377589259?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "如何评价极客湾发布的手机影像大横评视频？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2108960337538164548?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "如何看待黎曼猜想证明已被压缩 99.5% 到 7.6 万行？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2109221701389239407?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "男篮世预赛，中国男篮80-82 不敌沙特阿拉伯男篮，出线形式堪忧，如何评价本场比赛？",
+          "status": "dispute",
+          "url": "https://www.zhihu.com/question/2109332292363444639?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "斗鱼及陈少杰被执行超 1.9 亿，从巅峰到接连踩雷，斗鱼这些年衰落的核心原因是什么？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2108965316487295292?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        }
+      ]
+    },
     {
       "date": "2026-11-26",
       "date_label": "11月26日",

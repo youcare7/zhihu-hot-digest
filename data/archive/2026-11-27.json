@@ -1,0 +1,287 @@
+{
+  "date": "2026-11-27",
+  "source": "live",
+  "archived_at": "2026-11-27 06:56",
+  "items": [
+    {
+      "rank": 1,
+      "title": "两地通报女教授介入已婚副校长家庭事件，安大副校长付某、武大曾某某被免职，有哪些值得关注的信息？",
+      "question_url": "https://www.zhihu.com/question/2109373596413818484?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "verify",
+      "claim_type": "",
+      "background": "2026年9月，付某（时任安徽大学副校长、原武大教授）两个女儿发布86页PDF，举报武大教授曾某某介入其家庭、学术造假等。11月26日武大与安徽省教育厅通报：二人违规使用科研经费属实，均被党内严重警告并免职，其余指控查无实据。",
+      "focus": "通报只坐实经费违规，与举报核心的私德、学术指控落差巨大，读者该信哪一层。",
+      "consensus": "双方均不否认：86页举报材料真实存在；曾某某、付某违规使用科研经费属实；二人已受党内严重警告并被免职。",
+      "sides": [],
+      "gap": "武汉大学调查组对238人次谈话、523份材料中未公开的原始核查记录，以及校外专家学术鉴定意见原文，需向武大纪委或党委宣传部申请信息公开。",
+      "reading": [
+        {
+          "title": "86页实名举报,通报只钉死了劳务费 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2109395833359692055?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "逐条对照举报材料与通报，看清哪些被证伪"
+        },
+        {
+          "title": "两地通报女教授介入已婚副校长家庭事件,安大副校长付某、武大曾某某被免职,有哪些值得关注的信息? - 知乎",
+          "url": "https://www.zhihu.com/question/2109373596413818484/answer/2109383090846147042?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "梳理通报认定细节与证据链，适合核验"
+        }
+      ],
+      "web_evidence": {
+        "query": "两地通报女教授介入已婚副校长家庭事件 安大副校长付某 武大曾某某被免职 有哪… 武汉大学调查组对238人次谈话 523份材料中未公开的原始核查记录 以及校外专…",
+        "checked_at": "2026-11-27 06:51",
+        "status": "skipped"
+      }
+    },
+    {
+      "rank": 2,
+      "title": "U17世界杯男足小组赛，中国U17男足 8-0 斐济U17男足，如何评价本场比赛？",
+      "question_url": "https://www.zhihu.com/question/2109332098678879742?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "dispute",
+      "claim_type": "impression",
+      "background": "2026年11月27日U17世界杯H组末轮，中国U17以8-0胜斐济，以成绩最好的小组第三之一出线，时隔21年重返世少赛淘汰赛。中国队与摩洛哥同积4分，因净胜球少1个列小组第三。补时阶段万项禁区内倒地未获点球，成为赛后热议焦点。",
+      "focus": "这场8-0该看成历史性突破，还是该因差1个净胜球、以及关键判罚而遗憾？",
+      "consensus": "双方都不否认：8-0是中国男足国字号世界大赛最大比分胜利，球队晋级32强，且因净胜球少1个排小组第三。",
+      "sides": [
+        {
+          "label": "知足出线派",
+          "claim": "赢球出线是第一目标，4分加8球已超额完成；判罚有争议但改变不了晋级事实，关键是21年后重返淘汰赛。"
+        },
+        {
+          "label": "计较遗憾派",
+          "claim": "补时踩踏未判点让净胜球停在+3，若判罚小组第二就到手；加上首战0-5、次轮补时被绝平，遗憾大过喜悦。"
+        }
+      ],
+      "gap": "FIFA官方裁判报告或VAR复核说明，载明补时第2分钟禁区接触的认定依据，可查FIFA赛事中心及赛后裁判报告存档。",
+      "reading": [
+        {
+          "title": "万项:我点球没打进影响了球队气势,向所有队友说声抱歉 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2109489981047694033?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "复盘主帅控净胜球节奏与换人逻辑，解释大胜仍不足的账"
+        },
+        {
+          "title": "邝兆镭:世界杯是不一样的舞台,淘汰赛做好自己争取更进一步 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2109476124690479033?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "梳理差1球的多重成因与淘汰赛对位，跳出单场情绪"
+        }
+      ],
+      "web_evidence": null
+    },
+    {
+      "rank": 3,
+      "title": "魏建军直言很多车企靠国家补贴生存，拿到的补贴比车企盈利还多，该说法有依据吗？",
+      "question_url": "https://www.zhihu.com/question/2109295438058870508?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "verify",
+      "claim_type": "",
+      "background": "2026年11月26日，长城汽车董事长魏建军与董明珠在珠海直播，称不少车企靠国家补贴存活、有些车企拿到的补贴比长城挣得还多，董明珠建议清查车企补贴。国家层面新能源购置补贴已退坡，他所说的补贴更多指向地方性隐性扶持。",
+      "focus": "补贴量级是否真能超过车企盈利？缺的是可核验的补贴口径，而非立场。",
+      "consensus": "行业利润率极低、地方存在多种隐性扶持、不少车企靠外部输血维持运转，这几点站内无人否认。",
+      "sides": [],
+      "gap": "各车企年度政府补助明细（其他收益＋营业外收入），见各上市公司年报附注及地方财政公开补贴清单；核查可参照工信部历次新能源补贴清算公示。",
+      "reading": [
+        {
+          "title": "魏建军直言很多车企靠国家补贴生存,拿到的补贴比车企盈利还多,该说法有依据吗? - 知乎",
+          "url": "https://www.zhihu.com/question/2109295438058870508/answer/2109312474449302127?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "拆解说法中站得住与站不住的部分，划清补贴口径"
+        }
+      ],
+      "web_evidence": {
+        "query": "魏建军直言很多车企靠国家补贴生存 拿到的补贴比车企盈利还多 该说法有依据吗 各车企年度政府补助明细 其他收益＋营业外收入 见各上市公司年报附注及地方财政公开补…",
+        "checked_at": "2026-11-27 06:52",
+        "status": "skipped"
+      }
+    },
+    {
+      "rank": 4,
+      "title": "网友爆料小米YU7车型前视摄像头集中故障，行车录像无法录制，前向防碰撞失效，是批次质量问题吗？",
+      "question_url": "https://www.zhihu.com/question/2109256447582266632?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "verify",
+      "claim_type": "",
+      "background": "2026年7月至11月，车质网、NGA、小红书等多平台陆续出现YU7前视摄像头故障反馈：行车记录仪无法录制、AEB与NOA提示受限，售后多按同一方案更换摄像头总成与线束，故障是否属批次性、根因何在均无官方说明。",
+      "focus": "多起前视摄像头失效是批次性硬件缺陷还是软件或个案，厂家至今没有公开定性与数据。",
+      "consensus": "故障现象真实存在且非孤例，7月至11月跨平台持续出现，售后处理方案高度一致；脏污、起雾等正常受限提示不被计入真故障；11月召回传闻已被小米辟谣。",
+      "sides": [],
+      "gap": "小米汽车针对前视摄像头故障的官方说明或服务活动公告（含涉及批次、生产月份、故障率与OTA修复计划），可查小米汽车官网、官方微博及国家市场监督管理总局缺陷产品管理中心缺陷线索栏目。",
+      "reading": [
+        {
+          "title": "网友爆料小米YU7车型前视摄像头集中故障,行车录像无法录制,前向防碰撞失效,是批次质量问题吗? - 知乎",
+          "url": "https://www.zhihu.com/question/2109256447582266632/answer/2109527002730579518?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "系统拆解故障链路与真实故障判定标准，兼顾反驳投诉样本偏差"
+        },
+        {
+          "title": "小米YU7有啥可吐槽的点啊? - 知乎",
+          "url": "https://www.zhihu.com/question/1984313340185572064/answer/2013266070895621523?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "提供车主自测排除法与向缺陷产品管理中心提交线索的可操作路径"
+        }
+      ],
+      "web_evidence": {
+        "query": "网友爆料小米YU7车型前视摄像头集中故障 行车录像无法录制 前向防碰撞失效… 小米汽车针对前视摄像头故障的官方说明或服务活动公告 含涉及批次 生产月份 故障率…",
+        "checked_at": "2026-11-27 06:52",
+        "status": "skipped"
+      }
+    },
+    {
+      "rank": 5,
+      "title": "高中生武术比赛滑倒尝试鲤鱼打挺失败仍获亚军，官方称仅 3 人参赛无违规，该结果是否合理？",
+      "question_url": "https://www.zhihu.com/question/2108924693923341664?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "verify",
+      "claim_type": "",
+      "background": "2026年内蒙古自治区中学生武术锦标赛上，乌兰察布一名零基础、赛前仅练约一个月的高中生在南棍项目开场滑倒、鲤鱼打挺失败仍获亚军。包头市教育局回应称该项目仅3人参赛、得分5.55分列第二、程序无违规，但打分细则与参赛名单未公开。",
+      "focus": "争议不在3人参赛是否违规，而在打分明细、参赛名单与竞赛规程未公开，名次是否经得起复盘无从判断。",
+      "consensus": "官方承认仅3人参赛、5.55分列第二、程序合规；站内也普遍认可选手完赛的勇气，批评对象是赛制与透明度而非学生本人。",
+      "sides": [],
+      "gap": "该项目完整打分明细、扣分记录、参赛名单及赛前竞赛规程（含人数不足时的录取规则），可向内蒙古自治区教育厅或执行方内蒙古学生体育协会申请公开，或等赛事获奖名单公示。",
+      "reading": [
+        {
+          "title": "高中生武术比赛滑倒尝试鲤鱼打挺失败仍获亚军,官方称仅 3 人参赛无违规,该结果是否合理? - 知乎",
+          "url": "https://www.zhihu.com/question/2108924693923341664/answer/2109247841633949243?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "点明程序合规不等于结果公允，抓住透明度这一真正缺口"
+        },
+        {
+          "title": "高中生武术比赛滑倒尝试鲤鱼打挺失败仍获亚军,官方称仅 3 人参赛无违规,该结果是否合理? - 知乎",
+          "url": "https://www.zhihu.com/question/2108924693923341664/answer/2109260584499913710?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "提供扣分规则、奖牌配比与名单公示时间等可核验线索"
+        }
+      ],
+      "web_evidence": {
+        "query": "高中生武术比赛滑倒尝试鲤鱼打挺失败仍获亚军 官方称仅 3 人参赛无违规 该结… 该项目完整打分明细 扣分记录 参赛名单及赛前竞赛规程 含人数不足时的录取规则…",
+        "checked_at": "2026-11-27 06:52",
+        "status": "skipped"
+      }
+    },
+    {
+      "rank": 6,
+      "title": "厦航年利润7亿人民币，现在却突然订了74亿美元波音飞机，相当70 年利润，这笔账风险落在谁身上？",
+      "question_url": "https://www.zhihu.com/question/2108699823377589259?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "verify",
+      "claim_type": "",
+      "background": "2026年11月24日，南航公告控股子公司厦航与波音签约购买50架B737-8，目录价约74亿美元、折合人民币约496.62亿元，2031至2034年分批交付，尚需股东会和有关部门批准。",
+      "focus": "标题用「74亿美元≈70年利润」把目录价当实付现金、把净利润当购机资金来源，这个前提是否成立？",
+      "consensus": "站内一致认为目录价非实付，波音给「较大优惠幅度」，实际价格低于目录价；款项分期支付、2031年起交付，不占当期现金流。",
+      "sides": [],
+      "gap": "南航2026年第二次临时股东会（12月28日）审议结果，见上交所公告；以及后续年报或公告披露的实际成交价格区间和资金来源明细，见上交所及南航官网。",
+      "reading": [
+        {
+          "title": "厦航74亿美元采购50架B737-8 航司在赌航空业供需反转的持续性 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2108846126619280262?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "用油耗差测算新机对薄利润的增厚空间，把账算到可检验的量级"
+        },
+        {
+          "title": "厦航年利润7亿人民币,现在却突然订了74亿美元波音飞机,相当70 年利润,这笔账风险落在谁身上? - 知乎",
+          "url": "https://www.zhihu.com/question/2108699823377589259/answer/2109433873679521604?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "新京报转述南航公告原始口径，可核对目录价、折扣与交付安排"
+        }
+      ],
+      "web_evidence": {
+        "query": "厦航年利润7亿人民币 现在却突然订了74亿美元波音飞机 相当70 年利润 这… 南航2026年第二次临时股东会 12月28日 审议结果 见上交所公告 以及后续…",
+        "checked_at": "2026-11-27 06:53",
+        "status": "skipped"
+      }
+    },
+    {
+      "rank": 7,
+      "title": "如何评价极客湾发布的手机影像大横评视频？",
+      "question_url": "https://www.zhihu.com/question/2108960337538164548?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "verify",
+      "claim_type": "",
+      "background": "暂无解读。",
+      "focus": "暂无聚焦问题。",
+      "consensus": "",
+      "sides": [],
+      "gap": "暂无可补的拼图。",
+      "reading": [],
+      "web_evidence": null
+    },
+    {
+      "rank": 8,
+      "title": "如何看待黎曼猜想证明已被压缩 99.5% 到 7.6 万行？",
+      "question_url": "https://www.zhihu.com/question/2109221701389239407?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "verify",
+      "claim_type": "",
+      "background": "11月20日Alpöge宣布与Claude完成黎曼猜想的Lean形式化证明，共约1740万行、17.5万个文件，无配套论文。11月25日Anthropic研究员Luke Sernau用Claude重构，压缩至7.6万行紧凑版，同时发布30万行可读版。",
+      "focus": "这场争论真正卡在哪：7.6万行的压缩只是工程重构，而非对证明数学有效性的检验；争议围绕机器验证通过是否等于命题已被证明。",
+      "consensus": "站内基本一致：7.6万行版本通过Lean内核及多个独立检查器交叉验证，并只依赖三条标准公理。",
+      "sides": [],
+      "gap": "Nielsen质疑论文的最新修改稿及其是否被权威机构裁决的记录（PhilArchive）；grh-lean仓库的README与Lean/Mathlib社区后续声明（GitHub）。",
+      "reading": [
+        {
+          "title": "全球接力压缩 Claude 生成的黎曼猜想证明两天砍掉 240 万行,最终能压到多小? - 知乎",
+          "url": "https://www.zhihu.com/question/2109217757703168898/answer/2109251534760559921?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "完整梳理从声明到质疑再到压缩的时间线与各方信号"
+        },
+        {
+          "title": "如何看待黎曼猜想证明已被压缩 99.5% 到 7.6 万行? - 知乎",
+          "url": "https://www.zhihu.com/question/2109221701389239407/answer/2109259943253758577?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "还原机器验证与数学实质被混淆的层次，解释争议为何未定"
+        }
+      ],
+      "web_evidence": {
+        "query": "如何看待黎曼猜想证明已被压缩 99.5% 到 7.6 万行 Nielsen质疑论文的最新修改稿及其是否被权威机构裁决的记录 PhilArchive grh l…",
+        "checked_at": "2026-11-27 06:53",
+        "status": "skipped"
+      }
+    },
+    {
+      "rank": 9,
+      "title": "男篮世预赛，中国男篮80-82 不敌沙特阿拉伯男篮，出线形式堪忧，如何评价本场比赛？",
+      "question_url": "https://www.zhihu.com/question/2109332292363444639?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "dispute",
+      "claim_type": "inference",
+      "background": "2026年11月26日男篮世界杯亚洲区预选赛第五窗口期，中国男篮客场80-82不敌沙特，周琦第三节挥肘被夺权驱逐，球队战绩5胜4负，出线形势严峻。",
+      "focus": "输球主因究竟是三分失准，还是郭士强末节的换人与战术选择？",
+      "consensus": "双方都不否认：三分30投5中仅16.7%，前场篮板25比9却输球，末节换下李弘权、张镇麟引发争议。",
+      "sides": [
+        {
+          "label": "投不进派",
+          "claim": "郭士强赛后称唯一没做好的是三分，机会都跑出来了只是没投进，贺希宁伤缺、周琦被逐后无人硬解，输球主责在球员执行。"
+        },
+        {
+          "label": "临场派",
+          "claim": "苏群、杨毅等指出末节换人拆掉正热的手感和对位防守，落后1分仍赌三分，把翻盘的比赛拱手让人，责任在教练组。"
+        }
+      ],
+      "gap": "中国篮协或主帅本人对末节换人及最后一攻战术选择的说明，见中国篮协官网或赛后发布会实录。",
+      "reading": [
+        {
+          "title": "如何评价中国男篮世界杯预选赛输给沙特? - 知乎",
+          "url": "https://www.zhihu.com/question/2109430101880447529/answer/2109430541862826574?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "苏群逐条拆解末节换人时间线，分歧核心最集中。"
+        },
+        {
+          "title": "男篮世预赛,中国男篮80-82 不敌沙特阿拉伯男篮,出线形式堪忧,如何评价本场比赛? - 知乎",
+          "url": "https://www.zhihu.com/question/2109332292363444639/answer/2109423186857178360?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "还原赛后发言与多位媒体人点评，两派依据齐全。"
+        }
+      ],
+      "web_evidence": null
+    },
+    {
+      "rank": 10,
+      "title": "斗鱼及陈少杰被执行超 1.9 亿，从巅峰到接连踩雷，斗鱼这些年衰落的核心原因是什么？",
+      "question_url": "https://www.zhihu.com/question/2108965316487295292?utm_medium=openapi_platform&utm_source=b38f6831b176",
+      "type": "verify",
+      "claim_type": "",
+      "background": "2026年11月24日，武汉斗鱼及创始人陈少杰新增被执行人记录，执行标的1.9亿余元，执行法院为都江堰市人民法院；陈少杰2023年11月因涉嫌开设赌场罪被捕，2026年8月辞任CEO。",
+      "focus": "1.9亿执行款对应哪起纠纷、公司和个人各担多少责任，以及斗鱼衰落该归因于哪一环节",
+      "consensus": "1.9亿执行案已立案，斗鱼回应需内部确认；执行不等于失信，与涉赌刑案是否关联尚无公开披露。",
+      "sides": [],
+      "gap": "都江堰法院(2026)川0181执3173号案件的执行依据文书，可查中国执行信息公开网；斗鱼2026年三季报或年报中该笔负债的确认披露，见SEC EDGAR。",
+      "reading": [
+        {
+          "title": "斗鱼及陈少杰被执行超 1.9 亿,从巅峰到接连踩雷,斗鱼这些年衰落的核心原因是什么? - 知乎",
+          "url": "https://www.zhihu.com/question/2108965316487295292/answer/2109052112529265226?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "用财报和分红数据把执行案放回经营脉络"
+        },
+        {
+          "title": "中厂:二流互联网公司之殇 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/1990115593295266092?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "reason": "厘清执行案与涉赌旧案尚无证据关联"
+        }
+      ],
+      "web_evidence": {
+        "query": "斗鱼及陈少杰被执行超 1.9 亿 从巅峰到接连踩雷 斗鱼这些年衰落的核心原因… 都江堰法院 2026 川0181执3173号案件的执行依据文书 可查中国执行信…",
+        "checked_at": "2026-11-27 06:54",
+        "status": "skipped"
+      }
+    }
+  ]
+}
