@@ -174,6 +174,32 @@ class TestRegressionFixes(AppStateTestCase):
         finally:
             urllib.request.urlopen = orig_urlopen
 
+    def test_process_item_generates_kanshan_without_blocking_refresh(self):
+        app._QUOTA = app.QuotaGuard(self.tmp_path / "q.json")
+        app.QUOTA_LIMITS.update({"search": 10, "zhida": 10})
+        app.zhihu_get = lambda path, params=None: {
+            "Items": [{"Title": "候选回答", "Url": "https://www.zhihu.com/question/1/answer/1", "ContentText": "内容"}]
+        }
+        app._chat = lambda url, headers, payload, label: json.dumps({
+            "type": "dispute",
+            "claim_type": "fact",
+            "background": "背景说明",
+            "focus": "争论核心在于数据口径是否一致",
+            "consensus": "双方均认可存在统计差异",
+            "sides": [
+                {"label": "甲方", "claim": "口径一显示增长"},
+                {"label": "乙方", "claim": "口径二显示持平"},
+            ],
+            "gap": "缺官方统计局原始附表",
+            "reading": [],
+        }, ensure_ascii=False)
+        item = app.process_item(1, {"Title": "测试热点", "Url": "https://www.zhihu.com/question/1"})
+        self.assertIsInstance(item.get("kanshan"), dict)
+        self.assertTrue(item["kanshan"]["gif"].startswith("assets/ks-"))
+        self.assertTrue(item["kanshan"]["line"])
+        self.assertFalse(app._is_enriched({"items": [item]}))
+        self.assertTrue(app._is_enriched({"items": [dict(item, punch="金句")]}))
+
 
 if __name__ == "__main__":
     unittest.main()

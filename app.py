@@ -1009,6 +1009,8 @@ def process_item(rank: int, hot: dict) -> dict:
                 "undecided": consensus or EMPTY_VIEWPOINT,
             }
 
+        item["kanshan"] = _build_kanshan(item_type, item["focus"], item["gap"], rank)
+
         _log(f"  第 {rank} 条生成成功[{item_type}]：{title[:24]}")
     except Exception as exc:
         _log(f"  第 {rank} 条生成失败（单条降级，不影响整份简报）：{exc}")
@@ -1504,11 +1506,31 @@ def _count_ok(data: dict) -> int:
     return sum(1 for it in (data or {}).get("items", []) if it.get("background") != NO_BACKGROUND)
 
 
+_KANSHAN_GIFS = {
+    TYPE_DISPUTE: ("assets/ks-ball.webp", "assets/ks-stroll.webp"),
+    TYPE_CONSENSUS: ("assets/ks-pc.webp", "assets/ks-hi.webp"),
+    TYPE_VERIFY: ("assets/ks-sleepy.webp", "assets/ks-idle.webp"),
+}
+
+
+def _build_kanshan(item_type: str, focus: str, gap: str, rank: int) -> dict:
+    """为实时生成的简报条目配齐看山动态表情与导读短句，零额外模型配额消耗。"""
+    gifs = _KANSHAN_GIFS.get(item_type, ("assets/ks-idle.webp",))
+    gif = gifs[(max(rank, 1) - 1) % len(gifs)]
+    if focus and focus != EMPTY_FOCUS:
+        line = _clip(focus, 40)
+    elif gap and gap != EMPTY_GAP:
+        line = _clip(f"关键拼图：{gap}", 40)
+    else:
+        line = "先看核心争议与已知事实，再决定要不要点进原回答。"
+    return {"gif": gif, "line": line}
+
+
 def _is_enriched(data: dict) -> bool:
-    """v2.8 富化缓存（含看山/判决卡/跨平台核验等人工增强字段）不可被管线覆盖：
+    """v2.8 富化缓存（含判决卡/跨平台核验等人工增强字段）不可被管线覆盖：
     管线生成器目前不产出这些字段，覆盖会让线上功能回退。"""
     items = (data or {}).get("items") or []
-    return any(isinstance(it, dict) and (it.get("kanshan") or it.get("punch") or it.get("crosscheck"))
+    return any(isinstance(it, dict) and (it.get("punch") or it.get("crosscheck"))
                for it in items)
 
 
