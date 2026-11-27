@@ -276,6 +276,14 @@
   .side b { display: block; margin-bottom: 6px; color: var(--ink); font-size: 12px; font-weight: 600; }
   .side.a { border-top: 2px solid rgba(5,109,232,.5); }
   .side.b { border-top: 2px solid rgba(183,96,24,.5); }
+  .side-src { margin: 8px 0 0; font-size: 12px; line-height: 1.7; color: var(--muted); }
+  .side-src a { color: var(--blue); text-decoration: underline; text-underline-offset: 3px; }
+  .side-src .dead { color: var(--muted); }
+  .side-quote { margin: 8px 0 0; padding-left: 8px; border-left: 2px solid var(--line); font-size: 12.5px; line-height: 1.7; color: var(--secondary); }
+  .side-quote-label { color: var(--muted); }
+  .guard-stats { margin: 10px 0 14px; padding: 10px 13px; border-left: 3px solid var(--blue); background: rgba(5,109,232,.05); font-size: 13px; line-height: 1.7; color: var(--ink); }
+  .guard-stats-title { margin: 0 0 4px; font-weight: 600; }
+  .guard-stats-list { margin: 0; padding-left: 18px; }
   .gap { margin-top: 12px; padding: 14px 16px; border: 1px dashed rgba(183,96,24,.34); border-radius: 10px; background: #faf6eb; color: var(--secondary); font-size: 14px; line-height: 1.85; }
   .gap b { display: block; margin-bottom: 4px; color: var(--orange); font-size: 12px; font-weight: 500; }
   .gap b::after { content: "找到这份材料，这场争论就能有定论"; display: block; margin-top: 3px; color: var(--muted); font-size: 11px; font-weight: 400; }
@@ -855,7 +863,7 @@
           <div class="gate"><span class="rank">2</span><div class="gate-body"><p class="gate-title"><span class="tag claim">第 2 道</span>　编号由程序翻译成真链接</p><p class="gate-desc">拿到编号后，由程序从知乎搜索返回的候选池里取出真实链接。编号越界或非整数，直接丢弃，不拿别的顶上。</p><p class="gate-block">拦截：编号超出候选池范围　｜　拦截：宁可少一条，不凑数</p></div></div>
           <div class="gate"><span class="rank">3</span><div class="gate-body"><p class="gate-title"><span class="tag claim">第 3 道</span>　主机名白名单</p><p class="gate-desc">只放行 http(s) 的 zhihu.com 及其子域名。仿冒域名和伪协议在这一步全部拦掉，连候选池都进不去。</p><p class="gate-block">拦截：zhihu.com.evil.com 仿冒域名　｜　拦截：javascript: 伪协议</p></div></div>
           <div class="gate"><span class="rank">4</span><div class="gate-body"><p class="gate-title"><span class="tag claim">第 4 道</span>　去重与上限</p><p class="gate-desc">同一条链接在一张卡里只出现一次；每条热点最多 2 条延伸阅读，不堆量。</p><p class="gate-block">拦截：同一卡内重复引用　｜　拦截：超过 2 条的选取自动截断</p></div></div>
-          <p class="focus">页面只消费通过候选编号映射、域名校验与去重的知乎链接；内容可及性仍以知乎页面当前状态为准。</p>
+          <p class="focus">页面只消费通过候选编号映射、域名校验与去重的知乎链接；真分歧两派下方的「原回答」也走同一套校验，且同一条回答不能同时作为两派的依据。内容可及性仍以知乎页面当前状态为准。</p>
         </details>
       </div>
       <footer>
@@ -1144,6 +1152,41 @@
     }
   }
 
+  // 防幻觉透明度：本次生成中各道校验实际拦下的数量（后端代码计数，不经模型）。
+  // 只有程序生成的简报带 guard_stats；兜底快照、功能示例页、旧缓存没有，不显示。
+  function guardStatsLines(gs) {
+    if (!gs || typeof gs !== 'object') return [];
+    function n(key) { var v = Number(gs[key]); return isFinite(v) && v > 0 ? Math.floor(v) : 0; }
+    var lines = [];
+    lines.push('延伸阅读：丢弃越界或非整数编号 ' + n('reading_index_dropped') + ' 个、候选池外或非知乎链接 '
+      + n('reading_link_dropped') + ' 条、重复引用 ' + n('reading_dup_dropped') + ' 条');
+    lines.push('两派依据：丢弃无效编号或非知乎链接 ' + n('sides_evidence_dropped') + ' 个，移除被两派同时引用的回答 '
+      + n('sides_shared_removed') + ' 次');
+    lines.push('真分歧闸门：凑不出两派而降级 ' + n('dispute_downgraded') + ' 条，两派找不到对应原回答而降级 '
+      + n('dispute_no_evidence') + ' 条');
+    if (n('crosscheck_source_dropped')) {
+      lines.push('跨平台核验：丢弃不在搜索结果内的信源 ' + n('crosscheck_source_dropped') + ' 个');
+    }
+    return lines;
+  }
+  var guardStats = (!isCurated && !isShowcase) ? data.guard_stats : null;
+  var gsLines = guardStatsLines(guardStats);
+  if (gsLines.length) {
+    var gsAnchor = document.querySelector('#page-guard .guard-sub');
+    if (gsAnchor && gsAnchor.parentNode) {
+      var gsBox = el('div', 'guard-stats');
+      var scope = '本次生成实际拦截';
+      var gen = Number(guardStats.items_generated) || 0;
+      var reused = Number(guardStats.items_reused) || 0;
+      if (gen || reused) scope += '（新生成 ' + gen + ' 条' + (reused ? '，复用 ' + reused + ' 条未重复计数' : '') + '）';
+      gsBox.appendChild(el('p', 'guard-stats-title', scope));
+      var gsList = el('ul', 'guard-stats-list');
+      gsLines.forEach(function (t) { gsList.appendChild(el('li', null, t)); });
+      gsBox.appendChild(gsList);
+      gsAnchor.parentNode.insertBefore(gsBox, gsAnchor.nextSibling);
+    }
+  }
+
   function demoTag() { return el('span', 'tag-demo', '示例'); }
 
   function safeHref(url) {
@@ -1169,6 +1212,46 @@
       if (!isZhihuUrl(item.question_url)) titleNode.appendChild(offsiteTag());
     }
     box.appendChild(titleNode);
+    return box;
+  }
+
+  // 两派观点的依据：每派绑定 1–2 条站内回答（后端按候选编号映射、限知乎域名）。
+  // 搜索接口给的回答标题通常就是问题标题，所以链接文字用「原回答 1 / 2」，完整标题放在 title 提示里。
+  // 旧缓存与人工快照没有 evidence 字段，返回 null，卡片保持原样。
+  // 每派所引第一条回答的原文摘录（来自搜索接口原文，后端只截断、不改写），方便和模型写的概括对照。
+  function renderSideQuote(side) {
+    var list = side && Array.isArray(side.evidence) ? side.evidence : [];
+    var first = list.filter(function (e) { return e && e.url && isZhihuUrl(e.url); })[0];
+    var text = first ? String(first.excerpt || '').trim() : '';
+    if (!text) return null;
+    var p = el('p', 'side-quote');
+    p.appendChild(el('span', 'side-quote-label', '原文摘录：'));
+    p.appendChild(document.createTextNode('「' + text + '」'));
+    return p;
+  }
+
+  function renderSideEvidence(side) {
+    var list = side && Array.isArray(side.evidence) ? side.evidence : [];
+    var valid = list.filter(function (e) { return e && e.url && isZhihuUrl(e.url); });
+    if (!valid.length) return null;
+    var box = el('p', 'side-src');
+    box.appendChild(el('span', 'side-src-label', '依据：'));
+    valid.forEach(function (e, i) {
+      if (i) box.appendChild(document.createTextNode(' · '));
+      var text = '原回答 ' + (i + 1);
+      if (isDemo) {
+        var dead = el('span', 'dead', text);
+        dead.appendChild(demoTag());
+        box.appendChild(dead);
+        return;
+      }
+      var a = el('a', null, text);
+      a.href = safeHref(e.url);
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      if (e.title) a.title = e.title;
+      box.appendChild(a);
+    });
     return box;
   }
 
@@ -1431,7 +1514,7 @@
 
   // 跨平台核验显式入口：文字按钮与印章联动同一个 xpanel（解决「看不到聚合结果」）
   function makeXpOpen() {
-    var btn = el('button', 'xp-open-btn', '跨平台核验（' + XP_KIND + '）· 微博情绪 / 知乎切面 / 事实信源 ▾');
+    var btn = el('button', 'xp-open-btn', '跨平台核验（' + XP_KIND + '）· 事实信源 / 站外讨论 / 知乎切面 ▾');
     btn.type = 'button';
     btn.setAttribute('aria-expanded', 'false');
     btn.addEventListener('click', function () {
@@ -1446,7 +1529,18 @@
     return btn;
   }
 
-  // 求真印章 + 跨平台核验面板：点印章展开「微博情绪 / 知乎切面 / 事实信源」
+  // 跨平台核验面板的讨论行：weibo 字段统一展示为「站外讨论」（字段名沿用，兼容旧人工快照），
+  // weibo / zhihu 都是可选字段，空值或纯空白不渲染该行。
+  function xpRows(cc) {
+    var rows = [];
+    [['站外讨论', 'weibo', 'xp-weibo'], ['知乎', 'zhihu', 'xp-zhihu']].forEach(function (r) {
+      var text = String((cc && cc[r[1]]) || '').trim();
+      if (text) rows.push({ label: r[0], key: r[1], cls: r[2], text: text });
+    });
+    return rows;
+  }
+
+  // 求真印章 + 跨平台核验面板：点印章展开「事实信源 / 站外讨论 / 知乎切面」
   function makeStamp(cls, text, item) {
     var wrap = el('div', 'stamp-wrap');
     var btn = el('button', 'stamp ' + cls, text);
@@ -1460,16 +1554,18 @@
     panel.setAttribute('role', 'region');
     panel.setAttribute('aria-label', '跨平台核验（' + XP_KIND + '）');
     panel.appendChild(el('div', 'xp-head', XP_HEAD));
-    [['微博', 'weibo', 'xp-weibo'], ['知乎', 'zhihu', 'xp-zhihu']].forEach(function (r) {
+    xpRows(cc).forEach(function (r) {
       var row = el('div', 'xp-row');
-      row.appendChild(el('span', 'xp-tag ' + r[2], r[0]));
-      row.appendChild(document.createTextNode(cc[r[1]]));
+      row.appendChild(el('span', 'xp-tag ' + r.cls, r.label));
+      row.appendChild(document.createTextNode(r.text));
       panel.appendChild(row);
     });
-    var frow = el('div', 'xp-row xp-factrow');
-    frow.appendChild(el('span', 'xp-tag xp-fact', '核验'));
-    frow.appendChild(document.createTextNode(cc.fact));
-    panel.appendChild(frow);
+    if (String(cc.fact || '').trim()) {
+      var frow = el('div', 'xp-row xp-factrow');
+      frow.appendChild(el('span', 'xp-tag xp-fact', '核验'));
+      frow.appendChild(document.createTextNode(cc.fact));
+      panel.appendChild(frow);
+    }
     if (cc.sources && cc.sources.length) {
       var srcs = el('div', 'xp-srcs');
       cc.sources.forEach(function (s) {
@@ -1650,6 +1746,10 @@
           var box = el('div', 'side ' + (i === 0 ? 'a' : 'b'));
           box.appendChild(el('b', '', s.label));
           box.appendChild(document.createTextNode(s.claim));
+          var quoteLine = renderSideQuote(s);
+          if (quoteLine) box.appendChild(quoteLine);
+          var srcLine = renderSideEvidence(s);
+          if (srcLine) box.appendChild(srcLine);
           sidesGrid.appendChild(box);
         });
         deepBody.appendChild(sidesGrid);

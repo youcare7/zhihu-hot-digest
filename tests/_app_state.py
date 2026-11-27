@@ -41,6 +41,9 @@ class AppStateTestCase(unittest.TestCase):
         "TIMELINE_REMOTE_URL",
         "TIMELINE_CACHE_TTL_SECONDS",
         "INCREMENTAL_REFRESH",
+        "ENRICH_QUOTA_RESERVE",
+        "SIDES_REQUIRE_EVIDENCE",
+        "CROSSCHECK_MAX",
         "ITEM_REUSE_MAX_HOURS",
         "api_hot_list",
         "fetch_search",
@@ -74,6 +77,9 @@ class AppStateTestCase(unittest.TestCase):
         # 仓库 data/ 并在用例之间串味。只在 test_incremental_refresh.py 中显式开启。
         app.INCREMENTAL_REFRESH = False
         app.ITEM_REUSE_MAX_HOURS = 0
+        # 既有用例的模拟模型输出里两派没有 evidence 编号：默认按宽松模式跑，
+        # 保持它们原有的 dispute 判定；严格模式只在 test_sides_evidence.py 中显式开启。
+        app.SIDES_REQUIRE_EVIDENCE = False
 
     def tearDown(self):
         deadline = time.monotonic() + 3.0

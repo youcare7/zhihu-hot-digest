@@ -5,6 +5,6 @@
   "description": "热榜深潜简报本地预览",
   "scripts": {
     "dev": "node scripts/dev_server.mjs",
-    "test:frontend": "node tests/test_frontend_recovery.js && node tests/test_paged_navigation.js"
+    "test:frontend": "node tests/test_frontend_recovery.js && node tests/test_paged_navigation.js && node tests/test_crosscheck_panel.js && node tests/test_sides_evidence.js && node tests/test_guard_stats.js && node tests/test_extension.js"
   }
 }
