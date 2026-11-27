@@ -349,13 +349,27 @@ _GEN_DEADLINE = 0.0  # monotonic 时间戳；0 表示本批不设预算；仅由
 
 # 缓存有效期（小时）：过期后由访问流量惰性触发后台刷新（stale-while-revalidate），
 # 不引入定时任务；<=0 时恢复「每日只生成一次」的旧行为。
-CACHE_TTL_SECONDS = int(_env_float("CACHE_TTL_HOURS", 3, minimum=0) * 3600)
+CACHE_TTL_SECONDS = int(_env_float("CACHE_TTL_HOURS", 6, minimum=0) * 3600)
 # 刷新失败或结果被防劣化门丢弃后，暂停后续整批生成，避免访客流量形成重试风暴。
 REFRESH_COOLDOWN_SECONDS = _env_int("REFRESH_COOLDOWN_SECONDS", 900, minimum=0)
 # 增量刷新：按「知乎问题 ID → 规范化标题」复用当日已成功生成的条目，
 # 只给新上榜 / 上次失败的条目调用直答，减少重复消耗直答配额。
 # 0 = 关闭（每次整批重算，旧行为）。
 INCREMENTAL_REFRESH = os.environ.get("INCREMENTAL_REFRESH", "1") != "0"
+
+# ---- 配额韧性（2026-11-28）：残缺数据不顶掉满配画面 + 分层预算 + 榜单签名短路 ----
+# 防劣化加权：同榜单重生成时，新简报字段覆盖分低于旧缓存超过容差则保留旧缓存。
+# 榜单变了（新话题）时不设此门——新鲜度优先，不能为保字段覆盖而展示昨日新闻。
+COVERAGE_TOLERANCE = _env_int("COVERAGE_TOLERANCE", 4, minimum=0)
+# 榜单签名短路：热榜完全没变且旧缓存接近满配时跳过重生成（省主生成全部配额）。
+# 旧缓存本身残缺时不短路——继续生成补字段，残缺画面不能被冻结。
+COVERAGE_SKIP_REGEN_RATIO = _env_float("COVERAGE_SKIP_REGEN_RATIO", 0.6, minimum=0)
+# 分层配额预算：单次简报内各阶段 zhida 调用上限（0 = 不限）。默认 45+20+15 = 80 = 日限，
+# 防止主生成吃光全部配额后富化/核验静默归零（11-27 069 实测 punch 1/10、crosscheck 0）。
+ZHIDA_MAIN_BUDGET = _env_int("ZHIDA_MAIN_BUDGET", 45, minimum=0)
+ZHIDA_ENRICH_BUDGET = _env_int("ZHIDA_ENRICH_BUDGET", 20, minimum=0)
+ZHIDA_CROSSCHECK_BUDGET = _env_int("ZHIDA_CROSSCHECK_BUDGET", 15, minimum=0)
+CROSSCHECK_BUDGET_SECONDS = _env_int("CROSSCHECK_BUDGET_SECONDS", 90, minimum=0)
 # 单条复用的最长年龄（小时）：超过则重新生成该条，避免快速演进的事件背景过旧；
 # 0 = 当日内不限（复用池本身按北京时间自然日隔离，跨日自动失效）。
 ITEM_REUSE_MAX_HOURS = _env_float("ITEM_REUSE_MAX_HOURS", 0, minimum=0)
@@ -1246,8 +1260,13 @@ def build_brief() -> dict:
         reused = sum(1 for it in items if it is not None)
         if reused:
             _log(f"增量刷新：复用 {reused} 条，新生成 {len(hot_items) - reused} 条")
+        zhida_main_start = _QUOTA.used("zhida")
         for i, hot in enumerate(hot_items):
             if items[i] is None:
+                if ZHIDA_MAIN_BUDGET and _QUOTA.used("zhida") - zhida_main_start >= ZHIDA_MAIN_BUDGET:
+                    items[i] = _base_item(i + 1, hot)
+                    _log(f"主生成分层预算耗尽（{ZHIDA_MAIN_BUDGET} 次），第 {i + 1} 条降级保留，配额留给富化/核验")
+                    continue
                 items[i] = process_item(i + 1, hot)
 
         # 收尾补跑：首轮仍处降级态的条目再试一轮。429 突发通常几十秒内过去，
@@ -1258,6 +1277,9 @@ def build_brief() -> dict:
         if degraded and (not _GEN_DEADLINE or time.monotonic() < _GEN_DEADLINE):
             _log(f"首轮生成完成，{len(degraded)} 条降级，收尾补跑")
             for idx in degraded:
+                if ZHIDA_MAIN_BUDGET and _QUOTA.used("zhida") - zhida_main_start >= ZHIDA_MAIN_BUDGET:
+                    _log("主生成分层预算耗尽，跳过后续补跑，配额留给富化/核验")
+                    break
                 items[idx] = process_item(items[idx]["rank"], hot_items[idx])
             ok = sum(1 for it in items if it["background"] != NO_BACKGROUND)
             _log(f"补跑完成：{ok}/{len(items)} 条生成成功")
@@ -1271,6 +1293,7 @@ def build_brief() -> dict:
         _run_enrichment_pass(items)
         # 跨平台核验（微博情绪/知乎切面/事实信源）：依赖 web_search 配额（默认 0），
         # 配额为 0 时本 pass 静默跳过，不影响任何已有功能。
+        _extend_deadline_for_crosscheck()
         _run_crosscheck_pass(items)
         # 富化与跨平台核验后的版本回写条目池，供后续增量刷新复用
         _pool_put(items)
@@ -1443,13 +1466,24 @@ def _extend_deadline_for_enrichment() -> None:
         _GEN_DEADLINE = time.monotonic() + ENRICH_BUDGET_SECONDS
 
 
+def _extend_deadline_for_crosscheck() -> None:
+    """给 crosscheck pass 追加独立预算，避免共享富化后的 deadline 导致全量跳过。"""
+    global _GEN_DEADLINE
+    if _GEN_DEADLINE and CROSSCHECK_BUDGET_SECONDS > 0:
+        _GEN_DEADLINE = time.monotonic() + CROSSCHECK_BUDGET_SECONDS
+
+
 def _run_enrichment_pass(items: list) -> None:
     """主生成完成后统一富化。mock 不联网直接跳过；逐条推进，
     配额耗尽提前结束——已生成条目照常服务，缺的只是可选组件。"""
     if MOCK_MODE or not items:
         return
     enriched = 0
+    zhida_start = _QUOTA.used("zhida")
     for item in items:
+        if ZHIDA_ENRICH_BUDGET and _QUOTA.used("zhida") - zhida_start >= ZHIDA_ENRICH_BUDGET:
+            _log(f"富化分层预算耗尽（{ZHIDA_ENRICH_BUDGET} 次），提前结束富化 pass（已富化 {enriched} 条锐评）")
+            return
         if not _enrich_item(item):
             _log(f"富化配额/预算耗尽，提前结束富化 pass（已富化 {enriched} 条锐评）")
             return
@@ -1685,9 +1719,14 @@ def _run_crosscheck_pass(items: list) -> None:
     if MOCK_MODE or not items or CROSSCHECK_MAX <= 0:
         return
     done = 0
+    zhida_start = _QUOTA.used("zhida")
     for item in items:
         if done >= CROSSCHECK_MAX:
             break
+        if (ZHIDA_CROSSCHECK_BUDGET
+                and _QUOTA.used("zhida") - zhida_start >= ZHIDA_CROSSCHECK_BUDGET):
+            _log(f"crosscheck 分层预算耗尽（{ZHIDA_CROSSCHECK_BUDGET} 次），提前结束（已核验 {done} 条）")
+            return
         had = bool(item.get("crosscheck"))
         if not _crosscheck_item(item):
             _log(f"crosscheck：web_search 配额耗尽，提前结束（已核验 {done} 条）")
@@ -2176,6 +2215,53 @@ def _count_ok(data: dict) -> int:
     return sum(1 for it in (data or {}).get("items", []) if it.get("background") != NO_BACKGROUND)
 
 
+_COVERAGE_WEIGHTS = (("punch", 2), ("vote", 1), ("quotes", 1), ("lou", 1),
+                     ("crosscheck", 2), ("cross_platform", 1), ("kanshan", 1))
+
+
+def _field_coverage(data: dict) -> int:
+    """字段覆盖分：衡量一份简报的功能完整度（锐评/站队/吃瓜/导读/核验/聚合/看山）。
+    防劣化加权专用——成功条数相同的两份简报，功能完整度可能天差地别。"""
+    score = 0
+    for it in (data or {}).get("items", []):
+        if not isinstance(it, dict):
+            continue
+        for field, weight in _COVERAGE_WEIGHTS:
+            if it.get(field):
+                score += weight
+    return score
+
+
+def _coverage_max(data: dict) -> int:
+    """该简报条数对应的理论满分（用于「接近满配」判定）。"""
+    return sum(w for _, w in _COVERAGE_WEIGHTS) * len((data or {}).get("items", []))
+
+
+def _brief_hot_signature(data: dict) -> set:
+    """简报的热榜签名：问题 id 集合（取不到 id 时退化为 URL/标题）。
+    排名变化不影响签名——只有话题集合变化才算「榜单变了」。"""
+    sig = set()
+    for it in (data or {}).get("items", []):
+        if not isinstance(it, dict):
+            continue
+        url = str(it.get("question_url") or "").strip()
+        qid = _QID_RE.search(url)
+        sig.add(qid.group(1) if qid else (url or _norm_title(it.get("title"))))
+    return sig
+
+
+def _hot_list_unchanged(hot_items: list, cached: dict) -> bool:
+    """接口热榜与缓存简报的话题集合是否完全一致。"""
+    new_sig = set()
+    for hot in hot_items or []:
+        if not isinstance(hot, dict):
+            continue
+        url = str(hot.get("Url") or "").strip()
+        qid = _QID_RE.search(url)
+        new_sig.add(qid.group(1) if qid else (url or _norm_title(hot.get("Title"))))
+    return bool(new_sig) and new_sig == _brief_hot_signature(cached)
+
+
 _KANSHAN_GIFS = {
     TYPE_DISPUTE: ("assets/ks-ball.webp", "assets/ks-stroll.webp"),
     TYPE_CONSENSUS: ("assets/ks-pc.webp", "assets/ks-hi.webp"),
@@ -2221,6 +2307,20 @@ def _background_refresh() -> None:
             # 防劣化保护：只把 load_today_cache 认可的有效旧缓存作为基准。
             # 模拟缓存即使“成功条数”很多，也不能阻止真实新结果覆盖它。
             old_ok = _count_ok(load_today_cache() or {})
+            old_cov = _field_coverage(existing or {})
+            # 榜单签名短路：热榜没变且旧缓存接近满配时跳过重生成（省主生成全部配额）。
+            # 旧缓存本身残缺时不短路——继续生成补字段，残缺画面不能被冻结。
+            if existing and old_cov >= _coverage_max(existing) * COVERAGE_SKIP_REGEN_RATIO:
+                try:
+                    current_hot = api_hot_list()
+                except Exception as exc:
+                    current_hot = None
+                    _log(f"榜单签名查询失败（照常进入全量生成）：{exc}")
+                if current_hot is not None and _hot_list_unchanged(current_hot, existing):
+                    _set_refresh_cooldown()
+                    _log(f"热榜与缓存话题集合一致且缓存接近满配（覆盖分 {old_cov}），"
+                         f"跳过重生成，冷却 {REFRESH_COOLDOWN_SECONDS} 秒")
+                    return
             _log("后台自动刷新开始")
             data = build_brief()
             new_ok = _count_ok(data)
@@ -2235,6 +2335,16 @@ def _background_refresh() -> None:
                     f"刷新结果劣于现有缓存（{new_ok} < {old_ok} 条成功），"
                     f"丢弃本次结果并冷却 {REFRESH_COOLDOWN_SECONDS} 秒，沿用旧缓存"
                 )
+                return
+            # 防劣化加权（同榜单限定）：字段覆盖显著低于旧缓存时保留旧缓存——
+            # 配额紧张时生成的「10 条全成功但富化全空」不许顶掉满配画面。
+            # 榜单变了（新话题）跳过此门：新鲜度优先，不为保覆盖分展示昨日新闻。
+            new_cov = _field_coverage(data)
+            if (old_cov > 0 and new_cov + COVERAGE_TOLERANCE < old_cov
+                    and _brief_hot_signature(data) == _brief_hot_signature(existing or {})):
+                _set_refresh_cooldown()
+                _log(f"同榜单重生成字段覆盖显著劣化（{new_cov} < {old_cov} - {COVERAGE_TOLERANCE}），"
+                     f"丢弃本次结果并冷却 {REFRESH_COOLDOWN_SECONDS} 秒，沿用旧缓存")
                 return
             atomic_write_json(cache_path(), data)
             _log(f"后台自动刷新完成：{new_ok} 条成功，已写入 {cache_path().name}")
@@ -2357,6 +2467,7 @@ def healthz():
                                   if it.get("punch") or it.get("vote") or it.get("lou")),
             "crosscheck_count": sum(1 for it in cached_items if it.get("crosscheck")),
             "cross_platform_count": sum(1 for it in cached_items if it.get("cross_platform")),
+            "field_coverage": _field_coverage(cached),
         })
     return Response(
         json.dumps(payload, ensure_ascii=False),

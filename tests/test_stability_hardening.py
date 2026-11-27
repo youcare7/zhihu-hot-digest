@@ -46,7 +46,7 @@ class TestStabilityHardening(AppStateTestCase):
         self.assertEqual(vals["web"], 0)
         self.assertEqual(vals["search"], 20)
         self.assertEqual(vals["retry"], 6)
-        self.assertEqual(vals["ttl"], 10800)
+        self.assertEqual(vals["ttl"], 21600)
         self.assertEqual(vals["cooldown"], 0)
 
         os.environ["STABILITY_TEST_INT"] = "0"
