@@ -41,6 +41,8 @@ class AppStateTestCase(unittest.TestCase):
         "TIMELINE_REMOTE_URL",
         "TIMELINE_CACHE_TTL_SECONDS",
         "INCREMENTAL_REFRESH",
+        "ENRICH_QUOTA_RESERVE",
+        "CROSSCHECK_MAX",
         "ITEM_REUSE_MAX_HOURS",
         "api_hot_list",
         "fetch_search",

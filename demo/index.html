@@ -1431,7 +1431,7 @@
 
   // 跨平台核验显式入口：文字按钮与印章联动同一个 xpanel（解决「看不到聚合结果」）
   function makeXpOpen() {
-    var btn = el('button', 'xp-open-btn', '跨平台核验（' + XP_KIND + '）· 微博情绪 / 知乎切面 / 事实信源 ▾');
+    var btn = el('button', 'xp-open-btn', '跨平台核验（' + XP_KIND + '）· 事实信源 / 站外讨论 / 知乎切面 ▾');
     btn.type = 'button';
     btn.setAttribute('aria-expanded', 'false');
     btn.addEventListener('click', function () {
@@ -1446,7 +1446,18 @@
     return btn;
   }
 
-  // 求真印章 + 跨平台核验面板：点印章展开「微博情绪 / 知乎切面 / 事实信源」
+  // 跨平台核验面板的讨论行：weibo 字段统一展示为「站外讨论」（字段名沿用，兼容旧人工快照），
+  // weibo / zhihu 都是可选字段，空值或纯空白不渲染该行。
+  function xpRows(cc) {
+    var rows = [];
+    [['站外讨论', 'weibo', 'xp-weibo'], ['知乎', 'zhihu', 'xp-zhihu']].forEach(function (r) {
+      var text = String((cc && cc[r[1]]) || '').trim();
+      if (text) rows.push({ label: r[0], key: r[1], cls: r[2], text: text });
+    });
+    return rows;
+  }
+
+  // 求真印章 + 跨平台核验面板：点印章展开「事实信源 / 站外讨论 / 知乎切面」
   function makeStamp(cls, text, item) {
     var wrap = el('div', 'stamp-wrap');
     var btn = el('button', 'stamp ' + cls, text);
@@ -1460,16 +1471,18 @@
     panel.setAttribute('role', 'region');
     panel.setAttribute('aria-label', '跨平台核验（' + XP_KIND + '）');
     panel.appendChild(el('div', 'xp-head', XP_HEAD));
-    [['微博', 'weibo', 'xp-weibo'], ['知乎', 'zhihu', 'xp-zhihu']].forEach(function (r) {
+    xpRows(cc).forEach(function (r) {
       var row = el('div', 'xp-row');
-      row.appendChild(el('span', 'xp-tag ' + r[2], r[0]));
-      row.appendChild(document.createTextNode(cc[r[1]]));
+      row.appendChild(el('span', 'xp-tag ' + r.cls, r.label));
+      row.appendChild(document.createTextNode(r.text));
       panel.appendChild(row);
     });
-    var frow = el('div', 'xp-row xp-factrow');
-    frow.appendChild(el('span', 'xp-tag xp-fact', '核验'));
-    frow.appendChild(document.createTextNode(cc.fact));
-    panel.appendChild(frow);
+    if (String(cc.fact || '').trim()) {
+      var frow = el('div', 'xp-row xp-factrow');
+      frow.appendChild(el('span', 'xp-tag xp-fact', '核验'));
+      frow.appendChild(document.createTextNode(cc.fact));
+      panel.appendChild(frow);
+    }
     if (cc.sources && cc.sources.length) {
       var srcs = el('div', 'xp-srcs');
       cc.sources.forEach(function (s) {

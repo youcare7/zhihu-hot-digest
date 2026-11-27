@@ -60,7 +60,9 @@ tcb cloudrun deploy \
 - `INCREMENTAL_REFRESH`：增量刷新开关，默认 `1`；按知乎问题 ID（其次标题）复用当日已成功生成的条目，只为新上榜或失败的条目调用直答，复用池为 `data/item_pool_<日期>.json`。设为 `0` 恢复每次整批重算。
 - `ITEM_REUSE_MAX_HOURS`：单条最长复用时长（小时），默认 `0` = 当日内不限，跨日自动失效。
 - `QUOTA_ZHIDA_DAILY` / `QUOTA_HOT_LIST_DAILY` / `QUOTA_SEARCH_DAILY` / `QUOTA_MODEL_ALT_DAILY` / `QUOTA_WEB_SEARCH_DAILY`：统一 `QuotaGuard` 日配额熔断上限（默认 `80` / `100` / `2000` / `500` / `0`，持久化于 `data/quota_counters.json`）。
-- `CROSSCHECK_MAX`：每份简报最多生成几条跨平台核验，默认 `10`。实际是否生成取决于 `QUOTA_WEB_SEARCH_DAILY`（默认 `0` = 关闭）；开启前请确认全网搜索配额，每条核验消耗 1 次全网搜索 + 最多 2 次直答。
+- `CROSSCHECK_MAX`：每份简报最多生成几条跨平台核验，默认 `3`，按「待验证 → 可裁决事实之争 → 其余」的顺序核验。实际是否生成取决于 `QUOTA_WEB_SEARCH_DAILY`（默认 `0` = 关闭）；开启前请确认全网搜索配额，每条核验消耗 1 次全网搜索 + 最多 2 次直答。核验只要求事实核验与至少 1 条白名单信源，站外讨论、知乎切面两段为可选。
+- `ENRICH_QUOTA_RESERVE`：富化配额底线，默认 `20`。富化每条之前检查当日直答剩余配额，低于该值即跳过其余富化，把配额留给后续刷新中新上榜条目的主生成；`0` = 不设底线，配额守卫关闭时不检查。
+- 合订本归并：`scripts/build_timeline.py` 使用纯本地规则，不依赖 `jieba`。人工确认的同一事件写在 `data/topic_aliases.json` 的 `aliases`（按知乎问题 ID 指定），`topics` 段仅作记录，脚本不读取。
 - 来源保护：后台刷新只跳过来源标注为人工整理（`provenance: "curated"`）的缓存；程序生成的跨平台核验不会阻止刷新。
 
 ## 分步验证命令

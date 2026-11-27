@@ -44,6 +44,7 @@ class TestCrosscheckPass(AppStateTestCase):
         app._QUOTA = app.QuotaGuard(self.tmp_path / "quota.json")
         app.QUOTA_LIMITS.update({"hot_list": 100, "search": 2000, "zhida": 50,
                                  "model_alt": 500, "web_search": 50})
+        self._saved_default_max = app.CROSSCHECK_MAX   # 模块默认值（未设环境变量时应为 3）
         app.CROSSCHECK_MAX = 10
         self.web_calls = []
         self.chat_calls = []
@@ -186,6 +187,83 @@ class TestCrosscheckPass(AppStateTestCase):
         self.assertIn("不得新增任何事实", prompt)
         self.assertIn("1 | 微博热议", prompt)
 
+
+    # ---- 2026-11-27：去微博强制化与优先序 ----
+    def test_fact_and_source_without_weibo_passes(self):
+        out = {"fact": "官方公告已确认时间，金额未披露", "sources": [{"name": "官方公告", "index": 2}]}
+        got = app._sanitize_crosscheck(out, CANDIDATES)
+        self.assertEqual(got["fact"], "官方公告已确认时间，金额未披露")
+        self.assertEqual(got["sources"][0]["url"], "https://zhuanlan.zhihu.com/p/1")
+        self.assertNotIn("weibo", got)   # 可选字段为空时不写入
+        self.assertNotIn("zhihu", got)
+
+    def test_blank_optional_fields_are_dropped_not_required(self):
+        out = {"weibo": "   ", "zhihu": "", "fact": "结论", "sources": [{"name": "a", "index": 1}]}
+        got = app._sanitize_crosscheck(out, CANDIDATES)
+        self.assertIsNotNone(got)
+        self.assertNotIn("weibo", got)
+        self.assertNotIn("zhihu", got)
+
+    def test_fact_still_required(self):
+        out = {"weibo": "情绪", "zhihu": "切面", "fact": "", "sources": [{"name": "a", "index": 1}]}
+        self.assertIsNone(app._sanitize_crosscheck(out, CANDIDATES))
+
+    def test_pass_accepts_output_without_weibo(self):
+        app.api_web_search = self._web_search
+
+        def chat(url, headers, payload, label):
+            self.chat_calls.append(1)
+            return json.dumps({"fact": "材料只到媒体报道，缺官方口径",
+                               "sources": [{"name": "知乎讨论", "index": 2}]}, ensure_ascii=False)
+
+        app._chat = chat
+        item = live_item()
+        app._run_crosscheck_pass([item])
+        self.assertEqual(item["crosscheck"]["fact"], "材料只到媒体报道，缺官方口径")
+        self.assertEqual(len(self.chat_calls), 1)   # 一次通过，无需重试硬凑
+
+    def test_prompt_marks_weibo_optional(self):
+        prompt = app._build_crosscheck_prompt(live_item(), CANDIDATES)
+        self.assertIn("可选", prompt)
+        self.assertIn("不要为了填满字段去推测", prompt)
+
+    def test_default_max_is_three(self):
+        self.assertEqual(self._saved_default_max, 3)
+
+    def test_priority_verify_then_fact_dispute_then_rank(self):
+        app.CROSSCHECK_MAX = 3
+        searched = []
+
+        def search(query, count=app.WEB_SEARCH_COUNT):
+            searched.append(query)
+            return [dict(c) for c in CANDIDATES]
+
+        app.api_web_search = search
+        app._chat = self._chat_ok
+
+        def mk(rank, type_, claim=""):
+            it = dict(live_item(), rank=rank, title=f"热点{rank}", type=type_, claim_type=claim)
+            if type_ != "dispute":
+                it["sides"] = []
+            return it
+
+        items = [mk(1, "dispute", "value"), mk(2, "consensus"), mk(3, "dispute", "fact"),
+                 mk(4, "verify"), mk(5, "dispute", "inference"), mk(6, "verify")]
+        app._run_crosscheck_pass(items)
+        self.assertEqual(searched, ["热点4", "热点6", "热点3"])
+        self.assertEqual([it["rank"] for it in items], [1, 2, 3, 4, 5, 6])  # 简报顺序不变
+        self.assertEqual([it["rank"] for it in items if it.get("crosscheck")], [3, 4, 6])
+
+    def test_priority_falls_through_to_others_when_few_verify(self):
+        app.CROSSCHECK_MAX = 3
+        searched = []
+        app.api_web_search = lambda q, count=app.WEB_SEARCH_COUNT: (searched.append(q)
+                                                                   or [dict(c) for c in CANDIDATES])
+        app._chat = self._chat_ok
+        items = [dict(live_item(), rank=r, title=f"热点{r}", claim_type="value") for r in (1, 2, 3, 4)]
+        items[3]["type"], items[3]["sides"] = "verify", []
+        app._run_crosscheck_pass(items)
+        self.assertEqual(searched, ["热点4", "热点1", "热点2"])
 
 if __name__ == "__main__":
     unittest.main()

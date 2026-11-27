@@ -345,6 +345,9 @@ GEN_BUDGET_SECONDS = _env_int("GEN_BUDGET_SECONDS", 180, minimum=0)
 # 富化 pass 的独立追加预算（秒）：主生成慢时整批预算会被耗尽，
 # 富化与主生成共享 deadline 会一启动就被「预算耗尽」打断（065 线上实测 0 条富化）。
 ENRICH_BUDGET_SECONDS = _env_int("ENRICH_BUDGET_SECONDS", 120, minimum=0)
+# 富化配额底线：当日直答剩余配额低于此值时跳过富化（锐评/站队等可选组件），
+# 把配额留给后续刷新中新上榜条目的主生成。0 = 不设底线。
+ENRICH_QUOTA_RESERVE = _env_int("ENRICH_QUOTA_RESERVE", 20, minimum=0)
 _GEN_DEADLINE = 0.0  # monotonic 时间戳；0 表示本批不设预算；仅由 build_brief 写入/清除
 
 # 缓存有效期（小时）：过期后由访问流量惰性触发后台刷新（stale-while-revalidate），
@@ -1269,7 +1272,7 @@ def build_brief() -> dict:
         # 富化使用独立追加预算：主生成耗尽整批预算后仍可执行。
         _extend_deadline_for_enrichment()
         _run_enrichment_pass(items)
-        # 跨平台核验（微博情绪/知乎切面/事实信源）：依赖 web_search 配额（默认 0），
+        # 跨平台核验（事实信源 + 可选的站外讨论/知乎切面）：依赖 web_search 配额（默认 0），
         # 配额为 0 时本 pass 静默跳过，不影响任何已有功能。
         _run_crosscheck_pass(items)
         # 富化与跨平台核验后的版本回写条目池，供后续增量刷新复用
@@ -1443,13 +1446,29 @@ def _extend_deadline_for_enrichment() -> None:
         _GEN_DEADLINE = time.monotonic() + ENRICH_BUDGET_SECONDS
 
 
+def _zhida_remaining() -> int | None:
+    """当日直答剩余配额；配额守卫关闭时返回 None（不设底线）。"""
+    if QUOTA_GUARD_DISABLED:
+        return None
+    return max(0, QUOTA_LIMITS.get("zhida", 0) - _QUOTA.used("zhida"))
+
+
 def _run_enrichment_pass(items: list) -> None:
     """主生成完成后统一富化。mock 不联网直接跳过；逐条推进，
-    配额耗尽提前结束——已生成条目照常服务，缺的只是可选组件。"""
+    配额耗尽提前结束——已生成条目照常服务，缺的只是可选组件。
+
+    每条富化前检查直答剩余配额：低于 ENRICH_QUOTA_RESERVE 即停止，避免冷启动或
+    热榜大换血时富化吃光配额，后续刷新连新上榜条目的主生成都做不了。
+    单条最多 2 次调用，因此停止时剩余配额可能比底线略低 1–2 次。"""
     if MOCK_MODE or not items:
         return
     enriched = 0
     for item in items:
+        remaining = _zhida_remaining()
+        if ENRICH_QUOTA_RESERVE and remaining is not None and remaining < ENRICH_QUOTA_RESERVE:
+            _log(f"直答剩余配额 {remaining} 次，低于富化底线 {ENRICH_QUOTA_RESERVE}，"
+                 f"跳过其余富化（已富化 {enriched} 条锐评）")
+            return
         if not _enrich_item(item):
             _log(f"富化配额/预算耗尽，提前结束富化 pass（已富化 {enriched} 条锐评）")
             return
@@ -1461,10 +1480,12 @@ def _run_enrichment_pass(items: list) -> None:
 # ---------------------------------------------------------------------------
 # 跨平台核验 crosscheck pass（2026-11-26）：059 线上快照的全功能对照中唯一
 # 没有任何管线产出过的字段（此前只存在于人工富化数据）。用知乎全网搜索拿
-# 真实站外信源（URL 白名单校验，模型不得自造链接），直答生成微博情绪 /
-# 知乎切面 / 事实核验三段摘要。web_search 配额默认 0 时本 pass 静默跳过。
+# 真实站外信源（URL 白名单校验，模型不得自造链接），直答生成事实核验（必填），
+# 站外讨论 / 知乎切面两段为可选。web_search 配额默认 0 时本 pass 静默跳过。
 # ---------------------------------------------------------------------------
-CROSSCHECK_MAX = _env_int("CROSSCHECK_MAX", 10, minimum=0)
+# 每份简报最多核验条数。默认 3：每条核验消耗 1 次全网搜索 + 1–2 次直答，
+# 按 _crosscheck_priority 优先覆盖最需要站外信源的条目。
+CROSSCHECK_MAX = _env_int("CROSSCHECK_MAX", 3, minimum=0)
 CROSSCHECK_LINE_MAX = 40
 CROSSCHECK_FACT_MAX = 80
 CROSSCHECK_SOURCE_NAME_MAX = 20
@@ -1487,27 +1508,31 @@ def _build_crosscheck_prompt(item: dict, candidates: list) -> str:
     lines += [
         "",
         "【输出 JSON 结构】只输出一个 JSON 对象，不要 markdown 代码块、不要解释文字：",
-        '{"weibo":"≤40 字：其他平台（微博/社媒）上的大众情绪走向",'
-        '"zhihu":"≤40 字：知乎站内的讨论切面（角度/画风）",'
-        '"fact":"≤80 字：基于材料能核实到哪一步、还缺什么",'
-        '"sources":[{"name":"≤20 字信源名","index":1}]}',
+        '{"fact":"≤80 字：基于材料能核实到哪一步、还缺什么（必填）",'
+        '"sources":[{"name":"≤20 字信源名","index":1}],'
+        '"weibo":"可选，≤40 字：材料中站外（媒体/社交平台）讨论的走向；材料里没有就填空字符串",'
+        '"zhihu":"可选，≤40 字：知乎站内的讨论切面；材料里没有就填空字符串"}',
         "",
         "【硬性要求】",
         "1. sources 只能选上面的搜索结果，index 必须对应编号，最多 2 条。",
         "2. 材料不足以支撑某项时如实写明，禁止编造情绪、数据或信源。",
+        "3. weibo / zhihu 为可选：材料中看不到站外或站内讨论时直接留空，不要为了填满字段去推测。",
     ]
     return "\n".join(lines)
 
 
 def _sanitize_crosscheck(raw: dict, candidates: list) -> dict | None:
-    """校验 crosscheck 输出：三段摘要齐全 + 至少 1 个白名单信源，否则整体丢弃。
+    """校验 crosscheck 输出：必须有 fact（事实核验）+ 至少 1 个白名单信源，否则整体丢弃。
+
+    weibo（站外讨论走向，字段名沿用以兼容旧快照）与 zhihu（知乎切面）为可选：
+    很多知乎话题在站外并无实质讨论，强制要求只会让核验被丢弃，或诱导模型硬凑。
     sources 的 URL 只能来自 api_web_search 的真实返回（编号映射），模型无权自造。"""
     if not isinstance(raw, dict):
         return None
     weibo = _clip(raw.get("weibo"), CROSSCHECK_LINE_MAX)
     zhihu = _clip(raw.get("zhihu"), CROSSCHECK_LINE_MAX)
     fact = _clip(raw.get("fact"), CROSSCHECK_FACT_MAX)
-    if not (weibo and zhihu and fact):
+    if not fact:
         return None
     allowed = {}
     for idx, c in enumerate(candidates[:5], 1):
@@ -1532,7 +1557,12 @@ def _sanitize_crosscheck(raw: dict, candidates: list) -> dict | None:
                 sources.append({"name": name, "url": url})
     if not sources:
         return None
-    return {"weibo": weibo, "zhihu": zhihu, "fact": fact, "sources": sources}
+    out = {"fact": fact, "sources": sources}
+    if weibo:
+        out["weibo"] = weibo
+    if zhihu:
+        out["zhihu"] = zhihu
+    return out
 
 
 def _crosscheck_item(item: dict) -> bool:
@@ -1581,13 +1611,27 @@ def _crosscheck_item(item: dict) -> bool:
     return True
 
 
+def _crosscheck_priority(item) -> int:
+    """核验优先级（小者优先）：待验证 → 可裁决事实之争 → 其余。
+
+    这两类条目的缺口正是「缺一手事实材料」，站外公开信源最能帮上忙。"""
+    if not isinstance(item, dict):
+        return 9
+    if item.get("type") == TYPE_VERIFY:
+        return 0
+    if item.get("type") == TYPE_DISPUTE and item.get("claim_type") == "fact":
+        return 1
+    return 2
+
+
 def _run_crosscheck_pass(items: list) -> None:
-    """主生成与富化完成后统一核验。CROSSCHECK_MAX 限制每份简报最多核验条数；
+    """主生成与富化完成后统一核验。CROSSCHECK_MAX 限制每份简报最多核验条数，
+    按 _crosscheck_priority 排序处理（稳定排序：同级按热榜排名），不改变简报条目顺序；
     web_search 配额（QUOTA_WEB_SEARCH_DAILY，默认 0）不足时静默少做或跳过。"""
     if MOCK_MODE or not items or CROSSCHECK_MAX <= 0:
         return
     done = 0
-    for item in items:
+    for item in sorted(items, key=_crosscheck_priority):
         if done >= CROSSCHECK_MAX:
             break
         had = bool(item.get("crosscheck"))

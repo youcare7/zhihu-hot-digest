@@ -228,5 +228,57 @@ class TestEnrichmentPass(AppStateTestCase):
         self.assertEqual(len(self.calls), 1)
 
 
+    # ---- 2026-11-27：富化配额底线 ----
+    def test_reserve_skips_enrichment_when_remaining_below_threshold(self):
+        app._chat = self._chat_once
+        app.ENRICH_QUOTA_RESERVE = 20
+        app.QUOTA_LIMITS.update({"zhida": 80})
+        for _ in range(61):              # 已用 61 次 → 剩余 19 < 20
+            app._QUOTA.attempt("zhida")
+        first, second = dispute_item(), consensus_item()
+        app._run_enrichment_pass([first, second])
+        self.assertEqual(self.calls, [])
+        self.assertNotIn("punch", first)
+        self.assertEqual(app._QUOTA.used("zhida"), 61)   # 一次也没多花
+
+    def test_reserve_allows_enrichment_at_threshold_and_stops_when_crossed(self):
+        app._chat = self._chat_once
+        app.ENRICH_QUOTA_RESERVE = 20
+        app.QUOTA_LIMITS.update({"zhida": 80})
+        for _ in range(59):              # 剩余 21 → 富化 1 条后剩 20 → 再 1 条后剩 19，停止
+            app._QUOTA.attempt("zhida")
+        items = [dict(consensus_item(), rank=r) for r in (1, 2, 3, 4)]
+        app._run_enrichment_pass(items)
+        self.assertEqual(len(self.calls), 2)
+        self.assertEqual([("punch" in it) for it in items], [True, True, False, False])
+
+    def test_reserve_zero_disables_threshold(self):
+        app._chat = self._chat_once
+        app.ENRICH_QUOTA_RESERVE = 0
+        app.QUOTA_LIMITS.update({"zhida": 5})
+        for _ in range(4):
+            app._QUOTA.attempt("zhida")
+        item = consensus_item()
+        app._run_enrichment_pass([item])
+        self.assertEqual(item["punch"], "一句足够锋利的锐评")
+
+    def test_reserve_ignored_when_quota_guard_disabled(self):
+        app._chat = self._chat_once
+        app.ENRICH_QUOTA_RESERVE = 20
+        app.QUOTA_GUARD_DISABLED = True
+        app.QUOTA_LIMITS.update({"zhida": 0})
+        item = consensus_item()
+        app._run_enrichment_pass([item])
+        self.assertEqual(item["punch"], "一句足够锋利的锐评")
+
+    def test_reserve_keeps_all_item_types_eligible(self):
+        app._chat = self._chat_once
+        app.ENRICH_QUOTA_RESERVE = 20
+        app.QUOTA_LIMITS.update({"zhida": 80})
+        verify = dict(consensus_item(), rank=3, type="verify")
+        items = [dispute_item(), consensus_item(), verify]
+        app._run_enrichment_pass(items)
+        self.assertTrue(all(it.get("punch") for it in items))
+
 if __name__ == "__main__":
     unittest.main()
