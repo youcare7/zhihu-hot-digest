@@ -33,7 +33,7 @@ jobs:
             exit 1
           fi
           python scripts/daily_archive.py --update-fallback
-          python scripts/build_timeline.py
+          python scripts/build_timeline.py --with-related-past
       - name: Commit and push archive updates
         run: |
           git config user.name "github-actions[bot]"

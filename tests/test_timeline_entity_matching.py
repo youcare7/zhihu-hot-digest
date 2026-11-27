@@ -186,6 +186,69 @@ class TestTimelineEntityMatching(unittest.TestCase):
                 else:
                     os.environ[k] = v
 
+    def test_7_related_past_dual_track_isolation_and_contract(self):
+        app_mod = build_timeline.app
+        topic = {
+            "title": "为什么神舟二十四号外籍航天员名额给了巴基斯坦？",
+            "question_id": "2108916871718073510",
+            "question_ids": ["2108916871718073510"],
+            "entities": ["神舟二十四号"],
+        }
+        orig_search = app_mod.api_search
+        try:
+            app_mod.api_search = lambda q, count=10: [
+                {
+                    "Title": "当前已上榜同题应被排除",
+                    "Url": "https://www.zhihu.com/question/2108916871718073510/answer/1",
+                    "EditTime": 1795700000,
+                },
+                {
+                    "Title": "神舟二十四号站外链接应被拦截",
+                    "Url": "https://evil.example.com/news/1",
+                    "EditTime": 1795600000,
+                },
+                {
+                    "Title": "无关热点不应该混入神舟时间线",
+                    "Url": "https://www.zhihu.com/question/9990001",
+                    "EditTime": 1795650000,
+                },
+                {
+                    "Title": "神舟二十四号早期发射窗口讨论",
+                    "Url": "https://www.zhihu.com/question/1000001/answer/11",
+                    "EditTime": 1795400000,
+                },
+                {
+                    "Title": "神舟二十四号早期发射窗口讨论重复问题",
+                    "Url": "https://www.zhihu.com/question/1000001/answer/22",
+                    "EditTime": 1795300000,
+                },
+                {
+                    "Title": "神舟二十四号乘组选拔机制解读（毫秒时间戳）",
+                    "Url": "https://www.zhihu.com/question/1000002/answer/33",
+                    "EditTime": 1795500000000,
+                },
+            ]
+            rows = build_timeline.fetch_related_past(topic, limit=3)
+            self.assertEqual([r["question_id"] for r in rows], ["1000002", "1000001"])
+            self.assertEqual(rows[0]["edit_time"], 1795500000)
+            self.assertRegex(rows[0]["edit_date"], r"^\d{4}-\d{2}-\d{2}$")
+            for row in rows:
+                self.assertNotIn("state", row)
+                self.assertNotIn("status", row)
+                self.assertNotIn("state_label", row)
+
+            def boom(*args, **kwargs):
+                raise app_mod.UpstreamError("quota")
+
+            app_mod.api_search = boom
+            self.assertEqual(build_timeline.fetch_related_past(topic), [])
+        finally:
+            app_mod.api_search = orig_search
+
+        html = app_mod.INDEX_PATH.read_text(encoding="utf-8")
+        self.assertIn("related_past", html)
+        self.assertIn("按编辑时间排序，不代表事件进程", html)
+
 
 if __name__ == "__main__":
     unittest.main()

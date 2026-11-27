@@ -77,6 +77,79 @@ def safe_http_url(value):
     return text if re.match(r"^https?://\S+$", text, re.IGNORECASE) else ""
 
 
+def _normalize_edit_ts(value):
+    """把秒/毫秒级 EditTime 统一成 (unix_sec, YYYY-MM-DD)；非法值返回 (0, '')。"""
+    if isinstance(value, bool):
+        return 0, ""
+    try:
+        ts = int(float(value))
+    except (TypeError, ValueError):
+        return 0, ""
+    if 10**11 <= ts < 10**14:
+        ts //= 1000
+    if ts <= 0:
+        return 0, ""
+    try:
+        date_str = datetime.datetime.fromtimestamp(ts, app.CN_TZ).strftime("%Y-%m-%d")
+        return ts, date_str
+    except (OverflowError, OSError, ValueError):
+        return 0, ""
+
+
+def fetch_related_past(topic, limit=3):
+    """双轨隔离的「往期站内讨论」：纯程序按硬实体检索与去重，不调模型、不打三态、不入 nodes[]。"""
+    title = str(topic.get("title") or "").strip()
+    entities = [str(e).strip().lower() for e in (topic.get("entities") or []) if str(e).strip()]
+    query = " ".join(entities[:2]).strip() if entities else denoise_title(title)[:24]
+    if not query:
+        return []
+    try:
+        candidates = app.api_search(query, count=10)
+    except Exception:
+        return []
+    if not isinstance(candidates, list):
+        return []
+
+    existing_qids = {str(q) for q in (topic.get("question_ids") or []) if str(q)}
+    if topic.get("question_id"):
+        existing_qids.add(str(topic["question_id"]))
+    title_kw = event_keywords(denoise_title(title))
+    seen_qids = set()
+    rows = []
+    for entry in candidates:
+        if not isinstance(entry, dict):
+            continue
+        c_title = str(entry.get("Title") or "").strip()
+        c_url = safe_http_url(entry.get("Url"))
+        if not c_title or not c_url or not app._is_zhihu_url(c_url):
+            continue
+        qid = question_id({"question_url": c_url})
+        if qid and (qid in existing_qids or qid in seen_qids):
+            continue
+        lowered = c_title.lower()
+        if entities:
+            if not any(ent in lowered for ent in entities):
+                continue
+        else:
+            c_kw = event_keywords(denoise_title(c_title))
+            if len(title_kw & c_kw) < 2:
+                continue
+        if qid:
+            seen_qids.add(qid)
+        edit_ts, edit_date = _normalize_edit_ts(entry.get("EditTime"))
+        row = {
+            "title": c_title,
+            "url": c_url,
+            "question_id": qid,
+            "edit_time": edit_ts,
+            "edit_date": edit_date,
+        }
+        rows.append(row)
+
+    rows.sort(key=lambda r: (r["edit_time"], r["title"]), reverse=True)
+    return rows[:max(0, int(limit))]
+
+
 def date_label(value):
     """把 ISO 日期转成前端可读的「11月21日」；非法值原样回落。"""
     try:
@@ -525,7 +598,7 @@ def build_archives_view(archives):
 # ---------------------------------------------------------------------------
 # 主构建
 # ---------------------------------------------------------------------------
-def build_timeline(min_days=2):
+def build_timeline(min_days=2, with_related_past=False):
     aliases = load_aliases()
     alias_map = aliases.get("aliases") if isinstance(aliases.get("aliases"), dict) else {}
     splits = aliases.get("splits") if isinstance(aliases.get("splits"), list) else []
@@ -690,6 +763,11 @@ def build_timeline(min_days=2):
         reverse=True,
     )
     topics = topics[:8]
+    if with_related_past and (app.ZHIHU_ACCESS_SECRET or app.MOCK_MODE):
+        for topic in topics:
+            past = fetch_related_past(topic, limit=3)
+            if past:
+                topic["related_past"] = past
     missing = missing_dates(present_dates)
     tracked_days = (
         (datetime.date.fromisoformat(max(present_dates))
@@ -709,8 +787,9 @@ def build_timeline(min_days=2):
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--min-days", type=int, default=2)
+    parser.add_argument("--with-related-past", action="store_true")
     args = parser.parse_args(argv)
-    result = build_timeline(max(1, args.min_days))
+    result = build_timeline(max(1, args.min_days), with_related_past=args.with_related_past)
     atomic_write_json(TIMELINE_PATH, result)
     js_payload = app._js_safe_json(json.dumps(result, ensure_ascii=False))
     atomic_write_text(DEMO_TIMELINE_PATH, f"window.TIMELINE_DATA = {js_payload};")

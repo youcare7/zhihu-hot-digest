@@ -755,6 +755,13 @@
   .flow-arrow { color: var(--muted); font-size: 11.5px; }
   .entity-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .entity-tag { font-size: 11.5px; color: var(--secondary); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; }
+  .related-past { margin-top: 14px; padding: 10px 14px; border: 1px dashed var(--line); border-radius: 12px; background: rgba(255,255,255,.45); }
+  .related-past summary { cursor: pointer; font-size: 12.5px; color: var(--secondary); font-weight: 600; }
+  .related-past-list { margin: 8px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+  .related-past-item { font-size: 12.5px; color: var(--secondary); line-height: 1.65; }
+  .related-past-item a { color: var(--blue); text-decoration: none; }
+  .related-past-item a:hover { text-decoration: underline; }
+  .related-past-date { margin-left: 6px; font-size: 11.5px; color: var(--muted); }
   .archive-section { max-width: 860px; margin: 38px auto 64px; }
   .archive-heading { margin: 0 0 6px; font-family: var(--serif); font-size: clamp(20px, 2.6vw, 26px); }
   .archive-sub { margin: 0 0 18px; color: var(--muted); font-size: 13px; line-height: 1.8; }
@@ -2387,6 +2394,26 @@
           list.appendChild(item);
         });
         card.appendChild(list);
+      }
+      var pastList = Array.isArray(topic.related_past) ? topic.related_past : [];
+      var validPast = pastList.filter(function (entry) {
+        return entry && entry.title && safeTimelineUrl(entry.url);
+      });
+      if (validPast.length) {
+        var pastBox = el('details', 'related-past');
+        pastBox.appendChild(el('summary', null,
+          '往期站内讨论（' + validPast.length + ' 条 · 按编辑时间排序，不代表事件进程）'));
+        var pastUl = el('ul', 'related-past-list');
+        validPast.forEach(function (entry) {
+          var li = el('li', 'related-past-item');
+          li.appendChild(timelineLink(entry.url, null, entry.title));
+          if (entry.edit_date) {
+            li.appendChild(el('span', 'related-past-date', '编辑于 ' + entry.edit_date));
+          }
+          pastUl.appendChild(li);
+        });
+        pastBox.appendChild(pastUl);
+        card.appendChild(pastBox);
       }
       listEl.appendChild(card);
     });
