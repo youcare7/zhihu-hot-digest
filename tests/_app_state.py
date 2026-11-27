@@ -77,6 +77,9 @@ class AppStateTestCase(unittest.TestCase):
         self._saved_env_verbose = os.environ.get("HEALTHZ_VERBOSE")
         self._tmp_dir_obj = tempfile.TemporaryDirectory()
         self.tmp_path = pathlib.Path(self._tmp_dir_obj.name)
+        # 每个用例默认从独立的零计数器开始，避免仓库运行时计数影响分层预算，
+        # 也防止测试中的模拟请求写回真实 data/quota_counters.json。
+        app._QUOTA = app.QuotaGuard(self.tmp_path / "quota.json")
         # 增量刷新默认关闭：不少既有用例没有重定向 DATA_DIR，开启会把条目池写进
         # 仓库 data/ 并在用例之间串味。只在 test_incremental_refresh.py 中显式开启。
         app.INCREMENTAL_REFRESH = False

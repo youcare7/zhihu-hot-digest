@@ -185,6 +185,50 @@ class TestQuotaResilience(AppStateTestCase):
                          ["背景-热点101", app.NO_BACKGROUND, app.NO_BACKGROUND])
         self.assertTrue(any("主生成分层预算耗尽" in message for message in self.logs))
 
+    def test_main_respects_daily_reserve_when_quota_partly_used(self):
+        app.ZHIDA_MAIN_BUDGET = 45
+        app.ZHIDA_ENRICH_BUDGET = 20
+        app.ZHIDA_CROSSCHECK_BUDGET = 15
+        for _ in range(50):
+            self.assertTrue(app._QUOTA.attempt("zhida"))
+        app.GEN_BUDGET_SECONDS = 0
+        app.api_hot_list = lambda: hot(101)
+        generate_calls = []
+
+        def unexpected_generate(title, text):
+            generate_calls.append(title)
+            self.assertTrue(app._QUOTA.attempt("zhida"))
+            return {"type": "consensus", "background": "不应生成", "reading": []}
+
+        app.generate = unexpected_generate
+        with mock.patch.object(app, "_run_enrichment_pass", lambda items: None), \
+                mock.patch.object(app, "_run_crosscheck_pass", lambda items: None):
+            brief = app.build_brief()
+
+        self.assertEqual(generate_calls, [])
+        self.assertEqual(app._QUOTA.used("zhida"), 50)
+        self.assertEqual(brief["items"][0]["background"], app.NO_BACKGROUND)
+
+    def test_enrichment_keeps_crosscheck_daily_reserve(self):
+        app.ZHIDA_ENRICH_BUDGET = 20
+        app.ZHIDA_CROSSCHECK_BUDGET = 15
+        for _ in range(60):
+            self.assertTrue(app._QUOTA.attempt("zhida"))
+        enrich_calls = []
+
+        def counted_enrich(item):
+            enrich_calls.append(item["rank"])
+            self.assertTrue(app._QUOTA.attempt("zhida"))
+            item["punch"] = "锐评"
+            return True
+
+        items = [make_item(rank, 100 + rank) for rank in range(1, 7)]
+        with mock.patch.object(app, "_enrich_item", counted_enrich):
+            app._run_enrichment_pass(items)
+
+        self.assertEqual(enrich_calls, [1, 2, 3, 4, 5])
+        self.assertEqual(app._QUOTA.used("zhida"), 65)  # 给 crosscheck 留下完整 15 次
+
     def test_enrichment_budget_stops_before_second_item(self):
         app.ZHIDA_ENRICH_BUDGET = 1
         enrich_calls = []
