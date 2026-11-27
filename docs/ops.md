@@ -61,6 +61,8 @@ tcb cloudrun deploy \
 - `ITEM_REUSE_MAX_HOURS`：单条最长复用时长（小时），默认 `0` = 当日内不限，跨日自动失效。
 - `QUOTA_ZHIDA_DAILY` / `QUOTA_HOT_LIST_DAILY` / `QUOTA_SEARCH_DAILY` / `QUOTA_MODEL_ALT_DAILY` / `QUOTA_WEB_SEARCH_DAILY`：统一 `QuotaGuard` 日配额熔断上限（默认 `80` / `100` / `2000` / `500` / `0`，持久化于 `data/quota_counters.json`）。
 - `CROSSCHECK_MAX`：每份简报最多生成几条跨平台核验，默认 `10`。实际是否生成取决于 `QUOTA_WEB_SEARCH_DAILY`（默认 `0` = 关闭）；开启前请确认全网搜索配额，每条核验消耗 1 次全网搜索 + 最多 2 次直答。
+- 配额韧性（PR #14，均有默认值，云端不配也能跑）：`ZHIDA_MAIN_BUDGET` / `ZHIDA_ENRICH_BUDGET` / `ZHIDA_CROSSCHECK_BUDGET` 为单次简报内主生成/富化/核验的 zhida 分层上限（默认 `45` / `20` / `15`，合计 80 = 日限），防止主生成吃光配额导致富化、核验静默归零；`CROSSCHECK_BUDGET_SECONDS` 为核验 pass 独立时间预算（默认 `90`）；`COVERAGE_TOLERANCE`（默认 `4`）与 `COVERAGE_SKIP_REGEN_RATIO`（默认 `0.6`）控制防劣化：同榜单重生成字段覆盖显著下降时保留旧缓存，热榜未变且旧缓存接近满配时跳过重生成。
+- 排查提示：`HEALTHZ_VERBOSE=1` 时 `/healthz` 返回 `punch_count` / `lou_count` / `crosscheck_count` / `cross_platform_count` / `web_evidence_found_count` / `field_coverage` 及 `web_search_calls_today` / `web_search_daily_limit`，可直接判断某个 pass 是否静默跳过，无需再拉 `/data.js` 数字段。核验 pass 提前结束的日志会按真实原因区分「全网搜索配额耗尽 / 直答配额耗尽 / 整批时间预算已耗尽」。
 - 来源保护：后台刷新只跳过来源标注为人工整理（`provenance: "curated"`）的缓存；程序生成的跨平台核验不会阻止刷新。
 
 ## 分步验证命令
