@@ -1219,6 +1219,19 @@ def _reuse_item(old: dict, rank: int, hot: dict) -> dict:
     return item
 
 
+def _zhida_stage_exhausted(start_used: int, stage_budget: int, reserve_after: int = 0) -> bool:
+    """阶段额度与当日剩余量双重约束，始终给后续阶段保留 reserve_after 次调用。
+
+    只看阶段预算不够：部署/重试发生在日中途时，主生成仍可能把仅剩的当日额度吃光。
+    """
+    used = _QUOTA.used("zhida")
+    if stage_budget and used - start_used >= stage_budget:
+        return True
+    if QUOTA_GUARD_DISABLED:
+        return False
+    return QUOTA_LIMITS["zhida"] - used <= reserve_after
+
+
 def build_brief() -> dict:
     """实时生成整份简报（含 mock 分支）。"""
     global _GEN_DEADLINE, _WEB_EVIDENCE_BUDGET
@@ -1263,7 +1276,9 @@ def build_brief() -> dict:
         zhida_main_start = _QUOTA.used("zhida")
         for i, hot in enumerate(hot_items):
             if items[i] is None:
-                if ZHIDA_MAIN_BUDGET and _QUOTA.used("zhida") - zhida_main_start >= ZHIDA_MAIN_BUDGET:
+                if _zhida_stage_exhausted(
+                        zhida_main_start, ZHIDA_MAIN_BUDGET,
+                        ZHIDA_ENRICH_BUDGET + ZHIDA_CROSSCHECK_BUDGET):
                     items[i] = _base_item(i + 1, hot)
                     _log(f"主生成分层预算耗尽（{ZHIDA_MAIN_BUDGET} 次），第 {i + 1} 条降级保留，配额留给富化/核验")
                     continue
@@ -1277,7 +1292,9 @@ def build_brief() -> dict:
         if degraded and (not _GEN_DEADLINE or time.monotonic() < _GEN_DEADLINE):
             _log(f"首轮生成完成，{len(degraded)} 条降级，收尾补跑")
             for idx in degraded:
-                if ZHIDA_MAIN_BUDGET and _QUOTA.used("zhida") - zhida_main_start >= ZHIDA_MAIN_BUDGET:
+                if _zhida_stage_exhausted(
+                        zhida_main_start, ZHIDA_MAIN_BUDGET,
+                        ZHIDA_ENRICH_BUDGET + ZHIDA_CROSSCHECK_BUDGET):
                     _log("主生成分层预算耗尽，跳过后续补跑，配额留给富化/核验")
                     break
                 items[idx] = process_item(items[idx]["rank"], hot_items[idx])
@@ -1481,7 +1498,7 @@ def _run_enrichment_pass(items: list) -> None:
     enriched = 0
     zhida_start = _QUOTA.used("zhida")
     for item in items:
-        if ZHIDA_ENRICH_BUDGET and _QUOTA.used("zhida") - zhida_start >= ZHIDA_ENRICH_BUDGET:
+        if _zhida_stage_exhausted(zhida_start, ZHIDA_ENRICH_BUDGET, ZHIDA_CROSSCHECK_BUDGET):
             _log(f"富化分层预算耗尽（{ZHIDA_ENRICH_BUDGET} 次），提前结束富化 pass（已富化 {enriched} 条锐评）")
             return
         if not _enrich_item(item):
