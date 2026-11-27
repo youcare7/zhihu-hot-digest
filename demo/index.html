@@ -133,6 +133,12 @@
   .stat-pill { display: inline-flex; align-items: baseline; gap: 6px; padding: 7px 14px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,254,250,.78); }
   .stat-pill b { font: 600 18px/1 Georgia, serif; color: var(--blue); }
   .stat-pill span { font-size: 11.5px; color: var(--secondary); letter-spacing: .04em; }
+  /* 今日洞察：后端确定性产出的 headline + insights */
+  .cover-digest { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .cover-digest .today-heading { margin-top: 8px; font-size: 16px; }
+  .cover-digest .insight-list { margin: 0; }
+  /* 无跨平台核验时印章仍按分类文案展示，但不假装可点 */
+  .stamp:disabled { opacity: 1; cursor: default; }
   /* 点吉祥物：气泡轮换 + 轻弹跳 */
   .ks-unit { cursor: pointer; }
   @keyframes ks-pop { 0% { transform: scale(1); } 40% { transform: scale(1.07) rotate(-2deg); } 100% { transform: scale(1); } }
@@ -786,6 +792,7 @@
   function toGif(u) { return u.replace(/\.webp($|\?)/, '.gif$1'); }
   window.__ksAnimFallback = false;
   window.__ksAnimUrl = function (u) {
+    u = String(u || '');
     u = window.__ksAnimFallback ? toGif(u) : u;
     return u.indexOf('?') >= 0 ? u : u + '?v=2';
   };
@@ -860,6 +867,11 @@
             <span class="meta-line"><span id="cover-date">今日简报</span> · <span id="cover-source">3 类判断</span></span>
           </div>
         </div>
+      </div>
+      <div id="digest-card" class="cover-digest" hidden>
+        <span class="section-eyebrow">今日洞察 · 由程序按三态统计生成</span>
+        <p id="digest-headline" class="today-heading"></p>
+        <ul id="digest-insights" class="insight-list"></ul>
       </div>
       <p class="swipe-note">进入热点后，左右滑动即可翻页；垂直滚动不受影响。</p>
     </div>
@@ -983,7 +995,9 @@
   // demo（静态示例 / mock 模拟）模式下所有链接不可点，防止假链接被误点。
   // 即使旧缓存把 source 改成了 cache，也必须保持示例标识，不能显示「当日缓存」。
   var isDemo = data.source === 'demo'
+    || data.demo === true
     || String(data.notice || '').indexOf('模拟数据') !== -1
+    || String(data.notice || '').indexOf('本地预览') !== -1
     || String(data.generated_at || '').indexOf('模拟') !== -1;
 
   // 人工整理快照：后端会标注 provenance=curated；双击本地预览（无后端）时按链接域名自行判定。
@@ -1116,6 +1130,22 @@
   document.getElementById('stat-total').textContent = data.items.length;
   document.getElementById('stat-dispute').textContent = byType.dispute;
   document.getElementById('stat-verify').textContent = byType.verify;
+
+  // 今日洞察：headline / insights 由后端 build_digest() 确定性计算，
+  // 不交给模型，也不在前端另写一套措辞；缺字段时整块保持隐藏。
+  var digestCard = document.getElementById('digest-card');
+  var dg = (data.digest && typeof data.digest === 'object') ? data.digest : null;
+  if (digestCard && dg && (dg.headline || (Array.isArray(dg.insights) && dg.insights.length))) {
+    var digestHeadline = document.getElementById('digest-headline');
+    var digestList = document.getElementById('digest-insights');
+    if (digestHeadline) digestHeadline.textContent = String(dg.headline || '');
+    if (digestList) {
+      (Array.isArray(dg.insights) ? dg.insights : []).forEach(function (line) {
+        if (line) digestList.appendChild(el('li', '', String(line)));
+      });
+    }
+    digestCard.hidden = false;
+  }
 
   // 点吉祥物：气泡在自我介绍 / 动态钩子 / 今日看山说之间轮换，附轻弹跳
   var ksUnit = document.querySelector('.ks-unit');
@@ -1558,19 +1588,32 @@
     return btn;
   }
 
+  // 两个入口共用同一个状态切换，避免「点印章收起后文字按钮仍显示展开」。
+  function toggleXp(wrap) {
+    if (!wrap) return;
+    var panel = wrap.querySelector('.xpanel');
+    if (!panel) return;
+    var open = panel.classList.toggle('open');
+    var scope = wrap.parentElement || wrap;
+    var btns = scope.querySelectorAll('.stamp, .xp-open-btn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (btns[i].classList.contains('xp-open-btn')) {
+        btns[i].textContent = open
+          ? '跨平台核验（' + XP_KIND + '）· 收起 ▴'
+          : '跨平台核验（' + XP_KIND + '）· 微博情绪 / 知乎切面 / 事实信源 ▾';
+      }
+    }
+  }
+
   // 跨平台核验显式入口：文字按钮与印章联动同一个 xpanel（解决「看不到聚合结果」）
   function makeXpOpen() {
     var btn = el('button', 'xp-open-btn', '跨平台核验（' + XP_KIND + '）· 微博情绪 / 知乎切面 / 事实信源 ▾');
     btn.type = 'button';
     btn.setAttribute('aria-expanded', 'false');
     btn.addEventListener('click', function () {
-      var wrap = btn.parentElement.querySelector('.stamp-wrap');
-      var panel = wrap && wrap.querySelector('.xpanel');
-      var stampBtn = wrap && wrap.querySelector('.stamp');
-      if (!panel) return;
-      var open = panel.classList.toggle('open');
-      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (stampBtn) stampBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      var wrap = btn.parentElement && btn.parentElement.querySelector('.stamp-wrap');
+      toggleXp(wrap);
     });
     return btn;
   }
@@ -1581,9 +1624,11 @@
     var btn = el('button', 'stamp ' + cls, text);
     btn.type = 'button';
     btn.setAttribute('aria-expanded', 'false');
-    btn.title = '点开跨平台核验';
-    wrap.appendChild(btn);
     var cc = item.crosscheck;
+    // 无核验数据时不再给「点开跨平台核验」的假提示，也不留一个无事件的死按钮。
+    btn.title = cc ? '点开跨平台核验' : '本条暂无跨平台核验';
+    btn.disabled = !cc;
+    wrap.appendChild(btn);
     if (!cc) return wrap;
     var panel = el('div', 'xpanel');
     panel.setAttribute('role', 'region');
@@ -1592,12 +1637,12 @@
     [['微博', 'weibo', 'xp-weibo'], ['知乎', 'zhihu', 'xp-zhihu']].forEach(function (r) {
       var row = el('div', 'xp-row');
       row.appendChild(el('span', 'xp-tag ' + r[2], r[0]));
-      row.appendChild(document.createTextNode(cc[r[1]]));
+      row.appendChild(document.createTextNode(String(cc[r[1]] || '')));
       panel.appendChild(row);
     });
     var frow = el('div', 'xp-row xp-factrow');
     frow.appendChild(el('span', 'xp-tag xp-fact', '核验'));
-    frow.appendChild(document.createTextNode(cc.fact));
+    frow.appendChild(document.createTextNode(String(cc.fact || '')));
     panel.appendChild(frow);
     if (cc.sources && cc.sources.length) {
       var srcs = el('div', 'xp-srcs');
@@ -1611,10 +1656,7 @@
       panel.appendChild(srcs);
     }
     wrap.appendChild(panel);
-    btn.addEventListener('click', function () {
-      var open = panel.classList.toggle('open');
-      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    });
+    btn.addEventListener('click', function () { toggleXp(wrap); });
     return wrap;
   }
 
@@ -1625,7 +1667,7 @@
       var box = el('div', 'vote-result ' + choice);
       var label = choice === 'blue' ? '你站了蓝方' : choice === 'orange' ? '你站了橙方' : '你选择了吃瓜';
       box.appendChild(el('b', '', label));
-      box.appendChild(document.createTextNode('｜' + item.vote[choice]));
+      box.appendChild(document.createTextNode('｜' + String(item.vote[choice] || '')));
       var again = el('button', 'again', '重选');
       again.type = 'button';
       again.addEventListener('click', function () {
@@ -1732,7 +1774,7 @@
         [['a', 0], ['b', 1]].forEach(function (cfg) {
           var bubble = el('div', 'bubble ' + cfg[0]);
           bubble.appendChild(el('b', '', item.sides[cfg[1]].label));
-          bubble.appendChild(document.createTextNode(item.quotes[cfg[1]]));
+          bubble.appendChild(document.createTextNode(String(item.quotes[cfg[1]] || '')));
           pk.appendChild(bubble);
         });
         card.appendChild(pk);
@@ -1740,7 +1782,7 @@
         card.appendChild(el('p', 'hook', clipOne(item.focus, 64)));
       }
       // 速览层④：看山吃瓜嘴替（动态 GIF + 一句大白话吐槽）
-      if (item.kanshan) {
+      if (item.kanshan && item.kanshan.gif) {
         var quip = el('div', 'ks-quip');
         var ksImg = el('img');
         ksImg.src = window.__ksAnimUrl(item.kanshan.gif);
@@ -1750,7 +1792,7 @@
         quip.appendChild(ksImg);
         var quipText = el('div', 'q');
         quipText.appendChild(el('b', '', '看山说'));
-        quipText.appendChild(document.createTextNode(item.kanshan.line));
+        quipText.appendChild(document.createTextNode(String(item.kanshan.line || '')));
         quip.appendChild(quipText);
         card.appendChild(quip);
       }
@@ -1881,9 +1923,10 @@
         });
         var goLink = el('a', 'lou-go', '去原题写回答 ↗');
         if (!isDemo && item.question_url) {
-          goLink.href = item.question_url;
+          goLink.href = safeHref(item.question_url);
           goLink.target = '_blank';
-          goLink.rel = 'noopener';
+          goLink.rel = 'noopener noreferrer';
+          if (!isZhihuUrl(item.question_url)) goLink.appendChild(offsiteTag());
         } else {
           goLink.classList.add('disabled');
         }
@@ -1994,7 +2037,8 @@
       return;
     }
     link.classList.add('zhihu-link');
-    link.setAttribute('aria-label', link.textContent.trim() + '（在知乎新窗口打开）');
+    link.setAttribute('aria-label', link.textContent.trim()
+      + (isZhihuUrl(link.href) ? '（在知乎新窗口打开）' : '（站外链接，新窗口打开）'));
   });
 
   // ---------- 分页、连续阅读与深链 ----------

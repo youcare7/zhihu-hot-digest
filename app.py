@@ -1174,8 +1174,25 @@ def _pool_put(items: list) -> None:
         _log(f"条目池落盘失败（不影响本次生成，只是下次少复用）：{exc}")
 
 
+_REUSE_ENRICH_FIELDS = ("punch", "vote", "quotes", "lou", "crosscheck", "web_evidence")
+
+
+def _merge_reuse(cached, pooled: dict) -> dict:
+    """池条目（较新正文）为基底，缓存里已有的富化/核验字段只补缺、不覆盖。
+
+    生成中途失败时池里可能只有未富化版本；旧实现直接覆盖缓存，会把上一版
+    punch/lou/crosscheck 整体回退。字段级合并保证已花配额换来的组件不丢。
+    """
+    merged = dict(pooled)
+    if isinstance(cached, dict):
+        for field in _REUSE_ENRICH_FIELDS:
+            if not merged.get(field) and cached.get(field):
+                merged[field] = copy.deepcopy(cached[field])
+    return merged
+
+
 def _build_reuse_index() -> dict:
-    """键 → 可复用条目。条目池（更新）覆盖当日缓存；已带 crosscheck 的缓存条目优先保留，免得重复调用核验。"""
+    """键 → 可复用条目。条目池提供较新正文，当日缓存补齐富化/核验字段。"""
     if MOCK_MODE or not INCREMENTAL_REFRESH:
         return {}
     index = {}
@@ -1189,9 +1206,7 @@ def _build_reuse_index() -> dict:
         if not _is_reusable(it):
             continue
         for k in _item_keys(it.get("title"), it.get("question_url")):
-            if isinstance(index.get(k), dict) and index[k].get("crosscheck"):
-                continue
-            index[k] = it
+            index[k] = _merge_reuse(index.get(k), it)
     return index
 
 
@@ -1432,9 +1447,10 @@ def _enrich_item(item: dict) -> bool:
         return True  # 降级条目没有可加工的材料，保持降级、跳过
     sides = item.get("sides") or []
     want_vote = item.get("type") == TYPE_DISPUTE and len(sides) == 2
-    need = not item.get("punch") or (
-        want_vote and not (item.get("vote") and len(item.get("quotes") or []) == 2)
-    )
+    # lou（楼上导读）也必须纳入完整性：旧实现只看 punch，模型漏了 lou 时
+    # 第一次调用即判定成功，之后 need=False 永远不再补采，组件静默永久缺失。
+    need = (not item.get("punch") or not item.get("lou")
+            or (want_vote and not (item.get("vote") and len(item.get("quotes") or []) == 2)))
     if not need:
         return True
     messages = [{"role": "user", "content": _build_enrich_prompt(item, want_vote)}]
@@ -1467,7 +1483,8 @@ def _enrich_item(item: dict) -> bool:
             item["quotes"] = got["quotes"]
         if got.get("lou"):
             item["lou"] = got["lou"]
-        if item.get("punch") and (not want_vote or (item.get("vote") and item.get("quotes"))):
+        if (item.get("punch") and item.get("lou")
+                and (not want_vote or (item.get("vote") and item.get("quotes")))):
             return True
         if attempt == 2:
             _log(f"  第 {item.get('rank')} 条富化输出缺字段，重试后仍不完整，组件保持关闭")
@@ -1591,6 +1608,28 @@ def _build_crosscheck_prompt(item: dict, candidates: list) -> str:
     return "\n".join(lines)
 
 
+def _is_safe_crosscheck_url(url) -> bool:
+    """核验信源只接受 http(s) 真实域名：挡伪协议、IP 字面量、缺 host 的脏链接。
+
+    知乎站内链接是既有契约（「知乎切面」本来就引用站内讨论），允许保留；
+    相比旧的 startswith 判断，这里补上 IP / 伪协议 / 无主机名校验。
+    """
+    try:
+        parsed = urllib.parse.urlparse(str(url or "").strip())
+    except (TypeError, ValueError):
+        return False
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if parsed.scheme not in ("http", "https") or not host or "." not in host:
+        return False
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        pass
+    else:
+        return False
+    return True
+
+
 def _sanitize_crosscheck(raw: dict, candidates: list) -> dict | None:
     """校验 crosscheck 输出：三段摘要齐全 + 至少 1 个白名单信源，否则整体丢弃。
     sources 的 URL 只能来自 api_web_search 的真实返回（编号映射），模型无权自造。"""
@@ -1606,7 +1645,7 @@ def _sanitize_crosscheck(raw: dict, candidates: list) -> dict | None:
         if not isinstance(c, dict):
             continue
         url = str(c.get("Url") or "").strip()
-        if url.startswith(("http://", "https://")):
+        if _is_safe_crosscheck_url(url):
             allowed[idx] = url
     sources = []
     seen = set()
@@ -1746,7 +1785,16 @@ def _run_crosscheck_pass(items: list) -> None:
             return
         had = bool(item.get("crosscheck"))
         if not _crosscheck_item(item):
-            _log(f"crosscheck：web_search 配额耗尽，提前结束（已核验 {done} 条）")
+            # 失败原因必须按真实配额状态归因：_crosscheck_item 返回 False 既可能是
+            # web_search 检索被拦，也可能是直答 zhida 配额/整批时间预算耗尽。
+            # 旧日志一律写「web_search 配额耗尽」，会把明早排查带偏（交接文档 §5.2）。
+            if _QUOTA.exhausted("web_search"):
+                reason = "全网搜索配额耗尽"
+            elif _QUOTA.exhausted("zhida"):
+                reason = "直答配额耗尽"
+            else:
+                reason = "整批时间预算已耗尽"
+            _log(f"crosscheck：{reason}，提前结束（已核验 {done} 条）")
             return
         if item.get("crosscheck") and not had:
             done += 1
@@ -2485,6 +2533,15 @@ def healthz():
             "crosscheck_count": sum(1 for it in cached_items if it.get("crosscheck")),
             "cross_platform_count": sum(1 for it in cached_items if it.get("cross_platform")),
             "field_coverage": _field_coverage(cached),
+            # 逐字段覆盖计数 + 配额池用量：排查「某个 pass 静默跳过」时不用再拉 data.js 数字段
+            "punch_count": sum(1 for it in cached_items if it.get("punch")),
+            "lou_count": sum(1 for it in cached_items if it.get("lou")),
+            "web_evidence_found_count": sum(
+                1 for it in cached_items
+                if isinstance(it.get("web_evidence"), dict)
+                and it["web_evidence"].get("status") == "found"),
+            "web_search_calls_today": _QUOTA.used("web_search"),
+            "web_search_daily_limit": QUOTA_LIMITS.get("web_search", 0),
         })
     return Response(
         json.dumps(payload, ensure_ascii=False),
