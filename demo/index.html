@@ -576,6 +576,45 @@
   .xp-factrow { border-top: 1px dashed var(--line); margin-top: 6px; padding-top: 6px; }
   .xp-srcs { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
   .xp-srcs a { font-size: 12.5px; color: var(--blue); text-decoration: none; border-bottom: 1px dotted var(--blue); }
+  /* ---- 多平台聚合（2026-11-27）：温差标签 + 跨平台综合判断 + 平台引证面板 ---- */
+  /* 温差标签由后端规则模板生成（在榜平台数/层级/是否有 T1 权威信源），不由大模型现写 */
+  .xp-temp { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 12px; padding: 8px 13px; border: 1px solid rgba(5,109,232,.22); border-radius: 10px; background: #f2f7fd; color: #2b5ea6; font-size: 12.5px; line-height: 1.7; }
+  .xp-temp .pt { display: inline-flex; align-items: center; gap: 5px; }
+  .xp-temp .pt::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .55; }
+  .xp-temp .pt.strong { font-weight: 600; color: var(--blue); }
+  .xp-temp.muted { border-color: var(--line); background: var(--raised); color: var(--muted); }
+  .xp-temp .rule-note { margin-left: auto; font-size: 11px; color: var(--muted); }
+  .xp-verdict { margin-top: 12px; font-family: var(--serif); font-size: 15px; line-height: 1.9; color: #242b33; }
+  .xp-verdict .lbl { display: block; margin-bottom: 3px; color: var(--muted); font-size: 11px; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; letter-spacing: .14em; }
+  .xp-ev-block { margin-top: 14px; }
+  .xp-ev-label { display: block; margin-bottom: 8px; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .14em; }
+  .xp-capsules { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .xp-capsules::-webkit-scrollbar { display: none; }
+  .xp-capsule { flex: none; padding: 4px 13px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--secondary); font-size: 12.5px; white-space: nowrap; cursor: pointer; }
+  .xp-capsule:hover { border-color: rgba(5,109,232,.4); color: var(--blue); }
+  .xp-capsule.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .xp-capsule .cnt { opacity: .62; font-size: 11px; margin-left: 3px; }
+  .xp-ev-panel { display: grid; gap: 10px; margin-top: 10px; }
+  .xp-ev-item { position: relative; padding: 12px 15px 12px 19px; border: 1px solid var(--line); border-radius: 12px; background: var(--raised); overflow-wrap: anywhere; }
+  .xp-ev-item::before { content: ""; position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0; background: var(--muted); opacity: .4; }
+  .xp-ev-item.tier-1::before { background: var(--green); opacity: .85; }
+  .xp-ev-item.tier-2::before { background: var(--blue); opacity: .8; }
+  .xp-ev-item.tier-3::before { background: var(--muted); opacity: .55; }
+  .xp-ev-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; font-size: 12px; color: var(--secondary); }
+  .xp-ev-platform { font-weight: 600; color: var(--ink); }
+  .xp-ev-time { margin-left: auto; color: var(--muted); font-size: 11.5px; }
+  .xp-ev-author { margin-top: 6px; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+  .xp-ev-excerpt { margin-top: 3px; font-size: 13.5px; color: var(--secondary); line-height: 1.8; }
+  .xp-ev-link { display: inline-block; margin-top: 7px; font-size: 12.5px; color: var(--blue); text-decoration: none; border-bottom: 1px dotted var(--blue); overflow-wrap: anywhere; word-break: break-all; }
+  .tier-chip { display: inline-flex; align-items: center; padding: 0 7px; border-radius: 6px; font-size: 11px; font-weight: 600; line-height: 1.8; }
+  .tier-chip.t1 { background: rgba(36,130,79,.12); color: var(--green); }
+  .tier-chip.t2 { background: rgba(5,109,232,.10); color: var(--blue); }
+  .tier-chip.t3 { background: rgba(110,120,130,.14); color: var(--muted); }
+  .xp-ev-honest { padding: 11px 15px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); font-size: 13px; line-height: 1.8; }
+  /* 深读模式排位：温差标签紧跟三态标签（与锐评同 3 区，DOM 在前），综合判断与判断句同 4 区 */
+  #reader.mode-deep .xp-temp { order: 3; margin-top: 16px; }
+  #reader.mode-deep .xp-verdict { order: 4; margin-top: 26px; max-width: 640px; font-size: 16px; }
+  #reader.mode-deep .xp-ev-block { order: 10; margin-top: 24px; }
   /* 深读模式：核验面板排在 web-evidence(10) 之后、延伸阅读(11) 之前 */
   #reader.mode-deep .stamp-wrap { order: 10; margin-top: 22px; }
   .stamp.found { color: var(--green); }
@@ -657,7 +696,7 @@
 
   @media print {
     body { background: #fff; }
-    .cover, .topbar, .reader-status, .notice, .page-tabs, .reading-progress, .pager, .back-top, footer, .directory, .expand-btn, .scan-meta, .punch, .hook, .pk, .ks-quip, .stamp, .stamp-wrap, .xpanel, .vote-row, .vote-result, .melon-btn, .melon-modal { display: none !important; }
+    .cover, .topbar, .reader-status, .notice, .page-tabs, .reading-progress, .pager, .back-top, footer, .directory, .expand-btn, .scan-meta, .punch, .hook, .pk, .ks-quip, .stamp, .stamp-wrap, .xpanel, .vote-row, .vote-result, .melon-btn, .melon-modal, .xp-capsules { display: none !important; }
     .deep-body { display: block !important; }
     .wrap { max-width: none; padding: 0; }
     #reader, #reader[hidden] { display: block !important; padding: 0; }
@@ -1222,6 +1261,96 @@
     return box;
   }
 
+  // ---------- 多平台聚合（2026-11-27）：温差标签 / 综合判断 / 平台引证面板 ----------
+  // 数据纪律与管线一致：一切条目文本只走 textContent，链接只取白名单校验过的真实 URL。
+  var XP_TIER_LABEL = { 1: 'T1 权威', 2: 'T2 专业', 3: 'T3 民间' };
+
+  // 温差标签：xp.temp 为后端规则模板生成（在榜平台数/层级/是否有 T1 权威信源）
+  function renderXpTemp(xp) {
+    var box = el('div', 'xp-temp' + (xp.multi ? '' : ' muted'));
+    (Array.isArray(xp.temp) ? xp.temp : []).forEach(function (seg, i) {
+      box.appendChild(el('span', 'pt' + (i === 0 && xp.multi ? ' strong' : ''), seg));
+    });
+    if (xp.multi) box.appendChild(el('span', 'rule-note', '规则生成 · 非 AI 现写'));
+    return box;
+  }
+
+  // 跨平台综合判断：模型基于真实信源材料生成，存于 crosscheck.verdict
+  function renderXpVerdict(item) {
+    var cc = item.crosscheck;
+    if (!cc || typeof cc !== 'object' || !cc.verdict) return null;
+    var box = el('div', 'xp-verdict');
+    box.appendChild(el('span', 'lbl', '跨平台综合判断'));
+    box.appendChild(document.createTextNode(cc.verdict));
+    return box;
+  }
+
+  // 平台引证面板：胶囊切换各平台证据；单平台命中时按诚实原则降级、不硬凑无源引证
+  function renderXpEvidenceBlock(item) {
+    var xp = item.cross_platform;
+    if (!xp || typeof xp !== 'object' || !Array.isArray(xp.evidence) || !xp.evidence.length) return null;
+    var block = el('section', 'xp-ev-block');
+    block.appendChild(el('span', 'xp-ev-label', '跨平台引证'));
+    var evidence = xp.evidence;
+    var platforms = [];
+    evidence.forEach(function (ev) {
+      if (platforms.indexOf(ev.platform) === -1) platforms.push(ev.platform);
+    });
+    var caps = el('div', 'xp-capsules');
+    var panel = el('div', 'xp-ev-panel');
+    var active = '全部';
+    function countOf(p) {
+      return p === '全部' ? evidence.length
+        : evidence.filter(function (e) { return e.platform === p; }).length;
+    }
+    function drawPanel() {
+      while (panel.firstChild) panel.removeChild(panel.firstChild);
+      var list = active === '全部' ? evidence
+        : evidence.filter(function (e) { return e.platform === active; });
+      list.forEach(function (ev) {
+        var tier = ev.tier === 1 || ev.tier === 2 ? ev.tier : 3;
+        var it = el('article', 'xp-ev-item tier-' + tier);
+        var meta = el('div', 'xp-ev-meta');
+        meta.appendChild(el('span', 'xp-ev-platform', ev.platform || '未知平台'));
+        if (ev.role) meta.appendChild(el('span', '', '· ' + ev.role));
+        meta.appendChild(el('span', 'tier-chip t' + tier, XP_TIER_LABEL[tier]));
+        if (ev.published_at) meta.appendChild(el('time', 'xp-ev-time', ev.published_at));
+        it.appendChild(meta);
+        if (ev.author) it.appendChild(el('div', 'xp-ev-author', ev.author));
+        if (ev.excerpt) it.appendChild(el('p', 'xp-ev-excerpt', ev.excerpt));
+        if (ev.url) {
+          var a = el('a', 'xp-ev-link', ev.url);
+          a.href = safeHref(ev.url);
+          a.target = '_blank';
+          a.rel = 'noopener noreferrer';
+          it.appendChild(a);
+        }
+        panel.appendChild(it);
+      });
+      if (!xp.multi) {
+        panel.appendChild(el('div', 'xp-ev-honest',
+          '全网核验仅命中单一平台：其余平台引证按诚实原则不展示，不硬凑无源内容。'));
+      }
+    }
+    function drawCaps() {
+      while (caps.firstChild) caps.removeChild(caps.firstChild);
+      ['全部'].concat(platforms).forEach(function (name) {
+        var b = el('button', 'xp-capsule' + (name === active ? ' active' : ''));
+        b.type = 'button';
+        b.setAttribute('aria-pressed', String(name === active));
+        b.appendChild(el('span', '', name));
+        b.appendChild(el('span', 'cnt', String(countOf(name))));
+        b.addEventListener('click', function () { active = name; drawCaps(); drawPanel(); });
+        caps.appendChild(b);
+      });
+    }
+    drawCaps();
+    drawPanel();
+    block.appendChild(caps);
+    block.appendChild(panel);
+    return block;
+  }
+
   // ---------- 速览/深读状态（2A+2B 合并测试版） ----------
   // 展开偏好写 localStorage，reload 后保持；深链跳入自动展开目标卡片。
   var EXPAND_KEY = 'zhd-expanded-cards';
@@ -1574,6 +1703,12 @@
       tags.appendChild(el('span', 'tag ' + item.type, TYPE_LABEL[item.type] || item.type));
       if (item.claim_type) tags.appendChild(el('span', 'tag claim', '分歧性质：' + (CLAIM_LABEL[item.claim_type] || item.claim_type)));
       card.appendChild(tags);
+      // 多平台聚合速览层：温差标签（规则生成）+ 跨平台综合判断（无 cross_platform 时整体不渲染）
+      if (item.cross_platform) {
+        card.appendChild(renderXpTemp(item.cross_platform));
+        var xpVerdict = renderXpVerdict(item);
+        if (xpVerdict) card.appendChild(xpVerdict);
+      }
       // 速览层①：判断句（双方共识/站内共识）——评委扫读时第一眼看到的东西
       var verdictLabel = item.type === 'dispute' ? '双方都不否认'
         : item.type === 'consensus' ? '站内共识' : '目前能确认';
@@ -1768,6 +1903,10 @@
       // 不满足条件时卡片结构与不渲染完全一致。
       var webEvidenceBox = renderWebEvidence(item.web_evidence);
       if (webEvidenceBox) (deepBody || card).appendChild(webEvidenceBox);
+      // 多平台引证面板挂在核验区：平台胶囊切换，单平台命中时诚实降级（renderXpEvidenceBlock
+      // 对无数据返回 null，不满足条件时卡片结构与旧版完全一致）
+      var xpEvBlock = renderXpEvidenceBlock(item);
+      if (xpEvBlock) (deepBody || card).appendChild(xpEvBlock);
     } else {
       // 兼容旧缓存：没有 type 字段时仍可显示原有三种观点，不出现空白页。
       var vp = item.viewpoints || {};
@@ -1809,7 +1948,8 @@
         ['背景', '.background'],
         ['双方', '.sides'],
         ['缺口', '.gap'],
-        ['核验·灵感', '.web-evidence']
+        ['核验·灵感', '.web-evidence'],
+        ['引证', '.xp-ev-block']
       ];
       var any = false;
       defs.forEach(function (d, i) {
@@ -1848,6 +1988,11 @@
 
   // 示例数据不会生成 <a>，因此不会误标成可点击链接。
   document.querySelectorAll('#cards a[href]').forEach(function (link) {
+    if (link.classList.contains('xp-ev-link')) {
+      // 跨平台引证是站外信源（微博/B站/官媒等），不是知乎链接：标注如实
+      link.setAttribute('aria-label', link.textContent.trim() + '（站外信源，新窗口打开）');
+      return;
+    }
     link.classList.add('zhihu-link');
     link.setAttribute('aria-label', link.textContent.trim() + '（在知乎新窗口打开）');
   });

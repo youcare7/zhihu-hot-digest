@@ -1468,6 +1468,45 @@ CROSSCHECK_MAX = _env_int("CROSSCHECK_MAX", 10, minimum=0)
 CROSSCHECK_LINE_MAX = 40
 CROSSCHECK_FACT_MAX = 80
 CROSSCHECK_SOURCE_NAME_MAX = 20
+CROSSCHECK_VERDICT_MAX = 60     # 跨平台综合判断上限
+XP_ROLE_MAX = 8                 # 单条引证的角色标签上限（模型给，如 深度归因/当事人声明）
+XP_AUTHOR_MAX = 20              # 引证作者/账号名上限（取自检索结果原值）
+XP_EXCERPT_MAX = 80             # 引证摘要上限（取自检索结果原值）
+
+# 多平台聚合（2026-11-27）：把白名单信源 URL 按域名确定性归类为平台与层级。
+# 顺序敏感——先匹配权威，再匹配平台/门户，最后落 T3。tier 沿用原型三档：
+# 1 权威（gov/官媒/通讯社）、2 专业（知乎/B站/主流财经媒体/门户/百科）、3 民间（UGC 社媒/未知站）。
+_XP_PLATFORM_RULES = (
+    ("gov.cn", "权威媒体", 1), ("edu.cn", "权威媒体", 1), ("news.cn", "权威媒体", 1),
+    ("xinhuanet.com", "权威媒体", 1), ("people.com.cn", "权威媒体", 1),
+    ("cctv.com", "权威媒体", 1), ("chinanews.com.cn", "权威媒体", 1),
+    ("gmw.cn", "权威媒体", 1), ("ce.cn", "权威媒体", 1), ("legaldaily.com.cn", "权威媒体", 1),
+    ("gov.hk", "权威媒体", 1), ("reuters.com", "权威媒体", 1), ("apnews.com", "权威媒体", 1),
+    ("bbc.com", "权威媒体", 1), ("nature.com", "权威媒体", 1), ("science.org", "权威媒体", 1),
+    ("zhihu.com", "知乎", 2), ("bilibili.com", "B站", 2),
+    ("thepaper.cn", "主流媒体", 2), ("caixin.com", "主流媒体", 2),
+    ("jiemian.com", "主流媒体", 2), ("yicai.com", "主流媒体", 2),
+    ("21jingji.com", "主流媒体", 2), ("cls.cn", "主流媒体", 2),
+    ("163.com", "门户站点", 2), ("sina.com.cn", "门户站点", 2), ("qq.com", "门户站点", 2),
+    ("sohu.com", "门户站点", 2), ("ifeng.com", "门户站点", 2), ("baidu.com", "门户站点", 2),
+    ("36kr.com", "门户站点", 2), ("ithome.com", "门户站点", 2), ("wikipedia.org", "百科站点", 2),
+    ("weibo.com", "微博", 3), ("weibo.cn", "微博", 3),
+    ("douyin.com", "抖音", 3), ("iesdouyin.com", "抖音", 3),
+    ("xiaohongshu.com", "小红书", 3), ("x.com", "海外社媒", 3), ("twitter.com", "海外社媒", 3),
+)
+_XP_TIER_NAMES = {1: "T1 权威", 2: "T2 专业", 3: "T3 民间"}
+
+
+def _xp_classify_url(url) -> tuple[str, int]:
+    """信源 URL → (平台名, tier)。未知站点落「其他站点 · T3」，绝不抛异常。"""
+    try:
+        host = (urllib.parse.urlparse(str(url or "")).hostname or "").lower().rstrip(".")
+    except (TypeError, ValueError):
+        return "其他站点", 3
+    for suffix, platform, tier in _XP_PLATFORM_RULES:
+        if host == suffix or host.endswith("." + suffix):
+            return platform, tier
+    return "其他站点", 3
 
 
 def _build_crosscheck_prompt(item: dict, candidates: list) -> str:
@@ -1490,11 +1529,13 @@ def _build_crosscheck_prompt(item: dict, candidates: list) -> str:
         '{"weibo":"≤40 字：其他平台（微博/社媒）上的大众情绪走向",'
         '"zhihu":"≤40 字：知乎站内的讨论切面（角度/画风）",'
         '"fact":"≤80 字：基于材料能核实到哪一步、还缺什么",'
-        '"sources":[{"name":"≤20 字信源名","index":1}]}',
+        '"verdict":"≤60 字：跨平台综合判断——各平台在吵的是不是同一件事、缺什么才能把讨论拉回同一层面",'
+        '"sources":[{"name":"≤20 字信源名","index":1,"role":"≤8 字该信源内容的角色，如 当事人声明/深度归因/民间体感/实测拆解/时间线锚点"}]}',
         "",
         "【硬性要求】",
         "1. sources 只能选上面的搜索结果，index 必须对应编号，最多 2 条。",
         "2. 材料不足以支撑某项时如实写明，禁止编造情绪、数据或信源。",
+        "3. verdict 只综合上面给出的材料，不得引入新材料、新机构名。",
     ]
     return "\n".join(lines)
 
@@ -1529,10 +1570,64 @@ def _sanitize_crosscheck(raw: dict, candidates: list) -> dict | None:
             name = _clip(s.get("name"), CROSSCHECK_SOURCE_NAME_MAX)
             if url and name and url not in seen:
                 seen.add(url)
-                sources.append({"name": name, "url": url})
+                sources.append({"name": name, "url": url,
+                                "role": _clip(s.get("role"), XP_ROLE_MAX)})
     if not sources:
         return None
-    return {"weibo": weibo, "zhihu": zhihu, "fact": fact, "sources": sources}
+    out = {"weibo": weibo, "zhihu": zhihu, "fact": fact, "sources": sources}
+    verdict = _clip(raw.get("verdict"), CROSSCHECK_VERDICT_MAX)
+    if verdict:
+        out["verdict"] = verdict
+    return out
+
+
+def _build_cross_platform(cc: dict, candidates: list) -> dict | None:
+    """多平台聚合对象（2026-11-27）：引证面板 + 规则温差标签，全部确定性生成。
+
+    evidence 逐字段取自 api_web_search 真实返回（作者/摘要/时间/URL 原值截断），
+    平台与 tier 由域名白名单归类；temp 只按「在榜平台数 / 各平台层级 / 是否有
+    T1 权威信源」模板拼接，不由大模型现写，避免无源总结。
+    """
+    allowed: dict[str, dict] = {}
+    for c in candidates[:5]:
+        if not isinstance(c, dict):
+            continue
+        url = str(c.get("Url") or "").strip()
+        if url.startswith(("http://", "https://")):
+            allowed[url] = c
+    evidence = []
+    for s in cc.get("sources", []):
+        cand = allowed.get(s.get("url"))
+        if cand is None:
+            continue  # 理论上 sanitize 已保证，双保险防脏数据
+        platform, tier = _xp_classify_url(s.get("url"))
+        evidence.append({
+            "platform": platform,
+            "role": s.get("role") or "",
+            "tier": tier,
+            "author": _clip(cand.get("AuthorName"), XP_AUTHOR_MAX),
+            "excerpt": _clip(cand.get("ContentText"), XP_EXCERPT_MAX),
+            "published_at": _clip(cand.get("EditTime"), 20),
+            "url": s.get("url"),
+        })
+    if not evidence:
+        return None
+    platforms: list[str] = []
+    tier_of: dict[str, int] = {}
+    for ev in evidence:
+        if ev["platform"] not in tier_of:
+            platforms.append(ev["platform"])
+            tier_of[ev["platform"]] = ev["tier"]
+    multi = len(platforms) >= 2
+    if multi:
+        temp = [f"全网 {len(platforms)} 平台在榜"]
+        temp += [f"{p} · {_XP_TIER_NAMES[tier_of[p]]}" for p in platforms]
+        temp.append("含 T1 权威信源" if any(t == 1 for t in tier_of.values())
+                    else "暂缺 T1 权威信源")
+    else:
+        # 诚实降级：单平台命中不硬凑温差，只标事实
+        temp = [f"仅 {platforms[0]} 单平台命中 · 无跨平台温差"]
+    return {"multi": multi, "temp": temp, "evidence": evidence}
 
 
 def _crosscheck_item(item: dict) -> bool:
@@ -1574,6 +1669,9 @@ def _crosscheck_item(item: dict) -> bool:
             return True
         if got:
             item["crosscheck"] = got
+            xp = _build_cross_platform(got, candidates)
+            if xp:
+                item["cross_platform"] = xp
             return True
         if attempt == 2:
             _log(f"  第 {item.get('rank')} 条 crosscheck 输出缺字段或无白名单信源，重试后仍无效，组件保持关闭")
@@ -2241,6 +2339,11 @@ def healthz():
     }
     if os.environ.get("HEALTHZ_VERBOSE", "0") == "1":
         age = cache_age_seconds()
+        cached = load_today_cache() or {}
+        cached_items = cached.get("items") if isinstance(cached, dict) else None
+        if not isinstance(cached_items, list):
+            cached_items = []
+        cached_items = [it for it in cached_items if isinstance(it, dict)]
         payload.update({
             "date": today_str(),
             "has_today_cache": age is not None,
@@ -2249,6 +2352,11 @@ def healthz():
             "cooldown_remaining": _refresh_retry_after(),
             "zhida_calls_today": _QUOTA.used("zhida"),
             "zhida_daily_limit": QUOTA_LIMITS["zhida"],
+            # 富化/核验覆盖计数：排查「配额耗尽导致 pass 静默跳过」时不再靠拉 data.js 数字段
+            "enriched_count": sum(1 for it in cached_items
+                                  if it.get("punch") or it.get("vote") or it.get("lou")),
+            "crosscheck_count": sum(1 for it in cached_items if it.get("crosscheck")),
+            "cross_platform_count": sum(1 for it in cached_items if it.get("cross_platform")),
         })
     return Response(
         json.dumps(payload, ensure_ascii=False),
