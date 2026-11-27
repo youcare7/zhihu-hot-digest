@@ -2662,13 +2662,46 @@ def timeline_js():
 # 在 /showcase/ 下自动解析到下面几个路由。
 # ---------------------------------------------------------------------------
 NOTICE_SHOWCASE = (
-    "这是功能示例页：展示一份人工整理快照，包含跨平台核验等自动管线尚未产出的内容；"
-    "部分链接来自站外媒体，未经过程序的知乎域名校验。今日简报请回首页查看。"
+    "这是功能示例页：展示一份人工整理的历史快照，并适配最新的多平台聚合展示；"
+    "不是今日实时热榜。部分链接来自站外媒体，未经过程序的知乎域名校验。今日简报请回首页查看。"
 )
 
 
 def showcase_path() -> pathlib.Path:
     return DATA_DIR / "showcase.json"
+
+
+def _adapt_showcase_cross_platform(item: dict) -> None:
+    """让早期人工快照复用最新聚合 UI，不联网、不补写任何新事实。
+
+    旧快照只有 crosscheck 的信源名和 URL；把它们映射为聚合函数的只读候选，
+    作者仍取信源名，摘要和时间保持为空。综合判断只复用人工写好的 fact。
+    """
+    if item.get("cross_platform"):
+        return
+    cc = item.get("crosscheck")
+    if not isinstance(cc, dict):
+        return
+    candidates = []
+    for source in cc.get("sources", []):
+        if not isinstance(source, dict):
+            continue
+        url = str(source.get("url") or "").strip()
+        if not _is_safe_crosscheck_url(url):
+            continue
+        candidates.append({
+            "Url": url,
+            "AuthorName": str(source.get("name") or ""),
+            "ContentText": "",
+            "EditTime": "",
+        })
+    if not candidates:
+        return
+    if not cc.get("verdict") and cc.get("fact"):
+        cc["verdict"] = _clip(cc["fact"], CROSSCHECK_VERDICT_MAX)
+    cross_platform = _build_cross_platform(cc, candidates)
+    if cross_platform:
+        item["cross_platform"] = cross_platform
 
 
 def load_showcase() -> dict | None:
@@ -2680,6 +2713,9 @@ def load_showcase() -> dict | None:
         return None
     if not isinstance(data, dict) or not isinstance(data.get("items"), list) or not data["items"]:
         return None
+    for item in data["items"]:
+        if isinstance(item, dict):
+            _adapt_showcase_cross_platform(item)
     annotate_provenance(data)
     # source 用 cache：示例页不触发前端恢复轮询；showcase 标记驱动「功能示例」徽章与横幅
     data["source"] = "cache"

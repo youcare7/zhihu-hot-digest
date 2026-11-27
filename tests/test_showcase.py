@@ -64,6 +64,28 @@ class TestShowcasePage(AppStateTestCase):
         self.assertEqual(got["offsite_links"], 1)
         self.assertEqual(got["notice"], app.NOTICE_SHOWCASE)
 
+    def test_legacy_snapshot_adapts_latest_cross_platform_ui(self):
+        data = brief(n=1)
+        data["items"][0]["crosscheck"] = {
+            "weibo": "大众情绪",
+            "zhihu": "站内切面",
+            "fact": "人工整理快照中的既有核验结论",
+            "sources": [
+                {"name": "凤凰报道", "url": OFF},
+                {"name": "知乎讨论", "url": "https://www.zhihu.com/question/1001"},
+            ],
+        }
+        (self.tmp_path / "showcase.json").write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+        got = parse_js(self.client.get("/showcase/data.js").get_data(as_text=True))
+        item = got["items"][0]
+        self.assertEqual(item["crosscheck"]["verdict"], "人工整理快照中的既有核验结论")
+        xp = item["cross_platform"]
+        self.assertTrue(xp["multi"])
+        self.assertEqual(xp["temp"][0], "全网 2 平台在榜")
+        self.assertEqual([ev["author"] for ev in xp["evidence"]], ["凤凰报道", "知乎讨论"])
+        self.assertTrue(all(ev["excerpt"] == "" for ev in xp["evidence"]))
+        self.assertTrue(all(ev["published_at"] == "" for ev in xp["evidence"]))
+
     def test_missing_showcase_never_falls_back_to_pipeline_data(self):
         resp = self.client.get("/showcase/data.js")
         self.assertEqual(resp.get_data(as_text=True), "window.BRIEF_DATA = null;")

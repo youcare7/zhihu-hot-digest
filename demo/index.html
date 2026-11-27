@@ -1187,14 +1187,21 @@
     noticeEl.appendChild(document.createTextNode(' '));
     noticeEl.appendChild(backLink);
     noticeEl.hidden = false;
+  } else if (!isDemo && noticeEl && window.location.protocol !== 'file:') {
+    // 今日数据配额不足时，用户无需滚到页尾即可进入明确标注的全功能示例。
+    var topShowcaseLink = el('a', 'notice-link', '查看全功能示例（历史快照） →');
+    topShowcaseLink.href = 'showcase/';
+    noticeEl.appendChild(document.createTextNode(' '));
+    noticeEl.appendChild(topShowcaseLink);
+    noticeEl.hidden = false;
   }
 
-  // 首页页脚给出功能示例入口；示例页自身、示例数据与本地双击预览（file://）不显示。
+  // 首页页脚保留功能示例入口；示例页自身、示例数据与本地双击预览（file://）不显示。
   if (!isShowcase && !isDemo && window.location.protocol !== 'file:') {
     var footerEl = document.querySelector('footer');
     if (footerEl) {
       var entry = el('p', 'showcase-entry');
-      var entryLink = el('a', null, '功能示例：早期人工整理的跨平台核验 →');
+      var entryLink = el('a', null, '全功能示例：人工整理历史快照（含多平台聚合） →');
       entryLink.href = 'showcase/';
       entry.appendChild(entryLink);
       footerEl.appendChild(entry);
