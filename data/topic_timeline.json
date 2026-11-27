@@ -1,7 +1,7 @@
 {
-  "generated_at": "2026-11-27 06:56",
-  "archive_files": 5,
-  "tracked_days": 7,
+  "generated_at": "2026-11-28 06:36",
+  "archive_files": 6,
+  "tracked_days": 8,
   "missing_dates": [
     "2026-11-22",
     "2026-11-23"
@@ -68,10 +68,95 @@
           "ext_ref": []
         }
       ],
-      "question_url": "https://www.zhihu.com/question/2108916871718073510"
+      "question_url": "https://www.zhihu.com/question/2108916871718073510",
+      "related_past": [
+        {
+          "title": "神舟二十四号载人飞船发射取得圆满成功;GTA6 文件泄露,民间借 AI 工具 24 小时搬上 PC;国际体育仲裁法庭推翻非足联决定,塞内加尔重获 2025 年非洲杯冠军|早报 20261126 - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2108987826528326342?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "question_id": "",
+          "edit_time": 1795651262,
+          "edit_date": "2026-11-26"
+        },
+        {
+          "title": "神舟二十四号载人飞船发射取得圆满成功,中国空间站迎来首位外籍航天员,此次发射任务还有哪些看点? - 知乎",
+          "url": "https://www.zhihu.com/question/2108654680351797564/answer/2108658109791072317?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "question_id": "2108654680351797564",
+          "edit_time": 1795601765,
+          "edit_date": "2026-11-25"
+        },
+        {
+          "title": "中外航天员首次“太空握手”|神舟二十四号航天员乘组顺利进驻“天宫” - 知乎",
+          "url": "https://zhuanlan.zhihu.com/p/2108975130072332180?utm_medium=openapi_platform&utm_source=b38f6831b176",
+          "question_id": "",
+          "edit_time": 1795598998,
+          "edit_date": "2026-11-25"
+        }
+      ]
     }
   ],
   "archives": [
+    {
+      "date": "2026-11-28",
+      "date_label": "11月28日",
+      "item_count": 10,
+      "status_counts": {
+        "dispute": 3,
+        "consensus": 3,
+        "verify": 4
+      },
+      "items": [
+        {
+          "title": "如何评价懂车帝最新回应“尊界 V800 刹车踏板支架断裂”事件：公司内部仍在等待相关结果？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2109005398313391373?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "商务部开新闻发布会称机关单位带头过紧日子，透露了什么信号？可能有哪些影响？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2109592991497189095?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "A股迎史诗级暴涨，沪深两市成交额重回2万亿，创业板指放量大涨超11%，超400只个股涨停，发生了什么？",
+          "status": "consensus",
+          "url": "https://www.zhihu.com/question/2109643924381726663?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "三只松鼠被曝CEO与员工薪资相差 23 倍，这个薪资差距在行业里属于什么水平？算高吗？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2109669812406334189?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "女子入住上海四千一晚酒店，孩子不慎碰坏一摆件被索赔三千元，远高于采购价，这一索赔标准合理吗？",
+          "status": "dispute",
+          "url": "https://www.zhihu.com/question/2109291472705033135?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "为什么计算机现在已经不如土木了？",
+          "status": "dispute",
+          "url": "https://www.zhihu.com/question/2101179129135642327?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "快手第三季度营收 316 亿元，净利润 7.9 亿元，日活 4.17 亿，如何解读这份财报？",
+          "status": "consensus",
+          "url": "https://www.zhihu.com/question/2106815239039751997?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "招聘为何更看重第一学历而非最高学历？",
+          "status": "dispute",
+          "url": "https://www.zhihu.com/question/2082987252792169939?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "能拍出《大明王朝 1566》的导演为什么会在《两京十五日》翻车了？",
+          "status": "consensus",
+          "url": "https://www.zhihu.com/question/2108875718960617190?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        },
+        {
+          "title": "网传「纳米海绵不宜用来洗碗，每磨损一克释放 650 万个微塑料」，是这样吗？用它洗碗安全吗？",
+          "status": "verify",
+          "url": "https://www.zhihu.com/question/2108211840027313575?utm_medium=openapi_platform&utm_source=b38f6831b176"
+        }
+      ]
+    },
     {
       "date": "2026-11-27",
       "date_label": "11月27日",
