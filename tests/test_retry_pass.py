@@ -23,6 +23,9 @@ def make_hot(n):
 class TestRetryPass(AppStateTestCase):
     def setUp(self):
         super().setUp()
+        app.QUOTA_GUARD_DISABLED = False
+        app.QUOTA_LIMITS["zhida"] = 80
+        app._QUOTA = app.QuotaGuard(self.tmp_path / "quota.json")
         app.time = types.SimpleNamespace(
             sleep=lambda s: None,
             strftime=_real_time.strftime,
