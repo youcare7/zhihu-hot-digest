@@ -165,6 +165,17 @@ GUARD_STAT_KEYS = (
     "dispute_no_evidence",       # 两派成型但未能各自绑定回答 → 待验证
     "crosscheck_source_dropped", # 跨平台核验：信源编号不在全网搜索结果内
 )
+# 「今日战报」一句话摘要用的人话标签，key 必须覆盖 GUARD_STAT_KEYS 全集
+GUARD_STAT_LABELS = {
+    "reading_index_dropped": "延伸阅读编号越界",
+    "reading_link_dropped": "延伸阅读链接不合规",
+    "reading_dup_dropped": "延伸阅读重复引用",
+    "sides_evidence_dropped": "两派依据绑定失败",
+    "sides_shared_removed": "两派共用同一回答",
+    "dispute_downgraded": "分歧凑不出两派降级",
+    "dispute_no_evidence": "两派绑不上证据降级",
+    "crosscheck_source_dropped": "核验信源编号非法",
+}
 _GUARD_STATS: dict = {k: 0 for k in GUARD_STAT_KEYS}
 
 
@@ -2204,6 +2215,16 @@ def build_digest(items: list) -> dict:
         # 第一得分点前置：评委第一眼就要看到「缺的拼图」，而不是只看三态计数。
         headline += f"其中 {decidable} 条争论只差一手数据就能裁决。"
 
+    # 今日战报：guard_stats 的拦截计数本已存在，只是藏在「来源与链接」二级页。
+    # 这里把非零项拼成一句话，首页顶部就能看到「本产品在主动拦自己的幻觉」，
+    # 不新增任何统计口径，纯展示层改动。
+    guard_now = {k: _GUARD_STATS.get(k, 0) for k in GUARD_STAT_KEYS}
+    intercepted = sum(guard_now.values())
+    guard_summary = ""
+    if intercepted:
+        parts = [f"{GUARD_STAT_LABELS[k]} {n} 次" for k, n in guard_now.items() if n]
+        guard_summary = f"今日拦截：{'、'.join(parts)}，共 {intercepted} 处未达标内容未进入简报。"
+
     insights = []
     if dispute:
         soft = max(0, dispute - decidable)
@@ -2265,7 +2286,7 @@ def build_digest(items: list) -> dict:
         else:
             insights = [_consensus_line]
 
-    return {
+    result = {
         "total": total,
         "dispute": dispute,
         "consensus": consensus,
@@ -2274,6 +2295,9 @@ def build_digest(items: list) -> dict:
         "headline": headline,
         "insights": insights,
     }
+    if guard_summary:
+        result["guard_summary"] = guard_summary
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -2945,6 +2969,15 @@ def healthz():
                 and it["web_evidence"].get("status") == "found"),
             "web_search_calls_today": _QUOTA.used("web_search"),
             "web_search_daily_limit": QUOTA_LIMITS.get("web_search", 0),
+            # 「站内相关讨论」的命中率可观测性：答辩/排查时不用再翻缓存 JSON 数 gap_link。
+            # has_gap 统计口径与 _gap_link_due 一致（排除空缺口/无公开材料/无背景的条目），
+            # 保证分母只数"本该去搜"的条目，found 率才有意义。
+            "gap_link_found_count": sum(1 for it in cached_items if it.get("gap_link")),
+            "gap_link_eligible_count": sum(
+                1 for it in cached_items
+                if str(it.get("gap") or "") not in ("", EMPTY_GAP)
+                and _GAP_NO_MATERIAL not in str(it.get("gap") or "")
+                and it.get("background") != NO_BACKGROUND),
         })
     return Response(
         json.dumps(payload, ensure_ascii=False),
