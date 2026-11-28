@@ -137,6 +137,7 @@
   .cover-digest { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
   .cover-digest .today-heading { margin-top: 8px; font-size: 16px; }
   .cover-digest .insight-list { margin: 0; }
+  .digest-guard { margin: 10px 0 0; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 12.5px; color: var(--secondary); }
   /* 无跨平台核验时印章仍按分类文案展示，但不假装可点 */
   .stamp:disabled { opacity: 1; cursor: default; }
   /* 点吉祥物：气泡轮换 + 轻弹跳 */
@@ -1163,6 +1164,10 @@
       (Array.isArray(dg.insights) ? dg.insights : []).forEach(function (line) {
         if (line) digestList.appendChild(el('li', '', String(line)));
       });
+    }
+    if (dg.guard_summary) {
+      var guardLine = el('p', 'digest-guard', String(dg.guard_summary));
+      digestCard.appendChild(guardLine);
     }
     digestCard.hidden = false;
   }
