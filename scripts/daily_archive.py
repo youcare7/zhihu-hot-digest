@@ -89,7 +89,8 @@ def atomic_write(path, data):
 FALLBACK_MIN_ITEMS = 8
 FALLBACK_NOTICE = "当前展示的是 {date} 由程序生成的简报快照，今日简报生成后自动切换。AI 内容仅供参考。"
 DEMO_NOTICE = "本地预览：{date} 由知乎开放平台 API 生成的简报快照，AI 内容仅供参考。"
-_SNAPSHOT_DROP = ("refreshing", "retry_after", "provenance", "offsite_links", "curation_note", "showcase")
+_SNAPSHOT_DROP = ("refreshing", "retry_after", "provenance", "offsite_links", "curation_note", "showcase",
+                  "guard_stats")  # 拦截统计只描述生成那一次，不随兜底快照沿用
 
 
 def fallback_reject_reason(brief) -> str:

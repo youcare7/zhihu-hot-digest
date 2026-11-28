@@ -41,6 +41,10 @@ class AppStateTestCase(unittest.TestCase):
         "TIMELINE_REMOTE_URL",
         "TIMELINE_CACHE_TTL_SECONDS",
         "INCREMENTAL_REFRESH",
+        "ENRICH_QUOTA_RESERVE",
+        "FALLBACK_PREV_MAX_DAYS",
+        "SIDES_REQUIRE_EVIDENCE",
+        "CROSSCHECK_MAX",
         "ITEM_REUSE_MAX_HOURS",
         "COVERAGE_TOLERANCE",
         "COVERAGE_SKIP_REGEN_RATIO",
@@ -77,6 +81,9 @@ class AppStateTestCase(unittest.TestCase):
         self._saved_env_verbose = os.environ.get("HEALTHZ_VERBOSE")
         self._tmp_dir_obj = tempfile.TemporaryDirectory()
         self.tmp_path = pathlib.Path(self._tmp_dir_obj.name)
+        # 「前一天程序简报」兜底默认关闭：它会扫 DATA_DIR，开发机 data/ 里的真实简报会串进用例。
+        # 只在 test_gap_link.py 里显式开启。
+        app.FALLBACK_PREV_MAX_DAYS = 0
         # 每个用例默认从独立的零计数器开始，避免仓库运行时计数影响分层预算，
         # 也防止测试中的模拟请求写回真实 data/quota_counters.json。
         app._QUOTA = app.QuotaGuard(self.tmp_path / "quota.json")
@@ -84,6 +91,9 @@ class AppStateTestCase(unittest.TestCase):
         # 仓库 data/ 并在用例之间串味。只在 test_incremental_refresh.py 中显式开启。
         app.INCREMENTAL_REFRESH = False
         app.ITEM_REUSE_MAX_HOURS = 0
+        # 既有用例的模拟模型输出里两派没有 evidence 编号：默认按宽松模式跑，
+        # 保持它们原有的 dispute 判定；严格模式只在 test_sides_evidence.py 中显式开启。
+        app.SIDES_REQUIRE_EVIDENCE = False
 
     def tearDown(self):
         deadline = time.monotonic() + 3.0

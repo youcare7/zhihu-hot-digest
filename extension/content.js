@@ -2,8 +2,28 @@
 // 在知乎热榜页给今日 10 条深读条目盖「求真印章」，悬停看锐评 + 双方金句，点击跳站内深读。
 (function () {
   'use strict';
-  var DATA = window.ZHD_EXT_DATA || { items: [] };
-  var SITE_URL = DATA.site_url || 'http://localhost:7100/';
+
+  // 先向后台要线上当天的判读；拿不到（离线、站点异常、插件被重载）时回落到插件自带的 data.js。
+  function load(done) {
+    var bundled = window.ZHD_EXT_DATA || { items: [] };
+    bundled.offline = true;
+    var settled = false;
+    function finish(data) { if (!settled) { settled = true; done(data); } }
+    setTimeout(function () { finish(bundled); }, 10000);
+    try {
+      chrome.runtime.sendMessage({ type: 'zhd:get-brief' }, function (res) {
+        if (chrome.runtime.lastError || !res || !res.ok || !res.data || !res.data.items) { finish(bundled); return; }
+        finish(res.data);
+      });
+    } catch (e) {
+      finish(bundled);
+    }
+  }
+
+  load(start);
+
+  function start(DATA) {
+  var SITE_URL = DATA.site_url || 'https://zhihu-hot-digest-348140-5-1533039364.sh.run.tcloudbase.com/';
   var COLOR = { found: '#24824f', miss: '#7163b8', hot: '#b76018', calm: '#056de8' };
 
   // ---------- 样式 ----------
@@ -17,6 +37,7 @@
     '.zhd-mini .qb{background:rgba(183,96,24,.08);color:#8a4a12;}',
     '.zhd-mini .f{margin-top:9px;font-size:11.5px;color:#9aa2aa;}',
     '.zhd-mini a{color:#056de8;font-weight:600;text-decoration:none;}',
+    '.zhd-mini .d{color:#9aa2aa;}',
   ].join('\n');
   var styleEl = document.createElement('style');
   styleEl.textContent = css;
@@ -47,6 +68,16 @@
     return null;
   }
 
+  // 悬停卡底部注明数据日期与来源，避免把前一天的判读当成今天的
+  function dataNote() {
+    var when = DATA.generated_at || DATA.date || '';
+    var note = when ? '判读数据截至 ' + when : '判读数据';
+    if (DATA.offline) note += '（离线数据）';
+    else if (DATA.source === 'fallback') note += '（前一天快照）';
+    if (DATA.curated) note += '（人工整理示例）';
+    return note;
+  }
+
   // ---------- 悬停卡 ----------
   var mini = null;
   function closeMini() { if (mini) { mini.remove(); mini = null; } }
@@ -59,10 +90,12 @@
     if (item.quotes && item.quotes.length === 2) {
       html += '<div class="q qa"></div><div class="q qb"></div>';
     }
-    html += '<div class="f">求真印章：<b style="color:' + (COLOR[item.stampCls] || COLOR.calm) + '">' + item.stampText + '</b> · 热榜深潜简报<br><a href="' + SITE_URL + '#card-' + item.rank + '" target="_blank" rel="noopener">查看完整深读 →</a></div>';
+    html += '<div class="f">求真印章：<b style="color:' + (COLOR[item.stampCls] || COLOR.calm) + '">' + item.stampText + '</b> · 热榜深潜简报<br><span class="d"></span><br><a target="_blank" rel="noopener">查看完整深读 →</a></div>';
     mini.innerHTML = html;
     mini.querySelector('.t').textContent = item.title;
     if (item.punch) mini.querySelector('.p').textContent = item.punch;
+    mini.querySelector('.d').textContent = dataNote();
+    mini.querySelector('a').href = SITE_URL + '#card-' + (item.page || item.rank);
     if (item.quotes && item.quotes.length === 2) {
       var qa = mini.querySelector('.qa'), qb = mini.querySelector('.qb');
       qa.textContent = (item.labels[0] || '一方') + '：' + item.quotes[0];
@@ -111,4 +144,5 @@
     if (timer) return;
     timer = setTimeout(function () { timer = null; scan(); }, 400);
   }).observe(document.body, { childList: true, subtree: true });
+  }
 })();

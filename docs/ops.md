@@ -60,7 +60,13 @@ tcb cloudrun deploy \
 - `INCREMENTAL_REFRESH`：增量刷新开关，默认 `1`；按知乎问题 ID（其次标题）复用当日已成功生成的条目，只为新上榜或失败的条目调用直答，复用池为 `data/item_pool_<日期>.json`。设为 `0` 恢复每次整批重算。
 - `ITEM_REUSE_MAX_HOURS`：单条最长复用时长（小时），默认 `0` = 当日内不限，跨日自动失效。
 - `QUOTA_ZHIDA_DAILY` / `QUOTA_HOT_LIST_DAILY` / `QUOTA_SEARCH_DAILY` / `QUOTA_MODEL_ALT_DAILY` / `QUOTA_WEB_SEARCH_DAILY`：统一 `QuotaGuard` 日配额熔断上限（默认 `80` / `100` / `2000` / `500` / `0`，持久化于 `data/quota_counters.json`）。
-- `CROSSCHECK_MAX`：每份简报最多生成几条跨平台核验，默认 `10`。实际是否生成取决于 `QUOTA_WEB_SEARCH_DAILY`（默认 `0` = 关闭）；开启前请确认全网搜索配额，每条核验消耗 1 次全网搜索 + 最多 2 次直答。
+- `CROSSCHECK_MAX`：每份简报最多生成几条跨平台核验，默认 `3`，按「待验证 → 可裁决事实之争 → 其余」的顺序核验。实际是否生成取决于 `QUOTA_WEB_SEARCH_DAILY`（默认 `0` = 关闭）；开启前请确认全网搜索配额，每条核验消耗 1 次全网搜索 + 最多 2 次直答。核验只要求事实核验与至少 1 条白名单信源，站外讨论、知乎切面两段为可选。
+- `GAP_LINK_MAX`：每份简报最多为几条证据缺口做站内搜索，默认 `10`，`0` = 关闭。每次消耗 1 次站内搜索（`search` 配额，默认 2000/天），不调用直答。程序用缺口关键词（新生成条目由模型在主生成里顺带给出 `gap_query`，旧条目按规则从缺口文本抽词）搜知乎站内，按关键词命中打分，挑 0–1 条回答展示为「站内相关讨论」；页面注明「程序按关键词找到，未核实是否补上了这块拼图」。
+- `GAP_LINK_RECHECK_SECONDS`：没找到站内相关讨论的条目，隔多久再搜一次，默认 `10800`（3 小时）。新回答往往晚于热点出现，增量刷新时会重试；找到后不再重复搜索。
+- `ENRICH_QUOTA_RESERVE`：富化的额外配额底线，默认 `0`（关闭）。直答配额的分阶段分配现在由 `ZHIDA_MAIN_BUDGET` / `ZHIDA_ENRICH_BUDGET` / `ZHIDA_CROSSCHECK_BUDGET`（默认 45/20/15）负责；只有想在此之外再为后续刷新多留一些配额时才设置，设置后富化每条之前检查当日直答剩余量，低于该值即停止富化。
+- `SIDES_REQUIRE_EVIDENCE`：两派观点绑定原文，默认 `1`。每派须通过候选编号绑定至少 1 条站内回答，同一条回答不能同时作为两派依据，绑定不上即降级为「待验证」；`0` = 宽松，保留两派，只附上能绑定的回答。日志中的「两派未能各自绑定候选回答，降级为 verify」可用来统计降级次数。
+- 拦截统计：程序生成的简报带 `guard_stats` 字段（延伸阅读丢弃数、两派依据丢弃与共用移除数、真分歧降级数、跨平台核验信源丢弃数，以及新生成和复用条数），只统计本次新生成的条目，收尾补跑会累加。兜底快照、功能示例页不带这个字段，页面也不显示。
+- 合订本分词：每日归档任务额外安装 `jieba`，用于识别标题中的人名、机构名；未安装时 `scripts/build_timeline.py` 自动退回字符切分。人工确认的同一事件写在 `data/topic_aliases.json` 的 `aliases`（按知乎问题 ID 指定），`topics` 段仅作记录，脚本不读取。
 - 配额韧性（PR #14，均有默认值，云端不配也能跑）：`ZHIDA_MAIN_BUDGET` / `ZHIDA_ENRICH_BUDGET` / `ZHIDA_CROSSCHECK_BUDGET` 为单次简报内主生成/富化/核验的 zhida 分层上限（默认 `45` / `20` / `15`，合计 80 = 日限），防止主生成吃光配额导致富化、核验静默归零；`CROSSCHECK_BUDGET_SECONDS` 为核验 pass 独立时间预算（默认 `90`）；`COVERAGE_TOLERANCE`（默认 `4`）与 `COVERAGE_SKIP_REGEN_RATIO`（默认 `0.6`）控制防劣化：同榜单重生成字段覆盖显著下降时保留旧缓存，热榜未变且旧缓存接近满配时跳过重生成。
 - 排查提示：`HEALTHZ_VERBOSE=1` 时 `/healthz` 返回 `punch_count` / `lou_count` / `crosscheck_count` / `cross_platform_count` / `web_evidence_found_count` / `field_coverage` 及 `web_search_calls_today` / `web_search_daily_limit`，可直接判断某个 pass 是否静默跳过，无需再拉 `/data.js` 数字段。核验 pass 提前结束的日志会按真实原因区分「全网搜索配额耗尽 / 直答配额耗尽 / 整批时间预算已耗尽」。
 - 来源保护：后台刷新只跳过来源标注为人工整理（`provenance: "curated"`）的缓存；程序生成的跨平台核验不会阻止刷新。
@@ -104,3 +110,7 @@ MOCK_MODE=0 python app.py            # 成功：打印中文设置指引，退�
 ## 版本记录
 
 - **v2.8（2026-11-21 深夜轮）**：封面 v18 居中单栏改版；吉祥物素材 GIF→动画 WebP（修复发布包动画丢失）；手机端整页滑动翻页动画；`data.js?v=2` 防缓存；新增公网发布包（现存 `docs/archive/release-2026-11-21/`）、`extension/` 插件、云端旧站存档（现存 `docs/archive/cloudbase-2026-11-21/`）。详见 [HANDOFF_2026-11-21_深夜轮](handoff/HANDOFF_2026-11-21_深夜轮.md)。
+
+## 跨天空窗期的兜底
+
+站点过了零点、当天简报还没生成时，`/data.js` 先找 `FALLBACK_PREV_MAX_DAYS`（默认 `2`）天内最近一天的程序生成简报（`data/brief_*.json` 且 `source=live`），找不到才用 `data/fallback.json`。页面提示「今天的简报还在生成，先展示 X 日由程序生成的简报」。容器重启后本地缓存会丢失，此时仍退回 `fallback.json`，所以每日归档的 `--update-fallback` 仍要保留。

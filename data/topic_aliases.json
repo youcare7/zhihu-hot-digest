@@ -2,7 +2,10 @@
   "aliases": {
     "2105339969564827779": "deepseek-context-limit",
     "2105092208948933353": "overseas-compliance",
-    "2105340483975304106": "household-shrinkage"
+    "2105340483975304106": "household-shrinkage",
+    "2108601916930225865": "jensen-huang-nvidia",
+    "2108869758925923750": "jensen-huang-nvidia",
+    "2108890432125888397": "jensen-huang-nvidia"
   },
   "splits": [],
   "hidden_topics": [],
@@ -24,6 +27,13 @@
       "canonical_title": "中国平均家庭户规模缩减与独居社会变迁",
       "anchor_entities": ["家庭户", "户规模", "2.52人", "独居"],
       "question_ids": ["2105340483975304106"]
+    },
+    {
+      "id": "jensen-huang-nvidia",
+      "canonical_title": "黄仁勋与英伟达：特朗普表态、复职说法与回归首日",
+      "anchor_entities": ["黄仁勋", "英伟达", "特朗普"],
+      "question_ids": ["2108601916930225865", "2108869758925923750", "2108890432125888397"],
+      "confirmed_by": "人工逐条确认 2026-11-27：11-25 #2、11-26 #9（同一事件线）；11-26 #4（同一回归事件线，侧重不同）"
     }
   ]
 }
