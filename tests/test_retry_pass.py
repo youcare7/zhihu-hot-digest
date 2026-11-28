@@ -30,6 +30,7 @@ class TestRetryPass(AppStateTestCase):
             sleep=lambda s: None,
             strftime=_real_time.strftime,
             monotonic=_real_time.monotonic,
+            time=_real_time.time,
         )
 
     def _run_case(self, fail_forever):

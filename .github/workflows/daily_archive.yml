@@ -17,6 +17,8 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install -r requirements.txt
+      # 合订本中文分词（人名/机构名识别）：只给归档任务装，线上服务镜像不依赖 jieba
+      - run: pip install jieba==0.42.1
       - name: Build daily archive and timeline
         env:
           ZHIHU_ACCESS_SECRET: ${{ secrets.ZHIHU_ACCESS_SECRET }}

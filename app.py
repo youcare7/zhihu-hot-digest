@@ -146,6 +146,44 @@ FOCUS_MAX = 60
 CONSENSUS_MAX = 80
 SIDE_LABEL_MAX = 12
 SIDE_CLAIM_MAX = 80
+SIDE_EVIDENCE_MAX = 2          # 每派最多绑定 2 条代表回答
+# 两派观点必须各自绑定至少 1 条候选回答（编号映射回搜索 API 原始链接）；
+# 绑定不上即视为「两派不成立」，按完整性闸门降级为待验证。0 = 宽松：保留两派，只附上能绑定的回答。
+SIDES_REQUIRE_EVIDENCE = os.environ.get("SIDES_REQUIRE_EVIDENCE", "1") != "0"
+SIDE_EXCERPT_MAX = 60          # 每派所引回答的原文摘录长度（取自搜索接口原文，不经模型改写）
+
+# ---- 防幻觉透明度：本次生成中各道校验实际拦下了什么 ----
+# 只由代码计数，不经模型；build_brief / build_brief_mock 开始时清零，结果写入简报的 guard_stats。
+# 只统计本次新生成的条目（增量刷新复用的条目不重复计数）；收尾补跑会再处理一次降级条目，计数会累加。
+GUARD_STAT_KEYS = (
+    "reading_index_dropped",     # 延伸阅读：编号越界 / 非整数
+    "reading_link_dropped",      # 延伸阅读：候选池外或非知乎域名
+    "reading_dup_dropped",       # 延伸阅读：同一链接重复引用
+    "sides_evidence_dropped",    # 两派依据：编号非法或链接非知乎
+    "sides_shared_removed",      # 两派依据：同一回答被两派同时引用而移除
+    "dispute_downgraded",        # 声称真分歧但凑不出两派 → 待验证
+    "dispute_no_evidence",       # 两派成型但未能各自绑定回答 → 待验证
+    "crosscheck_source_dropped", # 跨平台核验：信源编号不在全网搜索结果内
+)
+_GUARD_STATS: dict = {k: 0 for k in GUARD_STAT_KEYS}
+
+
+def _guard(key: str, n: int = 1) -> None:
+    if n > 0 and key in _GUARD_STATS:
+        _GUARD_STATS[key] += n
+
+
+def _reset_guard_stats() -> None:
+    for k in GUARD_STAT_KEYS:
+        _GUARD_STATS[k] = 0
+
+
+def _guard_snapshot(items: list, reused: int = 0) -> dict:
+    out = {k: _GUARD_STATS.get(k, 0) for k in GUARD_STAT_KEYS}
+    healthy = sum(1 for it in items if isinstance(it, dict) and it.get("background") != NO_BACKGROUND)
+    out["items_reused"] = reused
+    out["items_generated"] = max(0, healthy - reused)
+    return out
 GAP_MAX = 100
 REASON_MAX = 30                # 延伸阅读推荐理由上限，与 PROMPT「reason ≤30 字」一致
 
@@ -181,15 +219,19 @@ PROMPT_TEMPLATE = (
     "撤稿决定」）＋它可能的出处（哪个机构、哪份文件、哪个数据库）。"
     "若确实不存在任何可核验的公开材料，必须原样写「目前无公开可核验材料」，"
     "不要写「需要更多信息」「缺乏一手材料」这类无法行动的描述；"
-    "写时间性边界（如「正片开播前无法判定」）也算合格。\n\n"
+    "写时间性边界（如「正片开播前无法判定」）也算合格。\n"
+    "  · gap_query：≤20 字，2–4 个用空格分隔的关键词，概括 gap 里那份材料，供程序去知乎站内搜索；"
+    "优先用标准号、文件名、机构名、案件名，不要写句子；gap 为「目前无公开可核验材料」时填空字符串。\n\n"
     "仅当 type=dispute 时额外填：\n"
     "  · claim_type：这条分歧的性质，四选一：\n"
     "      fact（可裁决）：双方对同一事实给出不同版本，补齐数据/官方口径即可判定谁对。\n"
     "      inference（推测对推测）：双方都在推测内部机制/动机，谁都没有公开证据。\n"
     "      impression（观感对观感）：双方基于各自观感下判断，缺客观指标。\n"
     "      value（价值判断）：分歧源于价值观不同，再多事实也裁决不了。\n"
-    "  · sides：恰好 2 个，每个含 label（≤12 字，给这一派起个名字，如「技术派」「运力派」）"
-    "和 claim（≤80 字，用这一派自己的逻辑复述其主张）。两派必须真的对立。\n"
+    "  · sides：恰好 2 个，每个含 label（≤12 字，给这一派起个名字，如「技术派」「运力派」）、"
+    "claim（≤80 字，用这一派自己的逻辑复述其主张）和 evidence（1–2 个候选编号，"
+    "指向最能代表这一派观点的回答）。两派必须真的对立；同一条候选不能同时作为两派的依据。"
+    "如果在候选里找不到能分别代表两派的回答，说明站内并没有成型的两派，请判为 consensus 或 verify。\n"
     "  · consensus：≤80 字，写双方都不否认的事实底座；若确实没有，填空字符串。\n\n"
     "仅当 type=consensus 或 verify 时：\n"
     "  · consensus：≤80 字，写站内无争议的那个结论（verify 类型下写「已被证实的部分」）。\n"
@@ -205,8 +247,8 @@ PROMPT_TEMPLATE = (
     '"claim_type":"fact|inference|impression|value 或 null",'
     '"background":"...","focus":"...",'
     '"consensus":"...",'
-    '"sides":[{{"label":"...","claim":"..."}},{{"label":"...","claim":"..."}}],'
-    '"gap":"...",'
+    '"sides":[{{"label":"...","claim":"...","evidence":[1]}},{{"label":"...","claim":"...","evidence":[3]}}],'
+    '"gap":"...","gap_query":"...",'
     '"reading":[{{"index":1,"reason":"..."}},{{"index":2,"reason":"..."}}]}}'
 )
 
@@ -345,6 +387,9 @@ GEN_BUDGET_SECONDS = _env_int("GEN_BUDGET_SECONDS", 180, minimum=0)
 # 富化 pass 的独立追加预算（秒）：主生成慢时整批预算会被耗尽，
 # 富化与主生成共享 deadline 会一启动就被「预算耗尽」打断（065 线上实测 0 条富化）。
 ENRICH_BUDGET_SECONDS = _env_int("ENRICH_BUDGET_SECONDS", 120, minimum=0)
+# 富化配额底线：当日直答剩余配额低于此值时跳过富化（锐评/站队等可选组件），
+# 把配额留给后续刷新中新上榜条目的主生成。0 = 不设底线。
+ENRICH_QUOTA_RESERVE = _env_int("ENRICH_QUOTA_RESERVE", 0, minimum=0)
 _GEN_DEADLINE = 0.0  # monotonic 时间戳；0 表示本批不设预算；仅由 build_brief 写入/清除
 
 # 缓存有效期（小时）：过期后由访问流量惰性触发后台刷新（stale-while-revalidate），
@@ -667,11 +712,16 @@ def assemble_reading(model_output: dict, candidates: list) -> list:
             # bool 是 int 的子类：True/False 不是合法编号，必须显式排除，
             # 否则模型没给出编号时程序会静默替它选中第 1/0 条候选。
             if isinstance(idx, bool) or not isinstance(idx, int) or not (1 <= idx <= len(candidates)):
+                _guard("reading_index_dropped")
                 continue  # 非整数编号或越界，丢弃
             src = candidates[idx - 1]
             url = src.get("Url")
-            if not url or url not in allowed or not _is_zhihu_url(url) or url in seen_urls:
-                continue  # 池外、非知乎域名或重复引用均丢弃
+            if url and url in seen_urls:
+                _guard("reading_dup_dropped")
+                continue  # 重复引用丢弃
+            if not url or url not in allowed or not _is_zhihu_url(url):
+                _guard("reading_link_dropped")
+                continue  # 池外或非知乎域名丢弃
             reading.append({
                 "title": str(src.get("Title", "")),
                 "url": url,
@@ -730,13 +780,52 @@ def sanitize_claim_type(value, item_type: str) -> str:
     return v if v in VALID_CLAIM_TYPES else ""
 
 
-def sanitize_sides(value, item_type: str) -> list:
+def _side_evidence(raw_evidence, candidates: list) -> list:
+    """把一派给出的候选编号映射成 {title, url}：规则与延伸阅读相同——
+    必须是候选池内的整数编号（bool 不算），链接必须是知乎域名，去重，最多 SIDE_EVIDENCE_MAX 条。"""
+    if isinstance(raw_evidence, (int, str)) and not isinstance(raw_evidence, bool):
+        raw_evidence = [raw_evidence]
+    if not isinstance(raw_evidence, list):
+        return []
+    out, seen = [], set()
+    for idx in raw_evidence:
+        if len(out) >= SIDE_EVIDENCE_MAX:
+            break
+        if isinstance(idx, bool) or not isinstance(idx, int) or not (1 <= idx <= len(candidates)):
+            _guard("sides_evidence_dropped")
+            continue
+        src = candidates[idx - 1]
+        if not isinstance(src, dict):
+            _guard("sides_evidence_dropped")
+            continue
+        url = str(src.get("Url") or "").strip()
+        if url in seen:
+            continue
+        if not _is_zhihu_url(url):
+            _guard("sides_evidence_dropped")
+            continue
+        seen.add(url)
+        entry = {"title": str(src.get("Title") or "").strip(), "url": url}
+        # 原文摘录：取自搜索接口返回的 ContentText，只做空白归一与截断，不经模型改写，
+        # 供读者把模型写的 claim 和原回答直接对照。
+        excerpt = _clip(re.sub(r"\s+", " ", str(src.get("ContentText") or "")).strip(), SIDE_EXCERPT_MAX)
+        if excerpt:
+            entry["excerpt"] = excerpt
+        out.append(entry)
+    return out
+
+
+def sanitize_sides(value, item_type: str, candidates: list | None = None) -> list:
     """
     只接受恰好 2 个成型阵营；不足 2 个则整体丢弃。
 
-    这是结构完整性闸门，不是事实核验器：它只检查两个阵营的 label / claim 非空，
-    不能证明主张真实、两派真正对立，或观点已逐条绑定到某个候选回答。
-    内容判断仍需读者点击原文复核。
+    传入 candidates 时，每派的 evidence 编号会映射回候选回答的真实知乎链接
+    （与延伸阅读同一套编号映射 + 域名校验）。同一条候选不能同时支撑对立的两派，
+    出现在两边的链接从两边都去掉。SIDES_REQUIRE_EVIDENCE 开启时（默认），
+    任一派绑定不上回答就整体丢弃——让「两派真实存在」可以被读者点开核验，
+    而不是只看模型的复述。
+
+    这仍不是事实核验器：它证明每派「有站内回答作代表」，不证明主张本身正确。
     """
     if item_type != TYPE_DISPUTE:
         return []
@@ -749,8 +838,22 @@ def sanitize_sides(value, item_type: str) -> list:
         label = _clip(raw.get("label"), SIDE_LABEL_MAX)
         claim = _clip(raw.get("claim"), SIDE_CLAIM_MAX)
         if label and claim:
-            out.append({"label": label, "claim": claim})
-    return out if len(out) == 2 else []
+            side = {"label": label, "claim": claim}
+            if candidates is not None:
+                side["evidence"] = _side_evidence(raw.get("evidence"), candidates)
+            out.append(side)
+    if len(out) != 2:
+        return []
+    if candidates is None:
+        return out
+    shared = {e["url"] for e in out[0]["evidence"]} & {e["url"] for e in out[1]["evidence"]}
+    _guard("sides_shared_removed", len(shared))
+    if shared:
+        for side in out:
+            side["evidence"] = [e for e in side["evidence"] if e["url"] not in shared]
+    if SIDES_REQUIRE_EVIDENCE and not all(side["evidence"] for side in out):
+        return []
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -989,12 +1092,17 @@ def process_item(rank: int, hot: dict) -> dict:
         model_output = generate(title, build_candidates_text(candidates))
 
         item_type = sanitize_type(model_output.get("type"))
-        sides = sanitize_sides(model_output.get("sides"), item_type)
+        sides = sanitize_sides(model_output.get("sides"), item_type, candidates)
 
-        # 完整性闸门：说是分歧却凑不出两派 → 降级为待验证，并记日志
+        # 完整性闸门：说是分歧却凑不出两派、或两派绑定不到站内回答 → 降级为待验证，并记日志
         if item_type == TYPE_DISPUTE and not sides:
             item_type = TYPE_VERIFY
-            _log(f"  第 {rank} 条声明 dispute 但未给出两个成型阵营，降级为 verify")
+            if sanitize_sides(model_output.get("sides"), TYPE_DISPUTE):
+                _guard("dispute_no_evidence")
+                _log(f"  第 {rank} 条声明 dispute 但两派未能各自绑定候选回答，降级为 verify")
+            else:
+                _guard("dispute_downgraded")
+                _log(f"  第 {rank} 条声明 dispute 但未给出两个成型阵营，降级为 verify")
 
         item["type"] = item_type
         item["claim_type"] = sanitize_claim_type(model_output.get("claim_type"), item_type)
@@ -1011,6 +1119,9 @@ def process_item(rank: int, hot: dict) -> dict:
 
         gap = _clip(model_output.get("gap"), GAP_MAX)
         item["gap"] = gap if gap else EMPTY_GAP
+        gap_query = sanitize_gap_query(model_output.get("gap_query"))
+        if gap_query and item["gap"] != EMPTY_GAP:
+            item["gap_query"] = gap_query
 
         item["reading"] = assemble_reading(model_output, candidates)
 
@@ -1174,7 +1285,7 @@ def _pool_put(items: list) -> None:
         _log(f"条目池落盘失败（不影响本次生成，只是下次少复用）：{exc}")
 
 
-_REUSE_ENRICH_FIELDS = ("punch", "vote", "quotes", "lou", "crosscheck", "web_evidence")
+_REUSE_ENRICH_FIELDS = ("punch", "vote", "quotes", "lou", "crosscheck", "web_evidence", "gap_link")
 
 
 def _merge_reuse(cached, pooled: dict) -> dict:
@@ -1257,6 +1368,7 @@ def build_brief() -> dict:
     # 进程内内存状态，不假装跨进程持久化（任务书 §2 明确此边界可接受）。
     _WEB_SEARCH_TRIED.clear()
     _WEB_EVIDENCE_BUDGET = 3
+    _reset_guard_stats()
 
     # 整批软预算：耗尽后 _chat_with_retry 停止新尝试、补跑跳过，已生成条目照常保留；
     # 不杀线程，冷却与劣化结果覆盖规则仍由 generate_and_cache 的既有逻辑负责。
@@ -1323,19 +1435,28 @@ def build_brief() -> dict:
         # 富化使用独立追加预算：主生成耗尽整批预算后仍可执行。
         _extend_deadline_for_enrichment()
         _run_enrichment_pass(items)
-        # 跨平台核验（微博情绪/知乎切面/事实信源）：依赖 web_search 配额（默认 0），
+        # 跨平台核验（事实信源 + 可选的站外讨论/知乎切面）：依赖 web_search 配额（默认 0），
         # 配额为 0 时本 pass 静默跳过，不影响任何已有功能。
         _extend_deadline_for_crosscheck()
         _run_crosscheck_pass(items)
+        # 缺口的站内相关讨论：用缺口关键词再搜一次知乎站内，代码按关键词打分，不调模型；
+        # 只消耗站内搜索配额（每份简报最多 GAP_LINK_MAX 次），配额不足时静默跳过。
+        # 可选组件：任何异常只记日志，绝不让整份简报生成失败。
+        try:
+            _run_gap_link_pass(items)
+        except Exception as exc:
+            _log(f"缺口站内搜索异常，已跳过（不影响简报）：{exc}")
         # 富化与跨平台核验后的版本回写条目池，供后续增量刷新复用
         _pool_put(items)
 
+        guard_stats = _guard_snapshot(items, reused)
         return {
             "date": today_str(),
             "source": "live",
             "generated_at": now_str(),
             "notice": notice,
             "digest": build_digest(items),
+            "guard_stats": guard_stats,
             "items": items,
         }
     finally:
@@ -1500,6 +1621,13 @@ def _extend_deadline_for_enrichment() -> None:
         _GEN_DEADLINE = time.monotonic() + ENRICH_BUDGET_SECONDS
 
 
+def _zhida_remaining() -> int | None:
+    """当日直答剩余配额；配额守卫关闭时返回 None（不设底线）。"""
+    if QUOTA_GUARD_DISABLED:
+        return None
+    return max(0, QUOTA_LIMITS.get("zhida", 0) - _QUOTA.used("zhida"))
+
+
 def _extend_deadline_for_crosscheck() -> None:
     """给 crosscheck pass 追加独立预算，避免共享富化后的 deadline 导致全量跳过。"""
     global _GEN_DEADLINE
@@ -1509,7 +1637,11 @@ def _extend_deadline_for_crosscheck() -> None:
 
 def _run_enrichment_pass(items: list) -> None:
     """主生成完成后统一富化。mock 不联网直接跳过；逐条推进，
-    配额耗尽提前结束——已生成条目照常服务，缺的只是可选组件。"""
+    配额耗尽提前结束——已生成条目照常服务，缺的只是可选组件。
+
+    每条富化前检查直答剩余配额：低于 ENRICH_QUOTA_RESERVE 即停止，避免冷启动或
+    热榜大换血时富化吃光配额，后续刷新连新上榜条目的主生成都做不了。
+    单条最多 2 次调用，因此停止时剩余配额可能比底线略低 1–2 次。"""
     if MOCK_MODE or not items:
         return
     enriched = 0
@@ -1517,6 +1649,11 @@ def _run_enrichment_pass(items: list) -> None:
     for item in items:
         if _zhida_stage_exhausted(zhida_start, ZHIDA_ENRICH_BUDGET, ZHIDA_CROSSCHECK_BUDGET):
             _log(f"富化分层预算耗尽（{ZHIDA_ENRICH_BUDGET} 次），提前结束富化 pass（已富化 {enriched} 条锐评）")
+            return
+        remaining = _zhida_remaining()
+        if ENRICH_QUOTA_RESERVE and remaining is not None and remaining < ENRICH_QUOTA_RESERVE:
+            _log(f"直答剩余配额 {remaining} 次，低于富化底线 {ENRICH_QUOTA_RESERVE}，"
+                 f"跳过其余富化（已富化 {enriched} 条锐评）")
             return
         if not _enrich_item(item):
             _log(f"富化配额/预算耗尽，提前结束富化 pass（已富化 {enriched} 条锐评）")
@@ -1529,10 +1666,12 @@ def _run_enrichment_pass(items: list) -> None:
 # ---------------------------------------------------------------------------
 # 跨平台核验 crosscheck pass（2026-11-26）：059 线上快照的全功能对照中唯一
 # 没有任何管线产出过的字段（此前只存在于人工富化数据）。用知乎全网搜索拿
-# 真实站外信源（URL 白名单校验，模型不得自造链接），直答生成微博情绪 /
-# 知乎切面 / 事实核验三段摘要。web_search 配额默认 0 时本 pass 静默跳过。
+# 真实站外信源（URL 白名单校验，模型不得自造链接），直答生成事实核验（必填），
+# 站外讨论 / 知乎切面两段为可选。web_search 配额默认 0 时本 pass 静默跳过。
 # ---------------------------------------------------------------------------
-CROSSCHECK_MAX = _env_int("CROSSCHECK_MAX", 10, minimum=0)
+# 每份简报最多核验条数。默认 3：每条核验消耗 1 次全网搜索 + 1–2 次直答，
+# 按 _crosscheck_priority 优先覆盖最需要站外信源的条目。
+CROSSCHECK_MAX = _env_int("CROSSCHECK_MAX", 3, minimum=0)
 CROSSCHECK_LINE_MAX = 40
 CROSSCHECK_FACT_MAX = 80
 CROSSCHECK_SOURCE_NAME_MAX = 20
@@ -1594,16 +1733,17 @@ def _build_crosscheck_prompt(item: dict, candidates: list) -> str:
     lines += [
         "",
         "【输出 JSON 结构】只输出一个 JSON 对象，不要 markdown 代码块、不要解释文字：",
-        '{"weibo":"≤40 字：其他平台（微博/社媒）上的大众情绪走向",'
-        '"zhihu":"≤40 字：知乎站内的讨论切面（角度/画风）",'
-        '"fact":"≤80 字：基于材料能核实到哪一步、还缺什么",'
+        '{"fact":"≤80 字：基于材料能核实到哪一步、还缺什么（必填）",'
         '"verdict":"≤60 字：跨平台综合判断——各平台在吵的是不是同一件事、缺什么才能把讨论拉回同一层面",'
-        '"sources":[{"name":"≤20 字信源名","index":1,"role":"≤8 字该信源内容的角色，如 当事人声明/深度归因/民间体感/实测拆解/时间线锚点"}]}',
+        '"sources":[{"name":"≤20 字信源名","index":1,"role":"≤8 字该信源内容的角色，如 当事人声明/深度归因/民间体感/实测拆解/时间线锚点"}],'
+        '"weibo":"可选，≤40 字：材料中站外（媒体/社交平台）讨论的走向；材料里没有就填空字符串",'
+        '"zhihu":"可选，≤40 字：知乎站内的讨论切面；材料里没有就填空字符串"}',
         "",
         "【硬性要求】",
         "1. sources 只能选上面的搜索结果，index 必须对应编号，最多 2 条。",
         "2. 材料不足以支撑某项时如实写明，禁止编造情绪、数据或信源。",
-        "3. verdict 只综合上面给出的材料，不得引入新材料、新机构名。",
+        "3. weibo / zhihu 为可选：材料中看不到站外或站内讨论时直接留空，不要为了填满字段去推测。",
+        "4. verdict 只综合上面给出的材料，不得引入新材料、新机构名。",
     ]
     return "\n".join(lines)
 
@@ -1631,14 +1771,17 @@ def _is_safe_crosscheck_url(url) -> bool:
 
 
 def _sanitize_crosscheck(raw: dict, candidates: list) -> dict | None:
-    """校验 crosscheck 输出：三段摘要齐全 + 至少 1 个白名单信源，否则整体丢弃。
+    """校验 crosscheck 输出：必须有 fact（事实核验）+ 至少 1 个白名单信源，否则整体丢弃。
+
+    weibo（站外讨论走向，字段名沿用以兼容旧快照）与 zhihu（知乎切面）为可选：
+    很多知乎话题在站外并无实质讨论，强制要求只会让核验被丢弃，或诱导模型硬凑。
     sources 的 URL 只能来自 api_web_search 的真实返回（编号映射），模型无权自造。"""
     if not isinstance(raw, dict):
         return None
     weibo = _clip(raw.get("weibo"), CROSSCHECK_LINE_MAX)
     zhihu = _clip(raw.get("zhihu"), CROSSCHECK_LINE_MAX)
     fact = _clip(raw.get("fact"), CROSSCHECK_FACT_MAX)
-    if not (weibo and zhihu and fact):
+    if not fact:
         return None
     allowed = {}
     for idx, c in enumerate(candidates[:5], 1):
@@ -1657,6 +1800,8 @@ def _sanitize_crosscheck(raw: dict, candidates: list) -> dict | None:
             if not isinstance(s, dict):
                 continue
             url = allowed.get(s.get("index"))
+            if not url:
+                _guard("crosscheck_source_dropped")
             name = _clip(s.get("name"), CROSSCHECK_SOURCE_NAME_MAX)
             if url and name and url not in seen:
                 seen.add(url)
@@ -1664,7 +1809,11 @@ def _sanitize_crosscheck(raw: dict, candidates: list) -> dict | None:
                                 "role": _clip(s.get("role"), XP_ROLE_MAX)})
     if not sources:
         return None
-    out = {"weibo": weibo, "zhihu": zhihu, "fact": fact, "sources": sources}
+    out = {"fact": fact, "sources": sources}
+    if weibo:
+        out["weibo"] = weibo
+    if zhihu:
+        out["zhihu"] = zhihu
     verdict = _clip(raw.get("verdict"), CROSSCHECK_VERDICT_MAX)
     if verdict:
         out["verdict"] = verdict
@@ -1769,14 +1918,28 @@ def _crosscheck_item(item: dict) -> bool:
     return True
 
 
+def _crosscheck_priority(item) -> int:
+    """核验优先级（小者优先）：待验证 → 可裁决事实之争 → 其余。
+
+    这两类条目的缺口正是「缺一手事实材料」，站外公开信源最能帮上忙。"""
+    if not isinstance(item, dict):
+        return 9
+    if item.get("type") == TYPE_VERIFY:
+        return 0
+    if item.get("type") == TYPE_DISPUTE and item.get("claim_type") == "fact":
+        return 1
+    return 2
+
+
 def _run_crosscheck_pass(items: list) -> None:
-    """主生成与富化完成后统一核验。CROSSCHECK_MAX 限制每份简报最多核验条数；
+    """主生成与富化完成后统一核验。CROSSCHECK_MAX 限制每份简报最多核验条数，
+    按 _crosscheck_priority 排序处理（稳定排序：同级按热榜排名），不改变简报条目顺序；
     web_search 配额（QUOTA_WEB_SEARCH_DAILY，默认 0）不足时静默少做或跳过。"""
     if MOCK_MODE or not items or CROSSCHECK_MAX <= 0:
         return
     done = 0
     zhida_start = _QUOTA.used("zhida")
-    for item in items:
+    for item in sorted(items, key=_crosscheck_priority):
         if done >= CROSSCHECK_MAX:
             break
         if (ZHIDA_CROSSCHECK_BUDGET
@@ -1799,6 +1962,190 @@ def _run_crosscheck_pass(items: list) -> None:
         if item.get("crosscheck") and not had:
             done += 1
     _log(f"crosscheck pass 完成：{done} 条带跨平台核验")
+
+
+# ---------------------------------------------------------------------------
+# 缺口的站内相关讨论（2026-11-27）
+# 生成完成后，用缺口关键词在知乎站内再搜一次，按关键词命中打分挑出 0–1 条回答，
+# 展示为「站内相关讨论」。全程不调用大模型；程序不判断它是否真的补上了缺口，
+# 页面也如实这样写。人工抽测 5 条缺口中 4 条能在站内找到讨论该材料的回答。
+# ---------------------------------------------------------------------------
+GAP_LINK_MAX = _env_int("GAP_LINK_MAX", 10, minimum=0)                 # 每份简报最多搜索次数
+GAP_LINK_RECHECK_SECONDS = _env_int("GAP_LINK_RECHECK_SECONDS", 10800, minimum=0)  # 没找到时多久后再试
+GAP_QUERY_MAX = 24
+GAP_LINK_TITLE_MAX = 40
+GAP_LINK_EXCERPT_MAX = 60
+_GAP_NO_MATERIAL = "目前无公开可核验材料"
+
+_GAP_STRONG_RES = (
+    re.compile(r"《[^》]{2,30}》"),                                    # 文件 / 书名
+    re.compile(r"\b(?:GB/T|GB|JGJ|JTG|ISO|IEC)\s?\d[\d.]*(?:-\d{4})?", re.I),  # 标准号
+    re.compile(r"[（(]\d{4}[）)][\u4e00-\u9fa5\d]{2,12}号"),             # 案号
+    re.compile(r"第[一二三四五六七八九十百\d]+条"),                       # 条款号
+    re.compile(r"\b[A-Z][A-Za-z0-9]+(?:[ .-][A-Z0-9][A-Za-z0-9]*)*\b"),  # 英文专名 / 缩写
+)
+# 英文词只有 ≥5 字符且不是泛用平台名才算 strong；VAR/FIFA 这类短缩写降为 weak，避免泛泛命中
+_GAP_STRONG_STOP = {"PDF", "APP", "THE", "AND", "GITHUB", "OPENAI", "WEIBO", "ZHIHU"}
+_GAP_SPLIT_RE = re.compile(
+    r"[，。；：、,.;:（）()“”\"'「」《》\s]+|以及|可查|可在|可向|可从|需向|另可|后续|其中|是否|"
+    r"见|查|及|与|和|或|对应|相关|原文|全文|官网|公告|发布|公开|记录|数据|说明|报告|材料|信息|一手|权威")
+_TITLE_LEAD_RE = re.compile(r"^(如何看待|如何评价|怎么看待|怎么看|为什么|为何|有没有|是否)")
+
+
+def sanitize_gap_query(value) -> str:
+    """模型给的检索词：去链接、压空白、限长；没有实义字符时返回空串。"""
+    text = re.sub(r"https?://\S+", " ", str(value or ""))
+    text = re.sub(r"\s+", " ", text).strip()[:GAP_QUERY_MAX].strip()
+    if _GAP_NO_MATERIAL in text or not re.search(r"[\u4e00-\u9fa5A-Za-z0-9]{2,}", text):
+        return ""
+    return text
+
+
+def _gap_terms(gap: str) -> tuple[list, list]:
+    """从缺口文本里按规则抽词。strong = 标准号/书名号/案号/条款号/英文专名；
+    weak = 被功能词切开后 4–10 字的中文片段。"""
+    gap = str(gap or "")
+    strong, weak_en, seen = [], [], set()
+    for rx in _GAP_STRONG_RES:
+        for m in rx.findall(gap):
+            t = m.strip()
+            if len(t) < 2 or t.upper() in _GAP_STRONG_STOP or t in seen or any(t in s for s in strong):
+                continue
+            seen.add(t)
+            if re.fullmatch(r"[A-Za-z0-9]+", t) and len(t) < 5:
+                weak_en.append(t)
+            else:
+                strong.append(t)
+    rest = gap
+    for t in strong:
+        rest = rest.replace(t, " ")
+    weak = list(weak_en)
+    for seg in _GAP_SPLIT_RE.split(rest):
+        seg = re.sub(r"^[的了在对中]+|[的了中]+$", "", seg.strip())
+        if 4 <= len(seg) <= 10 and re.fullmatch(r"[\u4e00-\u9fa5\d]+", seg) and seg not in seen:
+            seen.add(seg)
+            weak.append(seg)
+    return strong[:4], weak[:6]
+
+
+def _title_core(title: str) -> str:
+    t = _TITLE_LEAD_RE.sub("", str(title or "").strip().lstrip("「“\"'《【"))
+    t = re.split(r"[，。？！?!,：:；;「」“”]", t)[0]
+    return t[:12]
+
+
+def _gap_link_plan(item: dict) -> tuple[str, list, list]:
+    """返回 (检索词, strong 词, weak 词)。打分词剔除标题里已有的词，
+    保证命中的是「那份材料」，而不是话题本身。"""
+    gap = str(item.get("gap") or "")
+    title = str(item.get("title") or "")
+    strong, weak = _gap_terms(gap)
+    qtokens = [t for t in str(item.get("gap_query") or "").split(" ") if len(t) >= 2]
+    strong = [t for t in strong if t not in title]
+    weak_all = []
+    for t in qtokens + weak:
+        if t not in title and not any(t in s for s in strong) and t not in weak_all:
+            weak_all.append(t)
+    if item.get("gap_query"):
+        query = item["gap_query"]
+    else:
+        query = " ".join([_title_core(title)] + (strong + weak)[:2]).strip()
+    return query[:38], strong, weak_all[:8]
+
+
+def _pick_gap_link(item: dict, results: list) -> dict | None:
+    """代码打分：至少命中 1 个 strong 词，或 2 个 weak 词；同分按赞同数。
+    已在延伸阅读 / 两派依据里出现过的回答不再重复推荐。"""
+    _query, strong, weak = _gap_link_plan(item)
+    if not strong and len(weak) < 2:
+        return None
+    used = {r.get("url") for r in item.get("reading") or [] if isinstance(r, dict)}
+    for s in item.get("sides") or []:
+        for e in (s.get("evidence") or []) if isinstance(s, dict) else []:
+            if isinstance(e, dict):
+                used.add(e.get("url"))
+    # 缺口里写了年份（如「2026 三季报」）时，回答必须提到同一年份，
+    # 否则只是讲同类材料的旧文（实测：缺 2026 三季报数据，挂上了 2021 年披露规则文）。
+    years = set(re.findall(r"(?<!\d)(20\d{2})(?!\d)", str(item.get("gap") or "")))
+    best, best_key = None, None
+    for r in results or []:
+        if not isinstance(r, dict):
+            continue
+        url = str(r.get("Url") or "").strip()
+        if not _is_zhihu_url(url) or url in used:
+            continue
+        text = f"{r.get('Title') or ''} {r.get('ContentText') or ''}"
+        low = text.lower()
+        s_hit = [t for t in strong if t.lower() in low]
+        w_hit = [t for t in weak if t in text]
+        if not s_hit and len(w_hit) < 2:
+            continue
+        if years and not any(y in text or y in str(r.get("EditTime") or "") for y in years):
+            continue
+        try:
+            votes = int(r.get("VoteUpCount") or 0)
+        except (TypeError, ValueError):
+            votes = 0
+        key = (len(s_hit) * 2 + len(w_hit), votes)
+        if best_key is None or key > best_key:
+            best_key = key
+            best = {
+                "title": _clip(r.get("Title"), GAP_LINK_TITLE_MAX),
+                "url": url,
+                "author": _clip(r.get("AuthorName"), 20),
+                "excerpt": _clip(r.get("ContentText"), GAP_LINK_EXCERPT_MAX),
+                "votes": votes,
+                "matched": (s_hit + w_hit)[:3],
+            }
+    if best and not best["title"]:
+        best["title"] = "知乎回答"
+    return best
+
+
+def _gap_link_due(item: dict, now: float) -> bool:
+    gap = str(item.get("gap") or "")
+    if not gap or gap == EMPTY_GAP or _GAP_NO_MATERIAL in gap or item.get("gap_link"):
+        return False
+    if item.get("background") == NO_BACKGROUND:
+        return False
+    last = item.get("gap_link_checked")
+    return not isinstance(last, (int, float)) or now - last >= GAP_LINK_RECHECK_SECONDS
+
+
+def _run_gap_link_pass(items: list) -> None:
+    """对有证据缺口、尚无站内相关讨论的条目各搜一次站内；没找到的过 GAP_LINK_RECHECK_SECONDS
+    再试（新回答往往晚于热点出现）。按 _crosscheck_priority 优先处理待验证与事实之争。"""
+    if MOCK_MODE or not items or GAP_LINK_MAX <= 0:
+        return
+    now = time.time()
+    searched = found = 0
+    for item in sorted((it for it in items if isinstance(it, dict)), key=_crosscheck_priority):
+        if searched >= GAP_LINK_MAX:
+            break
+        if not _gap_link_due(item, now):
+            continue
+        query, _s, _w = _gap_link_plan(item)
+        if not query:
+            continue
+        try:
+            results = api_search(query, SEARCH_COUNT)
+        except UpstreamError as exc:
+            if "配额" in str(exc):
+                _log("缺口站内搜索：站内搜索配额不足，提前结束")
+                break
+            _log(f"  第 {item.get('rank')} 条缺口站内搜索失败：{exc}")
+            continue
+        except Exception as exc:
+            _log(f"  第 {item.get('rank')} 条缺口站内搜索异常：{exc}")
+            continue
+        searched += 1
+        item["gap_link_checked"] = now
+        pick = _pick_gap_link(item, results)
+        if pick:
+            item["gap_link"] = pick
+            found += 1
+    if searched:
+        _log(f"缺口站内搜索完成：搜索 {searched} 次，{found} 条找到站内相关讨论")
 
 
 def build_digest(items: list) -> dict:
@@ -1989,8 +2336,8 @@ def mock_generate(title: str, candidates_text: str) -> str:
             "focus": "模拟聚焦问题：这件事真正值得回答的是哪一点？",
             "consensus": "模拟共识：双方都承认这是一个需要被认真对待的问题。",
             "sides": [
-                {"label": "支持派", "claim": _a},
-                {"label": "反对派", "claim": _b},
+                {"label": "支持派", "claim": _a, "evidence": [1]},
+                {"label": "反对派", "claim": _b, "evidence": [2]},
             ],
             "gap": "模拟缺口：缺少可核对的官方口径与量化数据。",
         }
@@ -2021,6 +2368,7 @@ def mock_generate(title: str, candidates_text: str) -> str:
 
 def build_brief_mock() -> dict:
     _log("mock 模式：使用本地模拟数据（页面已标注「模拟数据」）")
+    _reset_guard_stats()
     items = []
     for rank, hot in enumerate(mock_hot_list(), 1):
         item = process_item(rank, hot)  # 内部自动走 mock 搜索 / mock 大模型
@@ -2031,6 +2379,7 @@ def build_brief_mock() -> dict:
         "generated_at": now_str() + "（模拟）",
         "notice": NOTICE_MOCK,
         "digest": build_digest(items),
+        "guard_stats": _guard_snapshot(items),
         "items": items,
     }
 
@@ -2209,12 +2558,55 @@ def generate_and_cache() -> dict:
     return data
 
 
+FALLBACK_PREV_MAX_DAYS = _env_int("FALLBACK_PREV_MAX_DAYS", 2, minimum=0)  # 0 = 不用前一天简报兜底
+
+
+def _load_previous_brief() -> dict | None:
+    """跨天空窗期（今天的简报还没生成）优先用最近一天的程序生成简报，
+    而不是更旧的 fallback.json。只接受 source=live、非模拟、非人工整理、
+    且不早于 FALLBACK_PREV_MAX_DAYS 天的缓存；任何异常都返回 None。"""
+    if FALLBACK_PREV_MAX_DAYS <= 0:
+        return None
+    try:
+        today = datetime.date.fromisoformat(today_str())
+        best = None
+        for p in DATA_DIR.glob("brief_*.json"):
+            m = re.fullmatch(r"brief_(\d{4}-\d{2}-\d{2})\.json", p.name)
+            if not m:
+                continue
+            day = datetime.date.fromisoformat(m.group(1))
+            if not (0 < (today - day).days <= FALLBACK_PREV_MAX_DAYS):
+                continue
+            if best is None or day > best[0]:
+                best = (day, p)
+        if best is None:
+            return None
+        data = json.loads(best[1].read_text(encoding="utf-8"))
+        if (not isinstance(data, dict) or data.get("source") != "live"
+                or data.get("provenance") == "curated" or is_simulated_brief(data)
+                or not isinstance(data.get("items"), list) or not data["items"]):
+            return None
+        data["date"] = best[0].isoformat()
+        data["notice"] = (f"今天的简报还在生成，先展示 {best[0].isoformat()} 由程序生成的简报，"
+                          "生成后自动切换。AI 内容仅供参考。")
+        return data
+    except Exception as exc:
+        _log(f"前一天简报不可用，改用静态兜底：{exc}")
+        return None
+
+
 def load_fallback() -> dict:
     """FR-08：任何异常下都返回可渲染的兜底数据，保证页面不白屏。
+    优先级：最近一天的程序生成简报 → fallback.json → 内存最小结构。
 
     fallback.json 缺失/损坏/结构不合法时退回内存最小结构；旧写法在这里抛异常，
     会让 get_brief 的兜底分支二次失败，最终 /data.js 返回 500。
     """
+    data = _load_previous_brief()
+    if data is not None:
+        data["source"] = "fallback"
+        data.pop("guard_stats", None)
+        return annotate_provenance(data)
     try:
         data = json.loads(FALLBACK_PATH.read_text(encoding="utf-8"))
         if not isinstance(data, dict) or not isinstance(data.get("items"), list):
@@ -2229,6 +2621,7 @@ def load_fallback() -> dict:
     data["date"] = data.get("date") or today_str()
     data["generated_at"] = data.get("generated_at") or now_str()
     data["source"] = "fallback"
+    data.pop("guard_stats", None)  # 拦截统计只属于生成它的那一次，兜底时不展示
     return annotate_provenance(data)
 
 
@@ -2721,6 +3114,7 @@ def load_showcase() -> dict | None:
     data["source"] = "cache"
     data["showcase"] = True
     data["notice"] = NOTICE_SHOWCASE
+    data.pop("guard_stats", None)
     data.pop("refreshing", None)
     data.pop("retry_after", None)
     return data

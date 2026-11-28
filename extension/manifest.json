@@ -1,8 +1,13 @@
 {
   "manifest_version": 3,
   "name": "热榜深潜简报 · 求真标签",
-  "version": "0.1.0",
-  "description": "在知乎热榜给今日深读条目盖求真印章：吵翻天 / 缺关键证据 / 有定论 / 已实锤，悬停看锐评与双方金句。",
+  "version": "0.2.0",
+  "description": "在知乎热榜给今日深读条目盖求真印章：吵翻天 / 缺关键证据 / 有定论 / 已实锤，悬停看锐评与双方金句。判读每天自动从热榜深潜简报站点读取。",
+  "permissions": ["storage"],
+  "host_permissions": ["https://zhihu-hot-digest-348140-5-1533039364.sh.run.tcloudbase.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
   "content_scripts": [
     {
       "matches": [
