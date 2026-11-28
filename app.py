@@ -1976,6 +1976,10 @@ GAP_QUERY_MAX = 24
 GAP_LINK_TITLE_MAX = 40
 GAP_LINK_EXCERPT_MAX = 60
 _GAP_NO_MATERIAL = "目前无公开可核验材料"
+# 缺口要求「施行后/正式生效后」的既成结果时，候选如果只在讲「草案/征求意见稿/拟」
+# 阶段，即便关键词命中也不算数——这是材料阶段不对，不是材料找错了主题。
+_GAP_STAGE_AFTER_RE = re.compile(r"施行后|正式实施|生效后|落地后|出台后")
+_GAP_STAGE_DRAFT_RE = re.compile(r"征求意见稿|草案|拟修订|拟出台|拟施行")
 
 _GAP_STRONG_RES = (
     re.compile(r"《[^》]{2,30}》"),                                    # 文件 / 书名
@@ -2057,8 +2061,12 @@ def _pick_gap_link(item: dict, results: list) -> dict | None:
     """代码打分：至少命中 1 个 strong 词，或 2 个 weak 词；同分按赞同数。
     已在延伸阅读 / 两派依据里出现过的回答不再重复推荐。"""
     _query, strong, weak = _gap_link_plan(item)
-    if not strong and len(weak) < 2:
+    # 普通词命中门槛从 2 提到 3：像 SEC/8-K 这类短词（<5 字符）本来就弱，在大量
+    # 无关财经文里都会出现，只命中 2 个仍常常是沾边不对题（实测：SEC/8-K 命中
+    # 命中了「特朗普赦免马斯克」一类不相关的文章）。强词命中 1 个仍然够。
+    if not strong and len(weak) < 3:
         return None
+    gap_after = bool(_GAP_STAGE_AFTER_RE.search(str(item.get("gap") or "")))
     used = {r.get("url") for r in item.get("reading") or [] if isinstance(r, dict)}
     for s in item.get("sides") or []:
         for e in (s.get("evidence") or []) if isinstance(s, dict) else []:
@@ -2078,7 +2086,9 @@ def _pick_gap_link(item: dict, results: list) -> dict | None:
         low = text.lower()
         s_hit = [t for t in strong if t.lower() in low]
         w_hit = [t for t in weak if t in text]
-        if not s_hit and len(w_hit) < 2:
+        if not s_hit and len(w_hit) < 3:
+            continue
+        if gap_after and _GAP_STAGE_DRAFT_RE.search(text):
             continue
         if years and not any(y in text or y in str(r.get("EditTime") or "") for y in years):
             continue
