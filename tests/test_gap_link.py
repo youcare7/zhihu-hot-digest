@@ -121,7 +121,8 @@ class TestGapLink(AppStateTestCase):
         old = {"Title": "年报季报预告快报披露规则大全", "Url": "https://zhuanlan.zhihu.com/p/353380021",
                "ContentText": "创业板 三季报 业绩预告 披露规则", "EditTime": "2021-03-01"}
         self.assertIsNone(app._pick_gap_link(it, [old]), "旧年份的同类文章不能入选")
-        new = dict(old, Url="https://zhuanlan.zhihu.com/p/2", ContentText="创业板2026三季报业绩汇总")
+        new = dict(old, Url="https://zhuanlan.zhihu.com/p/2",
+                  ContentText="创业板2026三季报业绩汇总，深交所披露数据")  # 补第 3 个弱词命中（披露），凑够新门槛
         self.assertEqual(app._pick_gap_link(it, [old, new])["url"], new["Url"])
 
     def test_previous_day_brief_used_as_fallback(self):
@@ -146,6 +147,24 @@ class TestGapLink(AppStateTestCase):
         (self.tmp_path / f"brief_{prev}.json").write_text(json.dumps(
             {"source": "demo", "items": [{"rank": 1}]}), encoding="utf-8")
         self.assertIsNone(app._load_previous_brief(), "模拟数据不用")
+
+    def test_weak_match_needs_three_hits_now(self):
+        it = item(gap="需要 SEC 8-K/DEF 14A 披露文件核实该交易细节。", gap_query="SEC 8-K DEF 14A")
+        two_hit = {"Title": "特朗普赦免马斯克事件始末", "Url": "https://zhuanlan.zhihu.com/p/1",
+                   "ContentText": "SEC 要求披露 8-K 文件，总统特朗普赦免引发争议", "VoteUpCount": 500}
+        self.assertIsNone(app._pick_gap_link(it, [two_hit]), "只命中 2 个弱词、沾边不对题的文章不能入选")
+        three_hit = dict(two_hit, Url="https://zhuanlan.zhihu.com/p/2",
+                         ContentText="该交易按 SEC 8-K 与 DEF 14A 披露要求提交文件")
+        self.assertEqual(app._pick_gap_link(it, [two_hit, three_hit])["url"], three_hit["Url"])
+
+    def test_draft_stage_rejected_when_gap_wants_after_effect(self):
+        it = item(gap="需要新规正式实施后的利率与备案额度实测数据。", gap_query="新规施行后 利率 备案额度")
+        draft = {"Title": "新规征求意见稿都说了什么", "Url": "https://zhuanlan.zhihu.com/p/3",
+                 "ContentText": "征求意见稿草案里利率备案额度这样写", "VoteUpCount": 300}
+        self.assertIsNone(app._pick_gap_link(it, [draft]), "缺口要施行后结果，候选还在讲草案阶段不能入选")
+        after = {"Title": "新规正式施行，利率与备案额度新口径", "Url": "https://zhuanlan.zhihu.com/p/4",
+                "ContentText": "新规施行后，利率与备案额度按新口径执行", "VoteUpCount": 500}
+        self.assertEqual(app._pick_gap_link(it, [draft, after])["url"], after["Url"])
 
     def test_pass_failure_never_breaks_build(self):
         src_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "app.py")
