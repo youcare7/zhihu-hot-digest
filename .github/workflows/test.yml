@@ -117,18 +117,10 @@ jobs:
       - name: 构建镜像
         run: docker build -t zhihu-hot-digest:ci .
 
-      # 临时诊断：冒烟写 /tmp 失败（curl 23）排查磁盘占用，不改任何断言
-      - name: 磁盘占用（诊断）
-        run: |
-          df -h / /tmp /var/lib/docker 2>/dev/null || df -h
-          du -sh /var/lib/docker 2>/dev/null || true
-
       - name: 以 mock 模式启动并探活
         shell: bash
         run: |
           set -euo pipefail
-          trap 'echo "--- disk at failure ---"; df -h / /tmp; ls -la /tmp | head -20' ERR
-          df -h /tmp
           docker run -d --name app -p 5000:5000 -e MOCK_MODE=1 zhihu-hot-digest:ci
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:5000/healthz > /tmp/healthz.json; then break; fi
@@ -136,7 +128,6 @@ jobs:
           done
           echo "healthz: $(cat /tmp/healthz.json)"
           grep -q '"status": "ok"' /tmp/healthz.json
-          df -h /tmp
 
           curl -fsS http://127.0.0.1:5000/ -o /tmp/index.html
           grep -q '<script src="data.js' /tmp/index.html
